@@ -11,8 +11,12 @@ export default function DailyQuote() {
   useEffect(() => {
     const fetchDailyQuote = async () => {
       const today = new Date().toLocaleDateString();
-      const cachedDate = localStorage.getItem('aura_daily_quote_date');
-      const cachedQuote = localStorage.getItem('aura_daily_quote_data');
+      let cachedDate = null;
+      let cachedQuote = null;
+      try {
+        cachedDate = localStorage.getItem('aura_daily_quote_date');
+        cachedQuote = localStorage.getItem('aura_daily_quote_data');
+      } catch (e) {}
 
       if (cachedDate === today && cachedQuote) {
         setQuoteData(JSON.parse(cachedQuote));
@@ -23,8 +27,10 @@ export default function DailyQuote() {
       try {
         const data = await getDailyQuote();
         if (data.character && data.quote && data.theme) {
-          localStorage.setItem('aura_daily_quote_date', today);
-          localStorage.setItem('aura_daily_quote_data', JSON.stringify(data));
+          try {
+            localStorage.setItem('aura_daily_quote_date', today);
+            localStorage.setItem('aura_daily_quote_data', JSON.stringify(data));
+          } catch (e) {}
           setQuoteData(data);
         }
       } catch (error) {

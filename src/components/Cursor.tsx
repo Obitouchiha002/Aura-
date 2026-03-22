@@ -7,7 +7,7 @@ export default function Cursor() {
   const [isTouch, setIsTouch] = useState(false);
 
   useEffect(() => {
-    if (window.matchMedia("(pointer: coarse)").matches) {
+    if (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) {
       setIsTouch(true);
       return;
     }

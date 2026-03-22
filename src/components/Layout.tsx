@@ -12,13 +12,19 @@ export default function Layout() {
   const { lang, toggleLang } = useLang();
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [hapticsEnabled, setHapticsEnabled] = useState(() => {
-    return localStorage.getItem('aura_haptics') !== 'false';
+    try {
+      return localStorage.getItem('aura_haptics') !== 'false';
+    } catch (e) {
+      return true;
+    }
   });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem('aura_haptics', String(hapticsEnabled));
+    try {
+      localStorage.setItem('aura_haptics', String(hapticsEnabled));
+    } catch (e) {}
   }, [hapticsEnabled]);
 
   useEffect(() => {

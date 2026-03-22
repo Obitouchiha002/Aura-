@@ -22,10 +22,18 @@ export default function Inner() {
   const { lang } = useLang();
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<'COUNCIL' | 'MENTOR'>(() => {
-    return (localStorage.getItem('aura_inner_mode') as 'COUNCIL' | 'MENTOR') || 'COUNCIL';
+    try {
+      return (localStorage.getItem('aura_inner_mode') as 'COUNCIL' | 'MENTOR') || 'COUNCIL';
+    } catch (e) {
+      return 'COUNCIL';
+    }
   });
   const [selectedCharacter, setSelectedCharacter] = useState(() => {
-    return localStorage.getItem('aura_inner_character') || CHARACTERS[0];
+    try {
+      return localStorage.getItem('aura_inner_character') || CHARACTERS[0];
+    } catch (e) {
+      return CHARACTERS[0];
+    }
   });
   const [messages, setMessages] = useState<{ id: string; text: string; isAi: boolean; character?: string }[]>(() => {
     try {
@@ -40,15 +48,21 @@ export default function Inner() {
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    localStorage.setItem('aura_inner_messages', JSON.stringify(messages));
+    try {
+      localStorage.setItem('aura_inner_messages', JSON.stringify(messages));
+    } catch (e) {}
   }, [messages]);
 
   useEffect(() => {
-    localStorage.setItem('aura_inner_mode', mode);
+    try {
+      localStorage.setItem('aura_inner_mode', mode);
+    } catch (e) {}
   }, [mode]);
 
   useEffect(() => {
-    localStorage.setItem('aura_inner_character', selectedCharacter);
+    try {
+      localStorage.setItem('aura_inner_character', selectedCharacter);
+    } catch (e) {}
   }, [selectedCharacter]);
 
   const scrollToBottom = () => {

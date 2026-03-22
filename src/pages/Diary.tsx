@@ -22,15 +22,19 @@ export default function Diary() {
   const audioChunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
-    const saved = localStorage.getItem('aura_diary');
-    const points = localStorage.getItem('aura_points');
-    if (saved) setEntries(JSON.parse(saved));
-    if (points) setAuraPoints(parseInt(points));
+    try {
+      const saved = localStorage.getItem('aura_diary');
+      const points = localStorage.getItem('aura_points');
+      if (saved) setEntries(JSON.parse(saved));
+      if (points) setAuraPoints(parseInt(points));
+    } catch (e) {}
   }, []);
 
   const saveToLocal = (newEntries: DiaryEntry[], newPoints: number) => {
-    localStorage.setItem('aura_diary', JSON.stringify(newEntries));
-    localStorage.setItem('aura_points', newPoints.toString());
+    try {
+      localStorage.setItem('aura_diary', JSON.stringify(newEntries));
+      localStorage.setItem('aura_points', newPoints.toString());
+    } catch (e) {}
     setEntries(newEntries);
     setAuraPoints(newPoints);
   };
@@ -78,7 +82,7 @@ export default function Diary() {
     }
 
     const newEntry: DiaryEntry = {
-      id: crypto.randomUUID(),
+      id: Date.now().toString(),
       date: new Date().toLocaleString(lang === 'en' ? 'en-US' : 'hi-IN'),
       text: text.trim(),
       audioUrl

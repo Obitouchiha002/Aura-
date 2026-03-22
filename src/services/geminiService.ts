@@ -1,6 +1,14 @@
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+let aiClient: GoogleGenAI | null = null;
+
+function getAI(): GoogleGenAI {
+  if (!aiClient) {
+    const key = process.env.GEMINI_API_KEY;
+    aiClient = new GoogleGenAI({ apiKey: key || 'dummy-key-to-prevent-crash' });
+  }
+  return aiClient;
+}
 
 export async function getDailyQuote(): Promise<{character: string, quote: string, theme: string}> {
   const prompt = `Generate a powerful, strategic, or ruthless quote from one of these characters: Thomas Shelby, Tywin Lannister, Madara Uchiha, Itachi Uchiha, Pain, Johan Liebert, Kiyotaka Ayanokoji.
@@ -12,6 +20,7 @@ export async function getDailyQuote(): Promise<{character: string, quote: string
   }`;
 
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
@@ -49,6 +58,7 @@ Format: Start your response with your name in brackets, e.g., '[${character}] Yo
   const systemInstruction = mode === 'COUNCIL' ? councilInstruction : mentorInstruction;
 
   try {
+    const ai = getAI();
     const contents = history.map(msg => ({
       role: msg.isAi ? 'model' : 'user',
       parts: [{ text: msg.text }]

@@ -4,10 +4,19 @@ export class AudioEngine {
 
   private init() {
     if (!this.ctx) {
-      this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          this.ctx = new AudioCtx();
+        }
+      } catch (e) {
+        console.warn("AudioContext not supported or blocked", e);
+      }
     }
-    if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      try {
+        this.ctx.resume();
+      } catch (e) {}
     }
   }
 
