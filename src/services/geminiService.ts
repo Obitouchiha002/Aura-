@@ -5,7 +5,10 @@ let aiClient: GoogleGenAI | null = null;
 function getAI(): GoogleGenAI {
   if (!aiClient) {
     const key = process.env.GEMINI_API_KEY;
-    aiClient = new GoogleGenAI({ apiKey: key || 'dummy-key-to-prevent-crash' });
+    if (!key || key === 'dummy-key-to-prevent-crash') {
+      throw new Error("GEMINI_API_KEY is missing or invalid. Please check your environment variables.");
+    }
+    aiClient = new GoogleGenAI({ apiKey: key });
   }
   return aiClient;
 }
@@ -59,11 +62,26 @@ Format: Start your response with your name in brackets, e.g., '[${character}] Yo
 
   try {
     const ai = getAI();
-    const contents = history.map(msg => ({
+    const rawContents = history.map(msg => ({
       role: msg.isAi ? 'model' : 'user',
       parts: [{ text: msg.text }]
     }));
-    contents.push({ role: 'user', parts: [{ text: userMessage }] });
+    rawContents.push({ role: 'user', parts: [{ text: userMessage }] });
+
+    // Normalize contents to prevent consecutive messages with the same role
+    let contents: { role: string; parts: { text: string }[] }[] = [];
+    for (const msg of rawContents) {
+      if (contents.length > 0 && contents[contents.length - 1].role === msg.role) {
+        contents[contents.length - 1].parts[0].text += `\n\n${msg.parts[0].text}`;
+      } else {
+        contents.push(msg);
+      }
+    }
+
+    // Ensure the first message is from the user
+    if (contents.length > 0 && contents[0].role === 'model') {
+      contents.shift();
+    }
 
     console.log("Gemini Request:", { contents, mode, character });
     const response = await ai.models.generateContent({
@@ -76,8 +94,8 @@ Format: Start your response with your name in brackets, e.g., '[${character}] Yo
     });
     console.log("Gemini Response:", response.text);
     return response.text || "Silence.";
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini API Error:", error);
-    return "[System] The connection to the inner void is temporarily severed.";
+    return `[System Error] ${error?.message || "The connection to the inner void is temporarily severed."}`;
   }
 }
