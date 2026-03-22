@@ -1,0 +1,7 @@
+{
+  "name": "AURA",
+  "description": "A futuristic, dark-themed, highly immersive website focused on mindset, inner power, and psychological transformation.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
