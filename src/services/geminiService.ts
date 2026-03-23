@@ -4,9 +4,12 @@ let aiClient: GoogleGenAI | null = null;
 
 function getAI(): GoogleGenAI {
   if (!aiClient) {
-    const key = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
+    // @ts-ignore
+    const viteKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY : '';
+    const key = process.env.GEMINI_API_KEY || viteKey;
+    
     if (!key || key === 'dummy-key-to-prevent-crash') {
-      throw new Error("API Key is missing! If you are on Vercel, please add GEMINI_API_KEY in your Vercel Project Settings -> Environment Variables, then redeploy.");
+      throw new Error("API Key is missing! If you are on Vercel, please add VITE_GEMINI_API_KEY in your Vercel Project Settings -> Environment Variables, then redeploy.");
     }
     aiClient = new GoogleGenAI({ apiKey: key });
   }
