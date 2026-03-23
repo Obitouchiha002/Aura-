@@ -7,7 +7,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { LanguageProvider } from './context/LanguageContext';
 import Layout from './components/Layout';
 import Landing from './pages/Landing';
-import Awakening from './pages/Awakening';
+import Focus from './pages/Focus';
 import Mindset from './pages/Mindset';
 import Power from './pages/Power';
 import Challenge from './pages/Challenge';
@@ -24,7 +24,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<Landing />} />
-            <Route path="awakening" element={<Awakening />} />
+            <Route path="focus" element={<Focus />} />
             <Route path="mindset" element={<Mindset />} />
             <Route path="power" element={<Power />} />
             <Route path="challenge" element={<Challenge />} />

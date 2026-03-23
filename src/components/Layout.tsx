@@ -61,7 +61,7 @@ export default function Layout() {
   }, [soundEnabled]);
 
   const mainLinks = [
-    { path: '/awakening', label: 'Awakening' },
+    { path: '/focus', label: 'Focus' },
     { path: '/power', label: 'Power' },
     { path: '/inner', label: 'Inner' },
   ];

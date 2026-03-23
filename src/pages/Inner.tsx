@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getInnerVoiceResponse } from '../services/geminiService';
 import { useLang } from '../context/LanguageContext';
-import { Send, User, Bot, Trash2 } from 'lucide-react';
+import { Send, User, Bot, Trash2, ChevronDown } from 'lucide-react';
 
 const CHARACTERS = [
   "Thomas Shelby",
@@ -15,7 +15,14 @@ const CHARACTERS = [
   "Pain",
   "Shikamaru Nara",
   "Johan Liebert",
-  "Kiyotaka Ayanokoji"
+  "Kiyotaka Ayanokoji",
+  "Baki Hanma",
+  "Hajime no Ippo",
+  "Mike Tyson",
+  "Muhammad Ali",
+  "Bruce Lee",
+  "Khabib Nurmagomedov",
+  "Miyamoto Musashi"
 ];
 
 export default function Inner() {
@@ -35,23 +42,31 @@ export default function Inner() {
       return CHARACTERS[0];
     }
   });
+
+  const getStorageKey = (currentMode: string, char: string) => {
+    return currentMode === 'COUNCIL' ? 'aura_inner_messages_council' : `aura_inner_messages_${char.replace(/\s+/g, '_')}`;
+  };
+
   const [messages, setMessages] = useState<{ id: string; text: string; isAi: boolean; character?: string }[]>(() => {
     try {
-      const saved = localStorage.getItem('aura_inner_messages');
+      const initialMode = (localStorage.getItem('aura_inner_mode') as 'COUNCIL' | 'MENTOR') || 'COUNCIL';
+      const initialChar = localStorage.getItem('aura_inner_character') || CHARACTERS[0];
+      const saved = localStorage.getItem(getStorageKey(initialMode, initialChar));
       return saved ? JSON.parse(saved) : [];
     } catch (e) {
       return [];
     }
   });
   const [isTyping, setIsTyping] = useState(false);
+  const [isSelectorOpen, setIsSelectorOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try {
-      localStorage.setItem('aura_inner_messages', JSON.stringify(messages));
+      localStorage.setItem(getStorageKey(mode, selectedCharacter), JSON.stringify(messages));
     } catch (e) {}
-  }, [messages]);
+  }, [messages, mode, selectedCharacter]);
 
   useEffect(() => {
     try {
@@ -64,6 +79,17 @@ export default function Inner() {
       localStorage.setItem('aura_inner_character', selectedCharacter);
     } catch (e) {}
   }, [selectedCharacter]);
+
+  const switchChat = (newMode: 'COUNCIL' | 'MENTOR', newChar: string) => {
+    setMode(newMode);
+    setSelectedCharacter(newChar);
+    try {
+      const saved = localStorage.getItem(getStorageKey(newMode, newChar));
+      setMessages(saved ? JSON.parse(saved) : []);
+    } catch (e) {
+      setMessages([]);
+    }
+  };
 
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
@@ -109,13 +135,13 @@ export default function Inner() {
         <div className="w-full flex justify-center items-center relative max-w-3xl mx-auto">
           <div className="flex gap-2 p-1 bg-white/5 rounded-full border border-white/10">
             <button
-              onClick={() => { if (mode !== 'COUNCIL') { setMode('COUNCIL'); setMessages([]); } }}
+              onClick={() => { if (mode !== 'COUNCIL') { switchChat('COUNCIL', selectedCharacter); } }}
               className={`px-4 py-1.5 rounded-full text-[10px] tracking-[0.2em] uppercase transition-all ${mode === 'COUNCIL' ? 'bg-aura-red text-black font-bold' : 'text-white/40 hover:text-white'}`}
             >
               {lang === 'en' ? 'Council' : 'परिषद'}
             </button>
             <button
-              onClick={() => { if (mode !== 'MENTOR') { setMode('MENTOR'); setMessages([]); } }}
+              onClick={() => { if (mode !== 'MENTOR') { switchChat('MENTOR', selectedCharacter); } }}
               className={`px-4 py-1.5 rounded-full text-[10px] tracking-[0.2em] uppercase transition-all ${mode === 'MENTOR' ? 'bg-aura-red text-black font-bold' : 'text-white/40 hover:text-white'}`}
             >
               {lang === 'en' ? 'Mentor' : 'गुरु'}
@@ -139,19 +165,53 @@ export default function Inner() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="w-full overflow-x-auto scrollbar-hide"
+              className="w-full relative mt-3 z-50 flex justify-center"
             >
-              <div className="flex gap-2 px-2 pb-2 w-max mx-auto">
-                {CHARACTERS.map(char => (
-                  <button
-                    key={char}
-                    onClick={() => { if (selectedCharacter !== char) { setSelectedCharacter(char); setMessages([]); } }}
-                    className={`px-3 py-1 text-[10px] whitespace-nowrap rounded-full border transition-all ${selectedCharacter === char ? 'border-aura-red text-aura-red bg-aura-red/10' : 'border-white/10 text-white/40 hover:border-white/30 hover:text-white'}`}
-                  >
-                    {char}
-                  </button>
-                ))}
-              </div>
+              <button
+                onClick={() => setIsSelectorOpen(!isSelectorOpen)}
+                className="flex items-center gap-3 px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all text-xs tracking-widest uppercase text-white shadow-lg"
+              >
+                <span className="text-white/50">{lang === 'en' ? 'Mentor:' : 'गुरु:'}</span>
+                <span className="text-aura-red font-bold">{selectedCharacter}</span>
+                <ChevronDown size={14} className={`transition-transform duration-300 text-white/50 ${isSelectorOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              <AnimatePresence>
+                {isSelectorOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsSelectorOpen(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 10, scale: 1 }}
+                      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute top-full left-4 right-4 md:left-auto md:right-auto md:w-[600px] bg-[#0a0a0a]/95 backdrop-blur-2xl border border-white/10 rounded-2xl p-4 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50"
+                    >
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-[50vh] overflow-y-auto scrollbar-hide pr-1">
+                        {CHARACTERS.map(char => (
+                          <button
+                            key={char}
+                            onClick={() => {
+                              if (selectedCharacter !== char) switchChat('MENTOR', char);
+                              setIsSelectorOpen(false);
+                            }}
+                            className={`px-4 py-3 text-[10px] md:text-xs font-medium tracking-wider uppercase rounded-xl transition-all text-left flex items-center justify-between group ${
+                              selectedCharacter === char
+                                ? 'bg-aura-red text-black shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+                                : 'text-white/60 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/5'
+                            }`}
+                          >
+                            <span className="truncate">{char}</span>
+                            {selectedCharacter === char && (
+                              <div className="w-1.5 h-1.5 rounded-full bg-black animate-pulse flex-shrink-0" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
             </motion.div>
           )}
         </AnimatePresence>

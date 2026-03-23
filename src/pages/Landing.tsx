@@ -49,7 +49,7 @@ export default function Landing() {
           initial={{ opacity: 0 }}
           animate={{ opacity: text.length === fullText.length ? 1 : 0 }}
           transition={{ duration: 1, delay: 0.5 }}
-          onClick={() => navigate('/awakening')}
+          onClick={() => navigate('/focus')}
           className="group relative px-8 py-4 bg-transparent text-red-500 font-display uppercase tracking-[0.3em] text-sm overflow-hidden"
         >
           <span className="relative z-10 group-hover:text-black transition-colors duration-500">
