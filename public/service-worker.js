@@ -1,8 +1,9 @@
-const CACHE_NAME = 'aura-cache-v2';
+const CACHE_NAME = 'aura-cache-v3';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/manifest.json'
+  '/manifest.json',
+  '/logo.png'
 ];
 
 // Install Event: Cache essential files

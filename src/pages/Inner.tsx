@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { getInnerVoiceResponse } from '../services/geminiService';
 import { useLang } from '../context/LanguageContext';
@@ -395,23 +396,24 @@ export default function Inner() {
       </div>
 
       {/* Chat History Drawer */}
-      <AnimatePresence>
-        {isHistoryOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsHistoryOpen(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
-            />
-            <motion.div
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed top-0 left-0 bottom-0 w-80 max-w-[85vw] bg-[#0a0a0a] border-r border-white/10 z-50 flex flex-col shadow-2xl"
-            >
+      {createPortal(
+        <AnimatePresence>
+          {isHistoryOpen && (
+            <div className="fixed inset-0 z-[100]">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsHistoryOpen(false)}
+                className="absolute inset-0 bg-black/80 backdrop-blur-md"
+              />
+              <motion.div
+                initial={{ x: '-100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '-100%' }}
+                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                className="absolute top-0 left-0 bottom-0 w-80 max-w-[85vw] bg-black border-r border-white/10 flex flex-col shadow-2xl"
+              >
               <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
                 <h2 className="text-sm font-bold tracking-widest uppercase text-white flex items-center gap-2">
                   <History size={16} className="text-aura-red" />
@@ -466,10 +468,12 @@ export default function Inner() {
                   ))
                 )}
               </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* Chat Area */}
       <div 
@@ -536,17 +540,17 @@ export default function Inner() {
       </div>
 
       {/* Input Area */}
-      <div className="relative z-20 p-4 bg-black/60 backdrop-blur-xl border-t border-white/5">
+      <div className="relative z-20 p-4 bg-black border-t border-white/5">
         <form 
           onSubmit={handleSubmit}
-          className="max-w-3xl mx-auto flex items-center gap-2 bg-white/5 rounded-full border border-white/10 px-4 py-2 focus-within:border-aura-red/50 transition-all"
+          className="max-w-3xl mx-auto flex items-end gap-2 bg-white/5 rounded-2xl border border-white/10 px-4 py-2 focus-within:border-aura-red/50 transition-all"
         >
           <textarea
             value={input}
             onChange={(e) => {
               setInput(e.target.value);
               e.target.style.height = 'auto';
-              e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+              e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -559,13 +563,13 @@ export default function Inner() {
             placeholder={mode === 'COUNCIL' 
               ? (lang === 'en' ? "Message the Council..." : "परिषद को संदेश भेजें...")
               : (lang === 'en' ? `Message ${selectedCharacter}...` : `${selectedCharacter} को संदेश भेजें...`)}
-            className="flex-1 bg-transparent border-none py-2 text-sm text-white placeholder:text-white/20 focus:outline-none resize-none overflow-y-auto"
-            style={{ minHeight: '40px', maxHeight: '120px' }}
+            className="flex-1 bg-transparent border-none py-2 text-sm text-white placeholder:text-white/20 focus:outline-none resize-none overflow-y-auto scrollbar-hide"
+            style={{ minHeight: '40px', maxHeight: '150px' }}
           />
           <button
             type="submit"
             disabled={!input.trim() || isTyping}
-            className="p-2 rounded-full bg-aura-red text-black disabled:opacity-30 disabled:bg-white/10 disabled:text-white/30 transition-all hover:scale-105 active:scale-95"
+            className="p-2 mb-1 rounded-full bg-aura-red text-black disabled:opacity-30 disabled:bg-white/10 disabled:text-white/30 transition-all hover:scale-105 active:scale-95 flex-shrink-0"
           >
             <Send size={18} />
           </button>
