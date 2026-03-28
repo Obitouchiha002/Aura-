@@ -2,8 +2,17 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { getInnerVoiceResponse } from '../services/geminiService';
+import { useSettings } from '../context/SettingsContext';
 import { useLang } from '../context/LanguageContext';
-import { Send, User, Bot, Trash2, ChevronDown, History, X, MessageSquare, Plus } from 'lucide-react';
+import { Send, User, Bot, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as SettingsIcon } from 'lucide-react';
+import { Settings } from '../components/Settings';
+import Focus from './Focus';
+
+const CHARACTERS = [
+  "Thomas Shelby", "Tywin Lannister", "Petyr Baelish", "Cersei Lannister", "Tyrion Lannister",
+  "Madara Uchiha", "Itachi Uchiha", "Pain", "Shikamaru Nara", "Johan Liebert", "Kiyotaka Ayanokoji",
+  "Baki Hanma", "Hajime no Ippo", "Mike Tyson", "Muhammad Ali", "Bruce Lee", "Khabib Nurmagomedov", "Miyamoto Musashi"
+];
 
 interface ChatSession {
   id: string;
@@ -13,29 +22,88 @@ interface ChatSession {
   updatedAt: number;
 }
 
-const CHARACTERS = [
-  "Thomas Shelby",
-  "Tywin Lannister",
-  "Petyr Baelish",
-  "Cersei Lannister",
-  "Tyrion Lannister",
-  "Madara Uchiha",
-  "Itachi Uchiha",
-  "Pain",
-  "Shikamaru Nara",
-  "Johan Liebert",
-  "Kiyotaka Ayanokoji",
-  "Baki Hanma",
-  "Hajime no Ippo",
-  "Mike Tyson",
-  "Muhammad Ali",
-  "Bruce Lee",
-  "Khabib Nurmagomedov",
-  "Miyamoto Musashi"
-];
+function HistoryDrawerComponent({ isOpen, onClose, sessions, loadSession, currentSessionId, deleteSession, lang }: any) {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[100]">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-black/80 backdrop-blur-md"
+      />
+      <motion.div
+        initial={{ x: '-100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '-100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        className="absolute top-0 left-0 bottom-0 w-80 max-w-[85vw] bg-black border-r border-white/10 flex flex-col shadow-2xl"
+      >
+        <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
+          <h2 className="text-sm font-bold tracking-widest uppercase text-white flex items-center gap-2">
+            <History size={16} className="text-aura-red" />
+            {lang === 'en' ? 'Chat History' : 'चैट हिस्ट्री'}
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 text-white/40 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide">
+          {sessions.length === 0 ? (
+            <div className="text-center text-white/30 text-xs mt-10 uppercase tracking-wider">
+              {lang === 'en' ? 'No chat history yet' : 'कोई चैट हिस्ट्री नहीं'}
+            </div>
+          ) : (
+            sessions.map((session: any) => (
+              <div
+                key={session.id}
+                onClick={() => loadSession(session)}
+                className={`w-full text-left p-3 rounded-xl border transition-all group cursor-pointer relative ${
+                  currentSessionId === session.id
+                    ? 'bg-aura-red/10 border-aura-red/50'
+                    : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1 pr-6">
+                  <span className={`text-xs font-bold uppercase tracking-wider truncate ${
+                    currentSessionId === session.id
+                      ? 'text-aura-red'
+                      : 'text-white'
+                  }`}>
+                    {session.character}
+                  </span>
+                  <span className="text-[10px] text-white/30">
+                    {new Date(session.updatedAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <p className="text-[10px] text-white/50 truncate">{session.title}</p>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteSession(session.id);
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-white/20 hover:text-aura-red opacity-0 group-hover:opacity-100 transition-all"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
 
 export default function Inner() {
   const { lang } = useLang();
+  const { hapticFeedback, vibration } = useSettings();
+
   const [input, setInput] = useState('');
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     try {
@@ -71,24 +139,10 @@ export default function Inner() {
     } catch (e) { return []; }
   });
 
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(() => {
-    try {
-      const savedSessions = localStorage.getItem('aura_chat_sessions');
-      if (savedSessions) {
-        const parsed = JSON.parse(savedSessions);
-        if (parsed.length > 0) return parsed[0].id;
-      }
-      return null;
-    } catch (e) { return null; }
-  });
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
 
   const [mode, setMode] = useState<'COUNCIL' | 'MENTOR'>(() => {
     try {
-      const savedSessions = localStorage.getItem('aura_chat_sessions');
-      if (savedSessions) {
-        const parsed = JSON.parse(savedSessions);
-        if (parsed.length > 0) return parsed[0].mode;
-      }
       return (localStorage.getItem('aura_inner_mode') as 'COUNCIL' | 'MENTOR') || 'COUNCIL';
     } catch (e) {
       return 'COUNCIL';
@@ -97,38 +151,57 @@ export default function Inner() {
 
   const [selectedCharacter, setSelectedCharacter] = useState(() => {
     try {
-      const savedSessions = localStorage.getItem('aura_chat_sessions');
-      if (savedSessions) {
-        const parsed = JSON.parse(savedSessions);
-        if (parsed.length > 0 && parsed[0].mode === 'MENTOR') return parsed[0].character;
-      }
       return localStorage.getItem('aura_inner_character') || CHARACTERS[0];
     } catch (e) {
       return CHARACTERS[0];
     }
   });
 
-  const [messages, setMessages] = useState<{ id: string; text: string; isAi: boolean; character?: string }[]>(() => {
-    try {
-      const savedSessions = localStorage.getItem('aura_chat_sessions');
-      if (savedSessions) {
-        const parsed = JSON.parse(savedSessions);
-        if (parsed.length > 0) {
-          const sessionId = parsed[0].id;
-          const savedMsgs = localStorage.getItem(`aura_chat_messages_${sessionId}`);
-          return savedMsgs ? JSON.parse(savedMsgs) : [];
-        }
-      }
-      return [];
-    } catch (e) {
-      return [];
-    }
-  });
+  const [messages, setMessages] = useState<{ id: string; text: string; isAi: boolean; character?: string }[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [isSelectorOpen, setIsSelectorOpen] = useState(false);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  
+  const [hash, setHash] = useState(window.location.hash || '#chat');
+  const previousViewRef = useRef<'chat' | 'focus'>('chat');
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const newHash = window.location.hash;
+      if (newHash === '#chat' || newHash === '#focus') {
+        previousViewRef.current = newHash === '#focus' ? 'focus' : 'chat';
+      }
+      setHash(newHash);
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // Determine the current view. If a modal is open, keep the underlying view active.
+  const view = (hash === '#chat' || hash === '#focus') 
+    ? (hash === '#focus' ? 'focus' : 'chat') 
+    : previousViewRef.current;
+
+  const isSettingsOpen = hash === '#settings';
+  const isHistoryOpen = hash === '#history';
+  const isSelectorOpen = hash === '#selector';
+
+  const closeModals = () => {
+    window.location.hash = previousViewRef.current;
+  };
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  const triggerHaptic = () => {
+    if (hapticFeedback && navigator.vibrate) {
+      navigator.vibrate(50);
+    }
+  };
+
+  const triggerVibration = () => {
+    if (vibration && navigator.vibrate) {
+      navigator.vibrate([100, 50, 100]);
+    }
+  };
 
   useEffect(() => {
     if (currentSessionId && messages.length > 0) {
@@ -159,7 +232,7 @@ export default function Inner() {
   const startNewChat = () => {
     setCurrentSessionId(null);
     setMessages([]);
-    setIsHistoryOpen(false);
+    window.location.hash = 'chat';
   };
 
   const loadSession = (session: ChatSession) => {
@@ -174,7 +247,7 @@ export default function Inner() {
     } catch (e) {
       setMessages([]);
     }
-    setIsHistoryOpen(false);
+    window.location.hash = 'chat';
   };
 
   const deleteSession = (e: React.MouseEvent, id: string) => {
@@ -203,6 +276,9 @@ export default function Inner() {
   const switchChat = (newMode: 'COUNCIL' | 'MENTOR', newChar: string) => {
     setMode(newMode);
     setSelectedCharacter(newChar);
+    if (isSelectorOpen) {
+      window.history.back();
+    }
   };
 
   const scrollToBottom = () => {
@@ -217,7 +293,9 @@ export default function Inner() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() || isTyping) return;
+
+    triggerHaptic();
 
     const userMessage = input.trim();
     const userMsgId = Date.now().toString();
@@ -282,60 +360,76 @@ export default function Inner() {
   };
 
   return (
-    <div className="h-screen bg-aura-black flex flex-col relative overflow-hidden pt-20 md:pt-24">
+    <div className="h-screen bg-aura-black flex flex-col relative overflow-hidden pt-0">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,rgba(239,68,68,0.05)_0%,rgba(0,0,0,1)_70%)] pointer-events-none" />
 
       {/* Header / Mode Selection */}
-      <div className="relative z-20 px-4 py-3 flex flex-col items-center gap-4 border-b border-white/5 bg-black/40 backdrop-blur-md">
-        <div className="w-full flex justify-between items-center max-w-3xl mx-auto">
-          {/* Left: History & New Chat */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsHistoryOpen(true)}
-              className="p-2 text-white/60 hover:text-white transition-colors rounded-full hover:bg-white/10 bg-white/5 border border-white/10"
-              title={lang === 'en' ? 'Chat History' : 'चैट हिस्ट्री'}
-            >
-              <History size={18} />
-            </button>
-            <button
-              onClick={startNewChat}
-              className="p-2 text-white/60 hover:text-white transition-colors rounded-full hover:bg-white/10 bg-white/5 border border-white/10"
-              title={lang === 'en' ? 'New Chat' : 'नई चैट'}
-            >
-              <Plus size={18} />
-            </button>
-          </div>
-
-          {/* Center: Mode Toggle */}
-          <div className="flex items-center gap-1 p-1 bg-white/5 rounded-full border border-white/10">
-            <button
-              onClick={() => { if (mode !== 'COUNCIL') { switchChat('COUNCIL', selectedCharacter); } }}
-              className={`px-3 py-1.5 md:px-4 md:py-2 rounded-full text-[10px] md:text-xs tracking-[0.2em] uppercase transition-all ${mode === 'COUNCIL' ? 'bg-aura-red text-black font-bold shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'text-white/40 hover:text-white'}`}
-            >
-              {lang === 'en' ? 'Council' : 'परिषद'}
-            </button>
-            <button
-              onClick={() => { if (mode !== 'MENTOR') { switchChat('MENTOR', selectedCharacter); } }}
-              className={`px-3 py-1.5 md:px-4 md:py-2 rounded-full text-[10px] md:text-xs tracking-[0.2em] uppercase transition-all ${mode === 'MENTOR' ? 'bg-aura-red text-black font-bold shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'text-white/40 hover:text-white'}`}
-            >
-              {lang === 'en' ? 'Mentor' : 'गुरु'}
-            </button>
-          </div>
-          
-          {/* Right: Clear Chat (Placeholder to keep center aligned if empty) */}
-          <div className="flex items-center justify-end w-[88px]">
-            {messages.length > 0 && (
-              <button
-                onClick={clearCurrentChat}
-                className="p-2 text-white/40 hover:text-aura-red transition-colors rounded-full hover:bg-white/10"
-                title={lang === 'en' ? 'Clear Chat' : 'चैट मिटाएं'}
-              >
-                <Trash2 size={18} />
-              </button>
-            )}
-          </div>
+      <div className="relative z-20 px-4 py-2 flex flex-col items-center gap-2 border-b border-white/5 bg-black/40 backdrop-blur-md">
+        <div className="flex gap-4 mt-1">
+          <button onClick={() => { triggerHaptic(); window.location.hash = 'chat'; }} className={`text-xs uppercase tracking-widest ${view === 'chat' ? 'text-aura-red' : 'text-white/40'}`}>Chat</button>
+          <button onClick={() => { triggerHaptic(); window.location.hash = 'focus'; }} className={`text-xs uppercase tracking-widest ${view === 'focus' ? 'text-aura-red' : 'text-white/40'}`}>Focus</button>
         </div>
+        
+        {view === 'chat' && (
+          <div className="w-full flex justify-between items-center max-w-3xl mx-auto">
+            {/* Left: History & New Chat */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { triggerHaptic(); window.location.hash = 'history'; }}
+                className="p-2 text-white/60 hover:text-white transition-colors rounded-full hover:bg-white/10 bg-white/5 border border-white/10"
+                title={lang === 'en' ? 'Chat History' : 'चैट हिस्ट्री'}
+              >
+                <History size={18} />
+              </button>
+              <button
+                onClick={startNewChat}
+                className="p-2 text-white/60 hover:text-white transition-colors rounded-full hover:bg-white/10 bg-white/5 border border-white/10"
+                title={lang === 'en' ? 'New Chat' : 'नई चैट'}
+              >
+                <Plus size={18} />
+              </button>
+            </div>
 
+            {/* Center: Mode Toggle */}
+            <div className="flex items-center gap-1 p-1 bg-white/5 rounded-full border border-white/10">
+              <button
+                onClick={() => { if (mode !== 'COUNCIL') { triggerHaptic(); switchChat('COUNCIL', selectedCharacter); } }}
+                className={`px-3 py-1.5 md:px-4 md:py-2 rounded-full text-[10px] md:text-xs tracking-[0.2em] uppercase transition-all ${mode === 'COUNCIL' ? 'bg-aura-red text-black font-bold shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'text-white/40 hover:text-white'}`}
+              >
+                {lang === 'en' ? 'Council' : 'परिषद'}
+              </button>
+              <button
+                onClick={() => { if (mode !== 'MENTOR') { triggerHaptic(); switchChat('MENTOR', selectedCharacter); } }}
+                className={`px-3 py-1.5 md:px-4 md:py-2 rounded-full text-[10px] md:text-xs tracking-[0.2em] uppercase transition-all ${mode === 'MENTOR' ? 'bg-aura-red text-black font-bold shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'text-white/40 hover:text-white'}`}
+              >
+                {lang === 'en' ? 'Mentor' : 'गुरु'}
+              </button>
+            </div>
+            
+            {/* Right: Clear Chat & Settings */}
+            <div className="flex items-center justify-end gap-2 w-[88px]">
+              {messages.length > 0 && (
+                <button
+                  onClick={clearCurrentChat}
+                  className="p-2 text-white/40 hover:text-aura-red transition-colors rounded-full hover:bg-white/10"
+                  title={lang === 'en' ? 'Clear Chat' : 'चैट मिटाएं'}
+                >
+                  <Trash2 size={18} />
+                </button>
+              )}
+              <button
+                onClick={() => { triggerHaptic(); window.location.hash = 'settings'; }}
+                className="p-2 text-white/60 hover:text-white transition-colors rounded-full hover:bg-white/10 bg-white/5 border border-white/10"
+              >
+                <SettingsIcon size={18} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {view === 'chat' ? (
+        <>
         {/* Character Selection (Only in MENTOR mode) */}
         <AnimatePresence>
           {mode === 'MENTOR' && (
@@ -346,7 +440,7 @@ export default function Inner() {
               className="w-full relative mt-3 z-50 flex justify-center"
             >
               <button
-                onClick={() => setIsSelectorOpen(!isSelectorOpen)}
+                onClick={() => { triggerHaptic(); window.location.hash = isSelectorOpen ? 'chat' : 'selector'; }}
                 className="flex items-center gap-3 px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all text-xs tracking-widest uppercase text-white shadow-lg"
               >
                 <span className="text-white/50">{lang === 'en' ? 'Mentor:' : 'गुरु:'}</span>
@@ -357,7 +451,7 @@ export default function Inner() {
               <AnimatePresence>
                 {isSelectorOpen && (
                   <>
-                    <div className="fixed inset-0 z-40" onClick={() => setIsSelectorOpen(false)} />
+                    <div className="fixed inset-0 z-40" onClick={() => window.location.hash = 'chat'} />
                     <motion.div
                       initial={{ opacity: 0, y: -10, scale: 0.95 }}
                       animate={{ opacity: 1, y: 10, scale: 1 }}
@@ -371,7 +465,7 @@ export default function Inner() {
                             key={char}
                             onClick={() => {
                               if (selectedCharacter !== char) switchChat('MENTOR', char);
-                              setIsSelectorOpen(false);
+                              window.location.hash = 'chat';
                             }}
                             className={`px-4 py-3 text-[10px] md:text-xs font-medium tracking-wider uppercase rounded-xl transition-all text-left flex items-center justify-between group ${
                               selectedCharacter === char
@@ -393,87 +487,16 @@ export default function Inner() {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
 
-      {/* Chat History Drawer */}
-      {createPortal(
-        <AnimatePresence>
-          {isHistoryOpen && (
-            <div className="fixed inset-0 z-[100]">
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setIsHistoryOpen(false)}
-                className="absolute inset-0 bg-black/80 backdrop-blur-md"
-              />
-              <motion.div
-                initial={{ x: '-100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '-100%' }}
-                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className="absolute top-0 left-0 bottom-0 w-80 max-w-[85vw] bg-black border-r border-white/10 flex flex-col shadow-2xl"
-              >
-              <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
-                <h2 className="text-sm font-bold tracking-widest uppercase text-white flex items-center gap-2">
-                  <History size={16} className="text-aura-red" />
-                  {lang === 'en' ? 'Chat History' : 'चैट हिस्ट्री'}
-                </h2>
-                <button
-                  onClick={() => setIsHistoryOpen(false)}
-                  className="p-2 text-white/40 hover:text-white rounded-full hover:bg-white/10 transition-colors"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide">
-                {sessions.length === 0 ? (
-                  <div className="text-center text-white/30 text-xs mt-10 uppercase tracking-wider">
-                    {lang === 'en' ? 'No chat history yet' : 'कोई चैट हिस्ट्री नहीं'}
-                  </div>
-                ) : (
-                  sessions.map((session) => (
-                    <div
-                      key={session.id}
-                      onClick={() => loadSession(session)}
-                      className={`w-full text-left p-3 rounded-xl border transition-all group cursor-pointer relative ${
-                        currentSessionId === session.id
-                          ? 'bg-aura-red/10 border-aura-red/50'
-                          : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1 pr-6">
-                        <span className={`text-xs font-bold uppercase tracking-wider truncate ${
-                          currentSessionId === session.id
-                            ? 'text-aura-red'
-                            : 'text-white/80 group-hover:text-white'
-                        }`}>
-                          {session.character}
-                        </span>
-                        <span className="text-[9px] text-white/30 whitespace-nowrap">
-                          {new Date(session.updatedAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-white/50 line-clamp-1 leading-relaxed pr-6">
-                        {session.title}
-                      </p>
-                      <button
-                        onClick={(e) => deleteSession(e, session.id)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-white/20 hover:text-aura-red opacity-0 group-hover:opacity-100 transition-all rounded-full hover:bg-white/10"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>,
-        document.body
-      )}
+      <HistoryDrawerComponent
+        isOpen={isHistoryOpen}
+        onClose={closeModals}
+        sessions={sessions}
+        loadSession={loadSession}
+        currentSessionId={currentSessionId}
+        deleteSession={deleteSession}
+        lang={lang}
+      />
 
       {/* Chat Area */}
       <div 
@@ -576,6 +599,13 @@ export default function Inner() {
         </form>
         <div className="h-safe-bottom" /> {/* Handle safe area for mobile */}
       </div>
+      </>
+      ) : (
+        <Focus />
+      )}
+
+      {/* Settings Modal */}
+      {isSettingsOpen && <Settings onClose={closeModals} />}
     </div>
   );
 }

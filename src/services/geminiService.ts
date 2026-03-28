@@ -16,45 +16,24 @@ function getAI(): GoogleGenAI {
   return aiClient;
 }
 
-export async function getDailyQuote(): Promise<{character: string, quote: string, theme: string}> {
-  const prompt = `Generate a powerful, strategic, or ruthless quote from one of these characters: Thomas Shelby, Tywin Lannister, Madara Uchiha, Itachi Uchiha, Pain, Johan Liebert, Kiyotaka Ayanokoji.
-  Return ONLY a valid JSON object with this structure:
-  {
-    "character": "Character Name",
-    "quote": "The quote text",
-    "theme": "A single word representing the theme (e.g., power, shadow, fire, strategy, ambition)"
-  }`;
-
-  try {
-    const ai = getAI();
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        temperature: 0.9,
-      },
-    });
-    return JSON.parse(response.text || '{}');
-  } catch (error) {
-    console.error("Failed to fetch daily quote:", error);
-    throw error;
-  }
-}
-
 export async function getInnerVoiceResponse(
   userMessage: string,
   mode: 'COUNCIL' | 'MENTOR', 
   character?: string,
   history: { text: string; isAi: boolean; character?: string }[] = []
 ): Promise<string> {
-  const councilInstruction = `You are a collective consciousness of the greatest strategic minds and ruthless pragmatists from fiction: Thomas Shelby, Tywin Lannister, Petyr Baelish, Cersei Lannister, Tyrion Lannister, Madara Uchiha, Itachi Uchiha, Pain, Shikamaru Nara, Johan Liebert, and Kiyotaka Ayanokoji.
-When the user shares a problem, weakness, or thought, analyze it and choose EXACTLY ONE of these characters whose philosophy best fits the situation.
-Respond ONLY as that chosen character. Do not mention the other characters.
-Adopt their exact tone, philosophy, and speaking style.
-CRITICAL: You MUST respond in the EXACT SAME LANGUAGE the user uses (English, pure Hindi, or Hinglish).
-Make the conversation feel completely natural, realistic, and human-like. Adapt your response length to the user's input: if they send a short casual message, reply briefly and naturally. If they ask a deep question, provide a detailed breakdown. Avoid rigid bullet points or repetitive structures unless specifically asked for a list.
-Format: Start your response with the character's name in brackets, e.g., '[Thomas Shelby] ' and then continue naturally.`;
+  const councilInstruction = `You are the Council of the greatest strategic minds and ruthless pragmatists: Thomas Shelby, Tywin Lannister, Petyr Baelish, Cersei Lannister, Tyrion Lannister, Madara Uchiha, Itachi Uchiha, Pain, Shikamaru Nara, Johan Liebert, and Kiyotaka Ayanokoji.
+
+You are all in a meeting room together discussing the user's situation.
+When the user shares a problem, weakness, or thought, analyze it collectively.
+ONLY ONE character must respond per user message. Choose the most relevant character to respond based on the topic. Do not include responses from multiple characters in a single turn.
+
+CRITICAL:
+1. You MUST respond in the EXACT SAME LANGUAGE the user uses (English, pure Hindi, or Hinglish).
+2. ONLY ONE character speaks per response. Do not simulate a full conversation between characters.
+3. Keep the conversation focused on the user's topic.
+4. Format: Start the character's contribution with their name in brackets, e.g., '[Thomas Shelby] ' followed by their response.
+5. Ensure the interaction feels like a dynamic discussion over time, but strictly one speaker per turn.`;
 
   const isFighter = ["Baki Hanma", "Hajime no Ippo", "Mike Tyson", "Muhammad Ali", "Bruce Lee", "Khabib Nurmagomedov", "Miyamoto Musashi"].includes(character || "");
 
@@ -88,19 +67,31 @@ Make the conversation feel completely natural, realistic, and human-like. Adapt 
       contents.shift();
     }
 
+    // Helper for retrying API calls
+    const retry = async <T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> => {
+      try {
+        return await fn();
+      } catch (error: any) {
+        if (retries <= 0 || !error.message.includes('fetch')) throw error;
+        console.warn(`Gemini API retrying... (${retries} attempts left)`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return retry(fn, retries - 1, delay * 2);
+      }
+    };
+
     console.log("Gemini Request:", { contents, mode, character });
-    const response = await ai.models.generateContent({
+    const response = await retry(() => ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: contents,
       config: {
         systemInstruction,
         temperature: 0.7,
       },
-    });
+    }));
     console.log("Gemini Response:", response.text);
     return response.text || "Silence.";
   } catch (error: any) {
     console.error("Gemini API Error:", error);
-    return `[System Error] ${error?.message || "The connection to the inner void is temporarily severed."}`;
+    return `[System Error] ${error?.message || "The connection is temporarily severed. Please try again."}`;
   }
 }

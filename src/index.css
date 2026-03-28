@@ -14,7 +14,6 @@ body {
   color: var(--color-aura-white);
   font-family: var(--font-sans);
   overflow-x: hidden;
-  cursor: none; /* Hide default cursor for custom glow */
 }
 
 /* Custom Scrollbar */

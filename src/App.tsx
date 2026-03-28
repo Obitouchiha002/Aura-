@@ -1,42 +1,44 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { LanguageProvider } from './context/LanguageContext';
-import Layout from './components/Layout';
-import Landing from './pages/Landing';
-import Focus from './pages/Focus';
-import Mindset from './pages/Mindset';
-import Power from './pages/Power';
-import Challenge from './pages/Challenge';
+import { SettingsProvider } from './context/SettingsContext';
+import { useState, useEffect } from 'react';
+import { Home } from './pages/Home';
 import Inner from './pages/Inner';
-import Rules from './pages/Rules';
-import Void from './pages/Void';
-import Diary from './pages/Diary';
-import DailyQuote from './pages/DailyQuote';
+import Focus from './pages/Focus';
+import { MouseGlow } from './components/MouseGlow';
+import { SpaceBackground } from './components/SpaceBackground';
 
 export default function App() {
+  const [hash, setHash] = useState('');
+
+  useEffect(() => {
+    // Always start on the home page when the app loads
+    if (window.location.hash) {
+      window.location.hash = '';
+    }
+
+    const handleHashChange = () => setHash(window.location.hash);
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const isChat = hash.startsWith('#chat') || hash.startsWith('#focus') || hash.startsWith('#settings') || hash.startsWith('#history') || hash.startsWith('#selector');
+
   return (
     <LanguageProvider>
-      <Router>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Landing />} />
-            <Route path="focus" element={<Focus />} />
-            <Route path="mindset" element={<Mindset />} />
-            <Route path="power" element={<Power />} />
-            <Route path="challenge" element={<Challenge />} />
-            <Route path="inner" element={<Inner />} />
-            <Route path="rules" element={<Rules />} />
-            <Route path="diary" element={<Diary />} />
-            <Route path="daily-quote" element={<DailyQuote />} />
-            <Route path="void" element={<Void />} />
-            <Route path="*" element={<Landing />} />
-          </Route>
-        </Routes>
-      </Router>
+      <SettingsProvider>
+        {isChat ? (
+          <>
+            <SpaceBackground />
+            <Inner />
+          </>
+        ) : (
+          <>
+            <MouseGlow />
+            <Home onEnter={() => { window.location.hash = 'chat'; }} />
+          </>
+        )}
+      </SettingsProvider>
     </LanguageProvider>
   );
 }
