@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { getInnerVoiceResponse } from '../services/geminiService';
 import { useSettings } from '../context/SettingsContext';
 import { useLang } from '../context/LanguageContext';
-import { Send, User, Bot, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as SettingsIcon } from 'lucide-react';
+import { Send, User, Bot, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as SettingsIcon, RefreshCcw } from 'lucide-react';
 import { Settings } from '../components/Settings';
 import Focus from './Focus';
 
@@ -102,7 +102,7 @@ function HistoryDrawerComponent({ isOpen, onClose, sessions, loadSession, curren
 
 export default function Inner() {
   const { lang } = useLang();
-  const { hapticFeedback, vibration } = useSettings();
+  const { hapticFeedback, vibration, userApiKey } = useSettings();
 
   const [input, setInput] = useState('');
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
@@ -338,7 +338,7 @@ export default function Inner() {
 
     console.log("Submitting message:", userMessage);
     try {
-      const response = await getInnerVoiceResponse(userMessage, mode, selectedCharacter, newMessages.slice(0, -1));
+      const response = await getInnerVoiceResponse(userMessage, mode, selectedCharacter, newMessages.slice(0, -1), userApiKey);
       console.log("Received response:", response);
       const aiMsgId = (Date.now() + 1).toString();
       const finalMessages = [...newMessages, { id: aiMsgId, text: response, isAi: true, character: mode === 'MENTOR' ? selectedCharacter : undefined }];
@@ -356,6 +356,44 @@ export default function Inner() {
       } catch (e) {}
     } finally {
       setIsTyping(false);
+    }
+  };
+
+  const retryLastMessage = async () => {
+    const lastUserMsg = [...messages].reverse().find(m => !m.isAi);
+    if (!lastUserMsg || isTyping) return;
+    
+    // Remove the error message if it's the last one
+    if (messages[messages.length - 1].isAi && messages[messages.length - 1].text.startsWith('[System Error]')) {
+      setMessages(prev => prev.slice(0, -1));
+    }
+    
+    setInput(lastUserMsg.text);
+    // We can't easily call handleSubmit directly because of the event, 
+    // but we can trigger the logic.
+    // Actually, let's just re-run the logic but skip adding the user message again.
+    
+    triggerHaptic();
+    setIsTyping(true);
+    
+    const currentMessages = messages[messages.length - 1].isAi && messages[messages.length - 1].text.startsWith('[System Error]')
+      ? messages.slice(0, -1)
+      : messages;
+
+    try {
+      const response = await getInnerVoiceResponse(lastUserMsg.text, mode, selectedCharacter, currentMessages.filter(m => m.id !== lastUserMsg.id), userApiKey);
+      const aiMsgId = (Date.now() + 1).toString();
+      const finalMessages = [...currentMessages, { id: aiMsgId, text: response, isAi: true, character: mode === 'MENTOR' ? selectedCharacter : undefined }];
+      setMessages(finalMessages);
+      if (currentSessionId) {
+        localStorage.setItem(`aura_chat_messages_${currentSessionId}`, JSON.stringify(finalMessages));
+      }
+    } catch (error) {
+      const errorMsgId = (Date.now() + 2).toString();
+      setMessages([...currentMessages, { id: errorMsgId, text: "[System Error] The connection failed again. Please wait a moment.", isAi: true }]);
+    } finally {
+      setIsTyping(false);
+      setInput('');
     }
   };
 
@@ -541,6 +579,16 @@ export default function Inner() {
                   }`}
                 >
                   {msg.text}
+                  {msg.isAi && msg.text.startsWith('[System Error]') && (
+                    <button
+                      onClick={retryLastMessage}
+                      disabled={isTyping}
+                      className="mt-3 flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-[10px] uppercase tracking-widest transition-all border border-white/10"
+                    >
+                      <RefreshCcw size={12} className={isTyping ? 'animate-spin' : ''} />
+                      {lang === 'en' ? 'Retry' : 'पुनः प्रयास करें'}
+                    </button>
+                  )}
                 </div>
               </div>
             </motion.div>

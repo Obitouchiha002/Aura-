@@ -7,7 +7,7 @@ interface SettingsProps {
 }
 
 export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
-  const { language, setLanguage, hapticFeedback, setHapticFeedback, vibration, setVibration, music, setMusic, volume, setVolume, customMusicUrl, setCustomMusicUrl } = useSettings();
+  const { language, setLanguage, hapticFeedback, setHapticFeedback, vibration, setVibration, music, setMusic, volume, setVolume, customMusicUrl, setCustomMusicUrl, userApiKey, setUserApiKey } = useSettings();
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
@@ -18,6 +18,20 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
         </div>
 
         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 scrollbar-hide">
+          <div>
+            <label className="text-xs text-white/50 uppercase tracking-wider">Custom Gemini API Key</label>
+            <input
+              type="password"
+              value={userApiKey || ''}
+              onChange={(e) => setUserApiKey(e.target.value)}
+              placeholder="Enter your own key to bypass limits"
+              className="w-full mt-1 bg-white/5 border border-white/10 p-2 rounded-lg text-white placeholder:text-white/20 text-sm"
+            />
+            <p className="text-[10px] text-white/40 mt-1 leading-tight">
+              Get a free key from <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" className="text-aura-red hover:underline">Google AI Studio</a> to never run out of daily limits. Your key is saved locally.
+            </p>
+          </div>
+
           <div>
             <label className="text-xs text-white/50 uppercase tracking-wider">Language</label>
             <select value={language} onChange={(e) => setLanguage(e.target.value as any)} className="w-full mt-1 bg-white/5 border border-white/10 p-2 rounded-lg text-white">

@@ -2,7 +2,11 @@ import { GoogleGenAI } from "@google/genai";
 
 let aiClient: GoogleGenAI | null = null;
 
-function getAI(): GoogleGenAI {
+function getAI(customKey?: string | null): GoogleGenAI {
+  if (customKey && customKey.trim() !== '') {
+    return new GoogleGenAI({ apiKey: customKey.trim() });
+  }
+
   if (!aiClient) {
     // @ts-ignore
     const viteKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY : '';
@@ -16,11 +20,15 @@ function getAI(): GoogleGenAI {
   return aiClient;
 }
 
+const exhaustedModels: Record<string, number> = {};
+const EXHAUST_COOLDOWN = 60 * 60 * 1000; // 1 hour cooldown
+
 export async function getInnerVoiceResponse(
   userMessage: string,
   mode: 'COUNCIL' | 'MENTOR', 
   character?: string,
-  history: { text: string; isAi: boolean; character?: string }[] = []
+  history: { text: string; isAi: boolean; character?: string }[] = [],
+  customApiKey?: string | null
 ): Promise<string> {
   const councilInstruction = `You are the Council of the greatest strategic minds and ruthless pragmatists: Thomas Shelby, Tywin Lannister, Petyr Baelish, Cersei Lannister, Tyrion Lannister, Madara Uchiha, Itachi Uchiha, Pain, Shikamaru Nara, Johan Liebert, and Kiyotaka Ayanokoji.
 
@@ -45,7 +53,7 @@ Make the conversation feel completely natural, realistic, and human-like. Adapt 
   const systemInstruction = mode === 'COUNCIL' ? councilInstruction : mentorInstruction;
 
   try {
-    const ai = getAI();
+    const ai = getAI(customApiKey);
     const rawContents = history.map(msg => ({
       role: msg.isAi ? 'model' : 'user',
       parts: [{ text: msg.text }]
@@ -67,31 +75,89 @@ Make the conversation feel completely natural, realistic, and human-like. Adapt 
       contents.shift();
     }
 
-    // Helper for retrying API calls
-    const retry = async <T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> => {
+    // Helper for retrying API calls (only for network/503 issues, not 429)
+    const retry = async <T>(fn: () => Promise<T>, retries = 2, delay = 1000): Promise<T> => {
       try {
         return await fn();
       } catch (error: any) {
-        if (retries <= 0 || !error.message.includes('fetch')) throw error;
-        console.warn(`Gemini API retrying... (${retries} attempts left)`);
+        const isRetryable = 
+          error.message.includes('fetch') || 
+          error.message.includes('503') || 
+          error.message.includes('overloaded') ||
+          error.message.includes('high demand');
+          
+        if (retries <= 0 || !isRetryable) throw error;
+        
+        console.warn(`Gemini API retrying due to: ${error.message} (${retries} attempts left)`);
         await new Promise(resolve => setTimeout(resolve, delay));
-        return retry(fn, retries - 1, delay * 2);
+        return retry(fn, retries - 1, delay * 1.5);
       }
     };
 
     console.log("Gemini Request:", { contents, mode, character });
-    const response = await retry(() => ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: contents,
-      config: {
-        systemInstruction,
-        temperature: 0.7,
-      },
-    }));
-    console.log("Gemini Response:", response.text);
-    return response.text || "Silence.";
+    
+    const MODELS = [
+      "gemini-3.1-pro-preview",
+      "gemini-3.1-flash-lite-preview",
+      "gemini-3-flash-preview"
+    ];
+
+    let lastError: any;
+
+    for (const modelName of MODELS) {
+      // Skip model if it's currently on cooldown due to quota exhaustion
+      if (exhaustedModels[modelName] && Date.now() < exhaustedModels[modelName]) {
+        console.log(`Skipping ${modelName} (on cooldown due to recent quota exhaustion).`);
+        continue;
+      }
+
+      try {
+        console.log(`Attempting with model: ${modelName}`);
+        const response = await retry(() => ai.models.generateContent({
+          model: modelName,
+          contents: contents,
+          config: {
+            systemInstruction,
+            temperature: 0.7,
+          },
+        }));
+        console.log(`Gemini Response (${modelName}):`, response.text);
+        return response.text || "Silence.";
+      } catch (error: any) {
+        lastError = error;
+        const errorMessage = error?.message || "";
+        
+        if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('limit exceeded')) {
+          console.warn(`Quota exceeded for ${modelName}. Putting on 1-hour cooldown and falling back to next model...`);
+          exhaustedModels[modelName] = Date.now() + EXHAUST_COOLDOWN;
+          continue; // Try next model in the list
+        }
+
+        if (errorMessage.includes('503') || errorMessage.includes('high demand') || errorMessage.includes('overloaded')) {
+          console.warn(`High demand for ${modelName}. Falling back to next model...`);
+          continue; // Try next model in the list
+        }
+        
+        // If it's a different error (e.g., invalid API key), break and show error
+        break;
+      }
+    }
+
+    // If we reach here, ALL models failed or a fatal error occurred
+    console.error("All models failed or fatal error:", lastError);
+    const finalErrorMessage = lastError?.message || "";
+    
+    if (finalErrorMessage.includes('429') || finalErrorMessage.includes('quota') || finalErrorMessage.includes('limit exceeded')) {
+      return "[System Error] The Council's daily wisdom quota has been completely exhausted across all tiers. Please return tomorrow or add a Custom API Key in Settings.";
+    }
+
+    if (finalErrorMessage.includes('503') || finalErrorMessage.includes('high demand') || finalErrorMessage.includes('overloaded')) {
+      return "[System Error] The Council is currently overwhelmed with requests across all tiers. Please wait a moment and try again.";
+    }
+    
+    return `[System Error] The connection is temporarily severed. (${finalErrorMessage || "Unknown error"})`;
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    return `[System Error] ${error?.message || "The connection is temporarily severed. Please try again."}`;
+    console.error("Unexpected Gemini API Error:", error);
+    return `[System Error] An unexpected error occurred. (${error?.message || "Unknown error"})`;
   }
 }
