@@ -22,7 +22,7 @@ export default function App() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  const isChat = hash.startsWith('#chat') || hash.startsWith('#focus') || hash.startsWith('#settings') || hash.startsWith('#history') || hash.startsWith('#selector');
+  const isChat = hash.startsWith('#chat') || hash.startsWith('#focus') || hash.startsWith('#simulator') || hash.startsWith('#settings') || hash.startsWith('#history') || hash.startsWith('#selector');
 
   return (
     <LanguageProvider>

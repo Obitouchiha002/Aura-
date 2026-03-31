@@ -13,25 +13,34 @@ export const Typewriter: React.FC<TypewriterProps> = ({ text, speed = 40, delay 
   const [isDone, setIsDone] = useState(false);
 
   useEffect(() => {
+    let currentText = '';
     setDisplayedText('');
     setIsDone(false);
 
+    let interval: NodeJS.Timeout;
     const timeout = setTimeout(() => {
       let index = 0;
-      const interval = setInterval(() => {
+      if (text.length > 0) {
+        currentText += text[0];
+        setDisplayedText(currentText);
+        index++;
+      }
+      interval = setInterval(() => {
         if (index < text.length) {
-          setDisplayedText((prev) => prev + text[index]);
+          currentText += text[index];
+          setDisplayedText(currentText);
           index++;
         } else {
           clearInterval(interval);
           setIsDone(true);
         }
       }, speed);
-
-      return () => clearInterval(interval);
     }, delay);
 
-    return () => clearTimeout(timeout);
+    return () => {
+      clearTimeout(timeout);
+      if (interval) clearInterval(interval);
+    };
   }, [text, speed, delay]);
 
   return (

@@ -1,12 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { getInnerVoiceResponse } from '../services/geminiService';
+import { getInnerVoiceResponse, getInnerVoiceImageResponse } from '../services/geminiService';
+import { generateImage } from '../services/nvidiaService';
 import { useSettings } from '../context/SettingsContext';
 import { useLang } from '../context/LanguageContext';
-import { Send, User, Bot, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as SettingsIcon, RefreshCcw } from 'lucide-react';
+import { Send, User, Bot, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as SettingsIcon, RefreshCcw, Image as ImageIcon, Users, Sparkles, Target, Gamepad2 } from 'lucide-react';
 import { Settings } from '../components/Settings';
 import Focus from './Focus';
+import Simulator from './Simulator';
 
 const CHARACTERS = [
   "Thomas Shelby", "Tywin Lannister", "Petyr Baelish", "Cersei Lannister", "Tyrion Lannister",
@@ -102,7 +104,7 @@ function HistoryDrawerComponent({ isOpen, onClose, sessions, loadSession, curren
 
 export default function Inner() {
   const { lang } = useLang();
-  const { hapticFeedback, vibration, userApiKey } = useSettings();
+  const { hapticFeedback, vibration, userApiKey, language } = useSettings();
 
   const [input, setInput] = useState('');
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
@@ -157,17 +159,21 @@ export default function Inner() {
     }
   });
 
-  const [messages, setMessages] = useState<{ id: string; text: string; isAi: boolean; character?: string }[]>([]);
+  const [messages, setMessages] = useState<{ id: string; text: string; isAi: boolean; character?: string; imageUrl?: string; isImageRequest?: boolean }[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   
+  const [inputAction, setInputAction] = useState<'CHAT' | 'IMAGE'>('CHAT');
+  const [showActionMenu, setShowActionMenu] = useState(false);
+
   const [hash, setHash] = useState(window.location.hash || '#chat');
-  const previousViewRef = useRef<'chat' | 'focus'>('chat');
+  const previousViewRef = useRef<'chat' | 'focus' | 'simulator'>('chat');
 
   useEffect(() => {
     const handleHashChange = () => {
       const newHash = window.location.hash;
-      if (newHash === '#chat' || newHash === '#focus') {
-        previousViewRef.current = newHash === '#focus' ? 'focus' : 'chat';
+      if (newHash === '#chat' || newHash === '#focus' || newHash === '#simulator') {
+        previousViewRef.current = newHash.replace('#', '') as 'chat' | 'focus' | 'simulator';
       }
       setHash(newHash);
     };
@@ -176,8 +182,8 @@ export default function Inner() {
   }, []);
 
   // Determine the current view. If a modal is open, keep the underlying view active.
-  const view = (hash === '#chat' || hash === '#focus') 
-    ? (hash === '#focus' ? 'focus' : 'chat') 
+  const view = (hash === '#chat' || hash === '#focus' || hash === '#simulator') 
+    ? (hash.replace('#', '') as 'chat' | 'focus' | 'simulator') 
     : previousViewRef.current;
 
   const isSettingsOpen = hash === '#settings';
@@ -274,10 +280,57 @@ export default function Inner() {
   };
 
   const switchChat = (newMode: 'COUNCIL' | 'MENTOR', newChar: string) => {
+    if (mode !== newMode) {
+      setCurrentSessionId(null);
+      setMessages([]);
+    }
     setMode(newMode);
     setSelectedCharacter(newChar);
     if (isSelectorOpen) {
       window.history.back();
+    }
+  };
+
+  const bringToCouncil = async () => {
+    if (mode !== 'MENTOR' || messages.length === 0) return;
+    
+    triggerHaptic();
+    
+    const transitionMsg = lang === 'en' 
+      ? `I was discussing this with ${selectedCharacter}. Council, what are your collective thoughts on our conversation?`
+      : `मैं ${selectedCharacter} के साथ इस पर चर्चा कर रहा था। परिषद, हमारी बातचीत पर आपके सामूहिक विचार क्या हैं?`;
+      
+    const userMsgId = Date.now().toString();
+    const newMessages = [...messages, { id: userMsgId, text: transitionMsg, isAi: false }];
+    setMessages(newMessages);
+    setMode('COUNCIL');
+    setIsTyping(true);
+    
+    if (currentSessionId) {
+      setSessions(prev => prev.map(s => s.id === currentSessionId ? {
+        ...s,
+        mode: 'COUNCIL',
+        character: 'The Council',
+        updatedAt: Date.now()
+      } : s));
+      try {
+        localStorage.setItem(`aura_chat_messages_${currentSessionId}`, JSON.stringify(newMessages));
+      } catch (e) {}
+    }
+
+    try {
+      const response = await getInnerVoiceResponse(transitionMsg, 'COUNCIL', 'The Council', messages, userApiKey, language);
+      const aiMsgId = (Date.now() + 1).toString();
+      const finalMessages = [...newMessages, { id: aiMsgId, text: response, isAi: true }];
+      setMessages(finalMessages);
+      if (currentSessionId) {
+        localStorage.setItem(`aura_chat_messages_${currentSessionId}`, JSON.stringify(finalMessages));
+      }
+    } catch (error) {
+      const errorMsgId = (Date.now() + 2).toString();
+      setMessages([...newMessages, { id: errorMsgId, text: "[System Error] Failed to consult the Council.", isAi: true }]);
+    } finally {
+      setIsTyping(false);
     }
   };
 
@@ -299,7 +352,8 @@ export default function Inner() {
 
     const userMessage = input.trim();
     const userMsgId = Date.now().toString();
-    const newMessages = [...messages, { id: userMsgId, text: userMessage, isAi: false }];
+    const isImageReq = inputAction === 'IMAGE';
+    const newMessages = [...messages, { id: userMsgId, text: userMessage, isAi: false, isImageRequest: isImageReq }];
     setMessages(newMessages);
     setInput('');
     setIsTyping(true);
@@ -338,18 +392,33 @@ export default function Inner() {
 
     console.log("Submitting message:", userMessage);
     try {
-      const response = await getInnerVoiceResponse(userMessage, mode, selectedCharacter, newMessages.slice(0, -1), userApiKey);
-      console.log("Received response:", response);
-      const aiMsgId = (Date.now() + 1).toString();
-      const finalMessages = [...newMessages, { id: aiMsgId, text: response, isAi: true, character: mode === 'MENTOR' ? selectedCharacter : undefined }];
-      setMessages(finalMessages);
-      try {
-        localStorage.setItem(`aura_chat_messages_${sessionId}`, JSON.stringify(finalMessages));
-      } catch (e) {}
+      if (isImageReq) {
+        setIsGeneratingImage(true);
+        const { dialogue, imagePrompt } = await getInnerVoiceImageResponse(userMessage, mode, selectedCharacter, newMessages.slice(0, -1), userApiKey, language);
+        const apiKey = "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";
+        const imageUrl = await generateImage(imagePrompt, apiKey);
+        const aiMsgId = (Date.now() + 1).toString();
+        const finalMessages = [...newMessages, { id: aiMsgId, text: dialogue, isAi: true, character: mode === 'MENTOR' ? selectedCharacter : undefined, imageUrl }];
+        setMessages(finalMessages);
+        try {
+          localStorage.setItem(`aura_chat_messages_${sessionId}`, JSON.stringify(finalMessages));
+        } catch (e) {}
+        setIsGeneratingImage(false);
+      } else {
+        const response = await getInnerVoiceResponse(userMessage, mode, selectedCharacter, newMessages.slice(0, -1), userApiKey, language);
+        console.log("Received response:", response);
+        const aiMsgId = (Date.now() + 1).toString();
+        const finalMessages = [...newMessages, { id: aiMsgId, text: response, isAi: true, character: mode === 'MENTOR' ? selectedCharacter : undefined }];
+        setMessages(finalMessages);
+        try {
+          localStorage.setItem(`aura_chat_messages_${sessionId}`, JSON.stringify(finalMessages));
+        } catch (e) {}
+      }
     } catch (error) {
       console.error("Error in handleSubmit:", error);
+      setIsGeneratingImage(false);
       const errorMsgId = (Date.now() + 2).toString();
-      const finalMessages = [...newMessages, { id: errorMsgId, text: "Silence.", isAi: true }];
+      const finalMessages = [...newMessages, { id: errorMsgId, text: isImageReq ? "[System Error] Failed to generate image." : "Silence.", isAi: true }];
       setMessages(finalMessages);
       try {
         localStorage.setItem(`aura_chat_messages_${sessionId}`, JSON.stringify(finalMessages));
@@ -380,15 +449,32 @@ export default function Inner() {
       ? messages.slice(0, -1)
       : messages;
 
+    const isImageReq = lastUserMsg.isImageRequest;
+
     try {
-      const response = await getInnerVoiceResponse(lastUserMsg.text, mode, selectedCharacter, currentMessages.filter(m => m.id !== lastUserMsg.id), userApiKey);
-      const aiMsgId = (Date.now() + 1).toString();
-      const finalMessages = [...currentMessages, { id: aiMsgId, text: response, isAi: true, character: mode === 'MENTOR' ? selectedCharacter : undefined }];
-      setMessages(finalMessages);
-      if (currentSessionId) {
-        localStorage.setItem(`aura_chat_messages_${currentSessionId}`, JSON.stringify(finalMessages));
+      if (isImageReq) {
+        setIsGeneratingImage(true);
+        const { dialogue, imagePrompt } = await getInnerVoiceImageResponse(lastUserMsg.text, mode, selectedCharacter, currentMessages.filter(m => m.id !== lastUserMsg.id), userApiKey, language);
+        const apiKey = "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";
+        const imageUrl = await generateImage(imagePrompt, apiKey);
+        const aiMsgId = (Date.now() + 1).toString();
+        const finalMessages = [...currentMessages, { id: aiMsgId, text: dialogue, isAi: true, character: mode === 'MENTOR' ? selectedCharacter : undefined, imageUrl }];
+        setMessages(finalMessages);
+        if (currentSessionId) {
+          localStorage.setItem(`aura_chat_messages_${currentSessionId}`, JSON.stringify(finalMessages));
+        }
+        setIsGeneratingImage(false);
+      } else {
+        const response = await getInnerVoiceResponse(lastUserMsg.text, mode, selectedCharacter, currentMessages.filter(m => m.id !== lastUserMsg.id), userApiKey, language);
+        const aiMsgId = (Date.now() + 1).toString();
+        const finalMessages = [...currentMessages, { id: aiMsgId, text: response, isAi: true, character: mode === 'MENTOR' ? selectedCharacter : undefined }];
+        setMessages(finalMessages);
+        if (currentSessionId) {
+          localStorage.setItem(`aura_chat_messages_${currentSessionId}`, JSON.stringify(finalMessages));
+        }
       }
     } catch (error) {
+      setIsGeneratingImage(false);
       const errorMsgId = (Date.now() + 2).toString();
       setMessages([...currentMessages, { id: errorMsgId, text: "[System Error] The connection failed again. Please wait a moment.", isAi: true }]);
     } finally {
@@ -403,15 +489,10 @@ export default function Inner() {
 
       {/* Header / Mode Selection */}
       <div className="relative z-20 px-4 py-2 flex flex-col items-center gap-2 border-b border-white/5 bg-black/40 backdrop-blur-md">
-        <div className="flex gap-4 mt-1">
-          <button onClick={() => { triggerHaptic(); window.location.hash = 'chat'; }} className={`text-xs uppercase tracking-widest ${view === 'chat' ? 'text-aura-red' : 'text-white/40'}`}>Chat</button>
-          <button onClick={() => { triggerHaptic(); window.location.hash = 'focus'; }} className={`text-xs uppercase tracking-widest ${view === 'focus' ? 'text-aura-red' : 'text-white/40'}`}>Focus</button>
-        </div>
-        
         {view === 'chat' && (
           <div className="w-full flex justify-between items-center max-w-3xl mx-auto">
             {/* Left: History & New Chat */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-1">
               <button
                 onClick={() => { triggerHaptic(); window.location.hash = 'history'; }}
                 className="p-2 text-white/60 hover:text-white transition-colors rounded-full hover:bg-white/10 bg-white/5 border border-white/10"
@@ -445,7 +526,7 @@ export default function Inner() {
             </div>
             
             {/* Right: Clear Chat & Settings */}
-            <div className="flex items-center justify-end gap-2 w-[88px]">
+            <div className="flex items-center justify-end gap-2 flex-1">
               {messages.length > 0 && (
                 <button
                   onClick={clearCurrentChat}
@@ -539,75 +620,120 @@ export default function Inner() {
       {/* Chat Area */}
       <div 
         ref={chatContainerRef}
-        className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 relative z-10 scroll-smooth scrollbar-hide"
+        className="flex-1 overflow-y-auto p-4 md:p-6 relative z-10 scroll-smooth scrollbar-hide overflow-x-hidden"
       >
-        {messages.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-30">
-            <div className="w-16 h-16 rounded-full border border-white/20 flex items-center justify-center">
-              <Bot size={32} className="text-aura-red" />
-            </div>
-            <div className="space-y-1">
-              <h3 className="font-display text-xs tracking-[0.3em] uppercase">
-                {mode === 'COUNCIL' ? 'The Council Awaits' : `Consult ${selectedCharacter}`}
-              </h3>
-              <p className="text-[10px] tracking-widest uppercase">
-                {lang === 'en' ? 'Ask your question' : 'अपना प्रश्न पूछें'}
-              </p>
-            </div>
-          </div>
-        )}
-
-        <AnimatePresence initial={false}>
-          {messages.map((msg) => (
-            <motion.div
-              key={msg.id}
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              className={`flex w-full ${msg.isAi ? 'justify-start' : 'justify-end'}`}
-            >
-              <div className={`flex flex-col max-w-[85%] md:max-w-[70%] ${msg.isAi ? 'items-start' : 'items-end'}`}>
-                {msg.isAi && (
-                  <span className="text-[9px] uppercase tracking-widest text-aura-red/60 mb-1 ml-2">
-                    {msg.character || 'The Council'}
-                  </span>
-                )}
-                <div
-                  className={`px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-                    msg.isAi
-                      ? 'bg-white/5 text-white/90 rounded-2xl rounded-bl-none border border-white/10'
-                      : 'bg-aura-red text-black font-medium rounded-2xl rounded-br-none shadow-[0_0_20px_rgba(239,68,68,0.2)]'
-                  }`}
-                >
-                  {msg.text}
-                  {msg.isAi && msg.text.startsWith('[System Error]') && (
-                    <button
-                      onClick={retryLastMessage}
-                      disabled={isTyping}
-                      className="mt-3 flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-[10px] uppercase tracking-widest transition-all border border-white/10"
-                    >
-                      <RefreshCcw size={12} className={isTyping ? 'animate-spin' : ''} />
-                      {lang === 'en' ? 'Retry' : 'पुनः प्रयास करें'}
-                    </button>
-                  )}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={mode + (currentSessionId || 'new')}
+            initial={{ opacity: 0, x: mode === 'COUNCIL' ? -20 : 20, filter: 'blur(4px)' }}
+            animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, x: mode === 'COUNCIL' ? 20 : -20, filter: 'blur(4px)' }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="min-h-full flex flex-col space-y-4"
+          >
+            {messages.length === 0 && (
+              <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4 opacity-30 mt-12">
+                <div className="w-16 h-16 rounded-full border border-white/20 flex items-center justify-center">
+                  <Bot size={32} className="text-aura-red" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="font-display text-xs tracking-[0.3em] uppercase">
+                    {mode === 'COUNCIL' ? 'The Council Awaits' : `Consult ${selectedCharacter}`}
+                  </h3>
+                  <p className="text-[10px] tracking-widest uppercase">
+                    {lang === 'en' ? 'Ask your question' : 'अपना प्रश्न पूछें'}
+                  </p>
                 </div>
               </div>
-            </motion.div>
-          ))}
-          {isTyping && (
-            <motion.div
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex justify-start"
-            >
-              <div className="bg-white/5 px-4 py-2 rounded-2xl rounded-bl-none border border-white/10 flex gap-1 items-center">
-                <span className="w-1.5 h-1.5 bg-aura-red rounded-full animate-bounce [animation-delay:-0.3s]" />
-                <span className="w-1.5 h-1.5 bg-aura-red rounded-full animate-bounce [animation-delay:-0.15s]" />
-                <span className="w-1.5 h-1.5 bg-aura-red rounded-full animate-bounce" />
-              </div>
-            </motion.div>
-          )}
+            )}
+
+            <AnimatePresence initial={false}>
+              {messages.map((msg) => (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  className={`flex w-full ${msg.isAi ? 'justify-start' : 'justify-end'}`}
+                >
+                  <div className={`flex flex-col max-w-[85%] md:max-w-[70%] ${msg.isAi ? 'items-start' : 'items-end'}`}>
+                    {msg.isAi && (
+                      <span className="text-[9px] uppercase tracking-widest text-aura-red/60 mb-1 ml-2">
+                        {msg.character || 'The Council'}
+                      </span>
+                    )}
+                    <div
+                      className={`px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                        msg.isAi
+                          ? 'bg-white/5 text-white/90 rounded-2xl rounded-bl-none border border-white/10'
+                          : 'bg-aura-red text-black font-medium rounded-2xl rounded-br-none shadow-[0_0_20px_rgba(239,68,68,0.2)]'
+                      }`}
+                    >
+                      {msg.text}
+                      {msg.imageUrl && (
+                        <div className="mt-3 rounded-xl overflow-hidden border border-white/10">
+                          <img src={msg.imageUrl} alt="Generated" className="w-full h-auto max-w-sm" />
+                        </div>
+                      )}
+                      {msg.isAi && msg.text.startsWith('[System Error]') && (
+                        <button
+                          onClick={retryLastMessage}
+                          disabled={isTyping}
+                          className="mt-3 flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-[10px] uppercase tracking-widest transition-all border border-white/10"
+                        >
+                          <RefreshCcw size={12} className={isTyping ? 'animate-spin' : ''} />
+                          {lang === 'en' ? 'Retry' : 'पुनः प्रयास करें'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+
+              {isGeneratingImage && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex justify-start mb-6"
+                >
+                  <div className="flex items-end gap-2 max-w-[85%]">
+                    <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center border border-purple-500/30 flex-shrink-0">
+                      <Sparkles size={14} className="text-purple-400 animate-pulse" />
+                    </div>
+                    <div className="bg-white/5 border border-purple-500/20 rounded-2xl rounded-bl-none p-4 relative min-w-[200px] overflow-hidden">
+                      <motion.div 
+                        className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-500/20 to-transparent"
+                        animate={{ x: ['-100%', '200%'] }}
+                        transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
+                      />
+                      <div className="flex flex-col gap-2 relative z-10">
+                        <div className="h-2 bg-purple-500/30 rounded-full w-3/4" />
+                        <div className="h-2 bg-purple-500/30 rounded-full w-1/2" />
+                      </div>
+                      <p className="text-[10px] text-purple-300/80 tracking-widest uppercase mt-3 relative z-10">
+                        {lang === 'en' ? 'Manifesting Vision...' : 'चित्र बन रहा है...'}
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {isTyping && !isGeneratingImage && (
+                <motion.div
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex justify-start"
+                >
+                  <div className="bg-white/5 px-4 py-2 rounded-2xl rounded-bl-none border border-white/10 flex gap-1 items-center">
+                    <span className="w-1.5 h-1.5 bg-aura-red rounded-full animate-bounce [animation-delay:-0.3s]" />
+                    <span className="w-1.5 h-1.5 bg-aura-red rounded-full animate-bounce [animation-delay:-0.15s]" />
+                    <span className="w-1.5 h-1.5 bg-aura-red rounded-full animate-bounce" />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <div ref={messagesEndRef} className="h-4" />
+          </motion.div>
         </AnimatePresence>
-        <div ref={messagesEndRef} className="h-4" />
       </div>
 
       {/* Input Area */}
@@ -616,6 +742,74 @@ export default function Inner() {
           onSubmit={handleSubmit}
           className="max-w-3xl mx-auto flex items-end gap-2 bg-white/5 rounded-2xl border border-white/10 px-4 py-2 focus-within:border-aura-red/50 transition-all"
         >
+          <div className="relative flex items-center justify-center mb-1">
+            <button
+              type="button"
+              onClick={() => setShowActionMenu(!showActionMenu)}
+              className={`p-2 rounded-full transition-all ${showActionMenu ? 'bg-white/20 text-white' : 'text-white/40 hover:text-white hover:bg-white/10'}`}
+            >
+              <Plus size={18} className={`transition-transform duration-300 ${showActionMenu ? 'rotate-45' : ''}`} />
+            </button>
+            
+            <AnimatePresence>
+              {showActionMenu && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setShowActionMenu(false)} />
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute bottom-full left-0 mb-3 bg-[#111] border border-white/10 rounded-xl p-1.5 flex flex-col gap-1 min-w-[160px] shadow-2xl z-40"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => { setInputAction('CHAT'); setShowActionMenu(false); }}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium tracking-wider uppercase transition-all ${inputAction === 'CHAT' ? 'bg-aura-red/20 text-aura-red' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
+                    >
+                      <MessageSquare size={14} />
+                      {lang === 'en' ? 'Chat' : 'चैट'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setInputAction('IMAGE'); setShowActionMenu(false); }}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium tracking-wider uppercase transition-all ${inputAction === 'IMAGE' ? 'bg-aura-red/20 text-aura-red' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
+                    >
+                      <ImageIcon size={14} />
+                      {lang === 'en' ? 'Image' : 'चित्र'}
+                    </button>
+                    {mode === 'MENTOR' && messages.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { bringToCouncil(); setShowActionMenu(false); }}
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium tracking-wider uppercase transition-all text-aura-red hover:bg-aura-red/10"
+                      >
+                        <Users size={14} />
+                        {lang === 'en' ? 'Escalate' : 'परिषद को सौंपें'}
+                      </button>
+                    )}
+                    <div className="h-px bg-white/10 my-1" />
+                    <button
+                      type="button"
+                      onClick={() => { triggerHaptic(); window.location.hash = 'focus'; setShowActionMenu(false); }}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium tracking-wider uppercase transition-all text-white/60 hover:bg-white/10 hover:text-white"
+                    >
+                      <Target size={14} />
+                      {lang === 'en' ? 'Focus' : 'ध्यान'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { triggerHaptic(); window.location.hash = 'simulator'; setShowActionMenu(false); }}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium tracking-wider uppercase transition-all text-white/60 hover:bg-white/10 hover:text-white"
+                    >
+                      <Gamepad2 size={14} />
+                      {lang === 'en' ? 'Simulator' : 'सिम्युलेटर'}
+                    </button>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+
           <textarea
             value={input}
             onChange={(e) => {
@@ -631,25 +825,29 @@ export default function Inner() {
               }
             }}
             rows={1}
-            placeholder={mode === 'COUNCIL' 
+            placeholder={inputAction === 'IMAGE' 
+              ? (lang === 'en' ? "Describe the image to generate..." : "बनाने के लिए चित्र का वर्णन करें...")
+              : mode === 'COUNCIL' 
               ? (lang === 'en' ? "Message the Council..." : "परिषद को संदेश भेजें...")
               : (lang === 'en' ? `Message ${selectedCharacter}...` : `${selectedCharacter} को संदेश भेजें...`)}
-            className="flex-1 bg-transparent border-none py-2 text-sm text-white placeholder:text-white/20 focus:outline-none resize-none overflow-y-auto scrollbar-hide"
+            className="flex-1 bg-transparent border-none py-2 text-sm text-white placeholder:text-white/20 focus:outline-none resize-none overflow-y-auto scrollbar-hide ml-1"
             style={{ minHeight: '40px', maxHeight: '150px' }}
           />
           <button
             type="submit"
             disabled={!input.trim() || isTyping}
-            className="p-2 mb-1 rounded-full bg-aura-red text-black disabled:opacity-30 disabled:bg-white/10 disabled:text-white/30 transition-all hover:scale-105 active:scale-95 flex-shrink-0"
+            className={`p-2 mb-1 rounded-full text-black disabled:opacity-30 disabled:bg-white/10 disabled:text-white/30 transition-all hover:scale-105 active:scale-95 flex-shrink-0 ${inputAction === 'IMAGE' ? 'bg-purple-500' : 'bg-aura-red'}`}
           >
-            <Send size={18} />
+            {inputAction === 'IMAGE' ? <ImageIcon size={18} /> : <Send size={18} />}
           </button>
         </form>
         <div className="h-safe-bottom" /> {/* Handle safe area for mobile */}
       </div>
       </>
-      ) : (
+      ) : view === 'focus' ? (
         <Focus />
+      ) : (
+        <Simulator />
       )}
 
       {/* Settings Modal */}

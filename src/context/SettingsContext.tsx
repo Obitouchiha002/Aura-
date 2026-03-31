@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { globalAudio } from '../utils/audio';
 import { getAsset, saveAsset } from '../utils/db';
 
-type Language = 'en' | 'hi' | 'es' | 'fr' | 'de';
+type Language = 'en' | 'hi' | 'hinglish' | 'es' | 'fr' | 'de';
 type Music = 'none' | 'ambient' | 'lofi' | 'nature' | 'classical' | 'focus' | 'custom';
 
 interface SettingsContextType {
@@ -25,7 +25,7 @@ interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguage] = useState<Language>('en');
+  const [language, setLanguage] = useState<Language>('hinglish');
   const [hapticFeedback, setHapticFeedback] = useState(true);
   const [vibration, setVibration] = useState(true);
   const [music, setMusic] = useState<Music>('none');
@@ -39,7 +39,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const saved = localStorage.getItem('aura_settings');
       if (saved) {
         const parsed = JSON.parse(saved);
-        setLanguage(parsed.language || 'en');
+        setLanguage(parsed.language || 'hinglish');
         setHapticFeedback(parsed.hapticFeedback ?? true);
         setVibration(parsed.vibration ?? true);
         setMusic(parsed.music || 'none');

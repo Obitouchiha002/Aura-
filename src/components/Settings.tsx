@@ -33,14 +33,29 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
           </div>
 
           <div>
-            <label className="text-xs text-white/50 uppercase tracking-wider">Language</label>
-            <select value={language} onChange={(e) => setLanguage(e.target.value as any)} className="w-full mt-1 bg-white/5 border border-white/10 p-2 rounded-lg text-white">
-              <option value="en">English</option>
-              <option value="hi">Hindi</option>
-              <option value="es">Spanish</option>
-              <option value="fr">French</option>
-              <option value="de">German</option>
-            </select>
+            <label className="text-xs text-white/50 uppercase tracking-wider mb-2 block">Language</label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { id: 'hinglish', label: 'Hinglish' },
+                { id: 'hi', label: 'Hindi' },
+                { id: 'en', label: 'English' },
+                { id: 'es', label: 'Spanish' },
+                { id: 'fr', label: 'French' },
+                { id: 'de', label: 'German' }
+              ].map(l => (
+                <button
+                  key={l.id}
+                  onClick={() => setLanguage(l.id as any)}
+                  className={`p-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+                    language === l.id 
+                      ? 'bg-aura-red text-black shadow-[0_0_15px_rgba(239,68,68,0.4)]' 
+                      : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white border border-white/5'
+                  }`}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex items-center justify-between">

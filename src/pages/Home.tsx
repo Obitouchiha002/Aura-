@@ -67,7 +67,7 @@ export const Home: React.FC<HomeProps> = ({ onEnter }) => {
           <Typewriter 
             text={`"${quote.quote}"`} 
             speed={50} 
-            className="text-xl italic font-serif leading-relaxed" 
+            className="text-xl italic font-serif leading-relaxed pl-1" 
           />
           <motion.p 
             initial={{ opacity: 0 }} 

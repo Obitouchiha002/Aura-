@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLang } from '../context/LanguageContext';
 import { useSettings } from '../context/SettingsContext';
-import { Plus, Minus, RotateCcw, Play, Pause } from 'lucide-react';
+import { Plus, Minus, RotateCcw, Play, Pause, ArrowLeft } from 'lucide-react';
 import { globalAudio } from '../utils/audio';
 
 export default function Focus() {
@@ -113,6 +113,17 @@ export default function Focus() {
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center pb-6 px-4 overflow-hidden relative">
+      {/* Back Button */}
+      <div className="absolute top-4 left-4 z-20">
+        <button
+          onClick={() => { triggerHaptic(); window.location.hash = 'chat'; }}
+          className="p-2 text-white/60 hover:text-white transition-colors rounded-full hover:bg-white/10 bg-white/5 border border-white/10"
+          title={lang === 'en' ? 'Back to Chat' : 'चैट पर वापस जाएं'}
+        >
+          <ArrowLeft size={18} />
+        </button>
+      </div>
+
       {/* Background breathing effect if in breathe mode */}
       {mode === 'breathe' && isActive && (
         <motion.div
