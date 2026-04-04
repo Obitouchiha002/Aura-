@@ -120,7 +120,8 @@ export async function getInnerVoiceResponse(
   character?: string,
   history: { text: string; isAi: boolean; character?: string }[] = [],
   customApiKey?: string | null,
-  language: string = 'en'
+  language: string = 'en',
+  isFreeTier: boolean = false
 ): Promise<string> {
   const langInstruction = language === 'hinglish' ? 'Hinglish (a natural mix of Hindi and English used in daily life)' : language === 'hi' ? 'Hindi (local, natural daily use)' : language === 'en' ? 'English (casual, daily use)' : language;
   
@@ -166,7 +167,7 @@ Make the conversation feel completely natural, realistic, and human-like. Adapt 
       contents.shift();
     }
 
-    return await generateWithFallback(contents, systemInstruction, "The Council", customApiKey);
+    return await generateWithFallback(contents, systemInstruction, "The Council", customApiKey, isFreeTier);
   } catch (error: any) {
     console.error("Unexpected Gemini API Error:", error);
     return `[System Error] An unexpected error occurred. (${error?.message || "Unknown error"})`;
@@ -179,7 +180,8 @@ export async function getInnerVoiceImageResponse(
   character?: string,
   history: { text: string; isAi: boolean; character?: string }[] = [],
   customApiKey?: string | null,
-  language: string = 'en'
+  language: string = 'en',
+  isFreeTier: boolean = false
 ): Promise<{ dialogue: string; imagePrompt: string }> {
   const langInstruction = language === 'hinglish' ? 'Hinglish (a natural mix of Hindi and English used in daily life)' : language === 'hi' ? 'Hindi (local, natural daily use)' : language === 'en' ? 'English (casual, daily use)' : language;
   
@@ -225,7 +227,7 @@ The user has requested to GENERATE AN IMAGE based on their prompt.
       contents.shift();
     }
 
-    const responseText = await generateWithFallback(contents, systemInstruction, "The Council", customApiKey);
+    const responseText = await generateWithFallback(contents, systemInstruction, "The Council", customApiKey, isFreeTier);
 
     if (responseText.includes('|||IMAGE_PROMPT:')) {
       const parts = responseText.split('|||IMAGE_PROMPT:');
@@ -245,7 +247,8 @@ export async function getSimulatorNextScenario(
   level: number,
   history: { role: string; text: string }[] = [],
   customApiKey?: string | null,
-  language: string = 'hinglish'
+  language: string = 'hinglish',
+  isFreeTier: boolean = false
 ): Promise<string> {
   const langInstruction = language === 'hinglish' ? 'Hinglish (a natural mix of Hindi and English used in daily life)' : language === 'hi' ? 'Hindi (local, natural daily use)' : language === 'en' ? 'English (casual, daily use)' : language;
 
@@ -266,7 +269,7 @@ DO NOT evaluate anything yet. ONLY provide the scenario.`;
     }));
     contents.push({ role: 'user', parts: [{ text: `Generate Scenario Level ${level}` }] });
 
-    return await generateWithFallback(contents, simulatorInstruction, "The Simulator", customApiKey, true);
+    return await generateWithFallback(contents, simulatorInstruction, "The Simulator", customApiKey, isFreeTier || true);
   } catch (error: any) {
     return `[System Error] ${error?.message}`;
   }
@@ -276,7 +279,8 @@ export async function evaluateSimulatorAction(
   userAction: string,
   history: { role: string; text: string }[] = [],
   customApiKey?: string | null,
-  language: string = 'hinglish'
+  language: string = 'hinglish',
+  isFreeTier: boolean = false
 ): Promise<string> {
   const langInstruction = language === 'hinglish' ? 'Hinglish (a natural mix of Hindi and English used in daily life)' : language === 'hi' ? 'Hindi (local, natural daily use)' : language === 'en' ? 'English (casual, daily use)' : language;
 
@@ -301,7 +305,7 @@ DO NOT generate the next scenario. ONLY evaluate the action.`;
     }));
     contents.push({ role: 'user', parts: [{ text: `My action: ${userAction}` }] });
 
-    return await generateWithFallback(contents, simulatorInstruction, "The Simulator", customApiKey, true);
+    return await generateWithFallback(contents, simulatorInstruction, "The Simulator", customApiKey, isFreeTier || true);
   } catch (error: any) {
     return `[System Error] ${error?.message}`;
   }

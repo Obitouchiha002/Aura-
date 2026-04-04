@@ -1,0 +1,57 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the application",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastLoginAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role", "createdAt", "lastLoginAt"]
+    },
+    "Session": {
+      "title": "Session",
+      "description": "A user session tracking activity",
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string" },
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "startTime": { "type": "string", "format": "date-time" },
+        "endTime": { "type": "string", "format": "date-time" },
+        "durationSeconds": { "type": "number" }
+      },
+      "required": ["sessionId", "uid", "email", "startTime"]
+    },
+    "AppSetting": {
+      "title": "AppSetting",
+      "description": "Global application settings configurable by admin",
+      "type": "object",
+      "properties": {
+        "maintenanceMode": { "type": "boolean" },
+        "welcomeMessage": { "type": "string" }
+      },
+      "required": ["maintenanceMode"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles and roles"
+    },
+    "/sessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/Session" },
+      "description": "Stores user activity sessions"
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/AppSetting" },
+      "description": "Stores global app settings"
+    }
+  }
+}

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { getSimulatorNextScenario, evaluateSimulatorAction, getSimulatorReport } from '../services/geminiService';
 import { useSettings } from '../context/SettingsContext';
 import { useLang } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 import { Send, Bot, RefreshCcw, Trash2, Settings as SettingsIcon, Activity, X, Brain, ArrowLeft } from 'lucide-react';
 
 type SimState = 'START' | 'SCENARIO' | 'EVALUATING' | 'RESULT' | 'BREAK';
@@ -10,6 +11,7 @@ type SimState = 'START' | 'SCENARIO' | 'EVALUATING' | 'RESULT' | 'BREAK';
 export default function Simulator() {
   const { lang } = useLang();
   const { hapticFeedback, userApiKey, language } = useSettings();
+  const { checkAndIncrementMessageLimit } = useAuth();
 
   const [simState, setSimState] = useState<SimState>('START');
   const [level, setLevel] = useState(1);
@@ -66,13 +68,28 @@ export default function Simulator() {
 
   const handleStart = async () => {
     triggerHaptic();
+    
+    const { allowed, isFreeTier, justReachedLimit } = await checkAndIncrementMessageLimit();
+    if (!allowed) return;
+
+    let currentHistory = [
+      { role: 'user', text: 'Generate Scenario Level 1' }
+    ];
+
+    if (justReachedLimit) {
+      const limitMsg = lang === 'en' 
+        ? "[System] Daily premium limit reached. Automatically switching to the free version." 
+        : "[System] आपकी दैनिक प्रीमियम सीमा समाप्त हो गई है। स्वचालित रूप से मुफ्त संस्करण पर स्विच किया जा रहा है।";
+      currentHistory = [{ role: 'model', text: limitMsg }, ...currentHistory];
+    }
+
     setSimState('EVALUATING');
     setLoadingText(lang === 'en' ? 'Generating Scenario...' : 'Scenario Generate ho raha hai...');
     
-    const res = await getSimulatorNextScenario(1, [], userApiKey, language);
+    const res = await getSimulatorNextScenario(1, [], userApiKey, language, isFreeTier);
     setScenarioText(res);
     setHistory([
-      { role: 'user', text: 'Generate Scenario Level 1' },
+      ...currentHistory,
       { role: 'model', text: res }
     ]);
     setSimState('SCENARIO');
@@ -84,13 +101,25 @@ export default function Simulator() {
     if (!userAction) return;
 
     triggerHaptic();
+    
+    const { allowed, isFreeTier, justReachedLimit } = await checkAndIncrementMessageLimit();
+    if (!allowed) return;
+
+    let currentHistory = history;
+    if (justReachedLimit) {
+      const limitMsg = lang === 'en' 
+        ? "[System] Daily premium limit reached. Automatically switching to the free version." 
+        : "[System] आपकी दैनिक प्रीमियम सीमा समाप्त हो गई है। स्वचालित रूप से मुफ्त संस्करण पर स्विच किया जा रहा है।";
+      currentHistory = [...currentHistory, { role: 'model', text: limitMsg }];
+    }
+
     setSimState('EVALUATING');
     setLoadingText(lang === 'en' ? 'Calculating your result...' : 'Result calculate ho raha hai...');
     
-    const res = await evaluateSimulatorAction(userAction, history, userApiKey, language);
+    const res = await evaluateSimulatorAction(userAction, currentHistory, userApiKey, language, isFreeTier);
     setEvaluationText(res);
-    setHistory(prev => [
-      ...prev,
+    setHistory([
+      ...currentHistory,
       { role: 'user', text: `My action: ${userAction}` },
       { role: 'model', text: res }
     ]);
@@ -100,15 +129,27 @@ export default function Simulator() {
 
   const handleContinue = async () => {
     triggerHaptic();
+    
+    const { allowed, isFreeTier, justReachedLimit } = await checkAndIncrementMessageLimit();
+    if (!allowed) return;
+
+    let currentHistory = history;
+    if (justReachedLimit) {
+      const limitMsg = lang === 'en' 
+        ? "[System] Daily premium limit reached. Automatically switching to the free version." 
+        : "[System] आपकी दैनिक प्रीमियम सीमा समाप्त हो गई है। स्वचालित रूप से मुफ्त संस्करण पर स्विच किया जा रहा है।";
+      currentHistory = [...currentHistory, { role: 'model', text: limitMsg }];
+    }
+
     const nextLevel = level + 1;
     setLevel(nextLevel);
     setSimState('EVALUATING');
     setLoadingText(lang === 'en' ? 'Generating Next Scenario...' : 'Next Scenario Generate ho raha hai...');
     
-    const res = await getSimulatorNextScenario(nextLevel, history, userApiKey, language);
+    const res = await getSimulatorNextScenario(nextLevel, currentHistory, userApiKey, language, isFreeTier);
     setScenarioText(res);
-    setHistory(prev => [
-      ...prev,
+    setHistory([
+      ...currentHistory,
       { role: 'user', text: `Generate Scenario Level ${nextLevel}` },
       { role: 'model', text: res }
     ]);
@@ -127,12 +168,25 @@ export default function Simulator() {
 
   const handleGenerateReport = async () => {
     triggerHaptic();
+    
+    const { allowed, isFreeTier, justReachedLimit } = await checkAndIncrementMessageLimit();
+    if (!allowed) return;
+
+    let currentHistory = history;
+    if (justReachedLimit) {
+      const limitMsg = lang === 'en' 
+        ? "[System] Daily premium limit reached. Automatically switching to the free version." 
+        : "[System] आपकी दैनिक प्रीमियम सीमा समाप्त हो गई है। स्वचालित रूप से मुफ्त संस्करण पर स्विच किया जा रहा है।";
+      currentHistory = [...currentHistory, { role: 'model', text: limitMsg }];
+      setHistory(currentHistory);
+    }
+
     setShowReport(true);
     if (reportData) return;
 
     setIsGeneratingReport(true);
     try {
-      const data = await getSimulatorReport(history, userApiKey, language);
+      const data = await getSimulatorReport(currentHistory, userApiKey, language);
       setReportData(data);
     } catch (error) {
       console.error(error);

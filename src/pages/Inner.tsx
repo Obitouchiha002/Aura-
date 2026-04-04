@@ -5,6 +5,7 @@ import { getInnerVoiceResponse, getInnerVoiceImageResponse } from '../services/g
 import { generateImage } from '../services/nvidiaService';
 import { useSettings } from '../context/SettingsContext';
 import { useLang } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 import { Send, User, Bot, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as SettingsIcon, RefreshCcw, Image as ImageIcon, Users, Sparkles, Target, Gamepad2 } from 'lucide-react';
 import { Settings } from '../components/Settings';
 import Focus from './Focus';
@@ -105,6 +106,7 @@ function HistoryDrawerComponent({ isOpen, onClose, sessions, loadSession, curren
 export default function Inner() {
   const { lang } = useLang();
   const { hapticFeedback, vibration, userApiKey, language } = useSettings();
+  const { checkAndIncrementMessageLimit } = useAuth();
 
   const [input, setInput] = useState('');
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
@@ -296,12 +298,25 @@ export default function Inner() {
     
     triggerHaptic();
     
+    const { allowed, isFreeTier, justReachedLimit } = await checkAndIncrementMessageLimit();
+    if (!allowed) return;
+
+    let currentMessages = messages;
+    if (justReachedLimit) {
+      const limitMsgId = Date.now().toString() + "_limit";
+      const limitMsg = lang === 'en' 
+        ? "[System] Daily premium limit reached. Automatically switching to the free version." 
+        : "[System] आपकी दैनिक प्रीमियम सीमा समाप्त हो गई है। स्वचालित रूप से मुफ्त संस्करण पर स्विच किया जा रहा है।";
+      currentMessages = [...currentMessages, { id: limitMsgId, text: limitMsg, isAi: true }];
+      setMessages(currentMessages);
+    }
+
     const transitionMsg = lang === 'en' 
       ? `I was discussing this with ${selectedCharacter}. Council, what are your collective thoughts on our conversation?`
       : `मैं ${selectedCharacter} के साथ इस पर चर्चा कर रहा था। परिषद, हमारी बातचीत पर आपके सामूहिक विचार क्या हैं?`;
       
     const userMsgId = Date.now().toString();
-    const newMessages = [...messages, { id: userMsgId, text: transitionMsg, isAi: false }];
+    const newMessages = [...currentMessages, { id: userMsgId, text: transitionMsg, isAi: false }];
     setMessages(newMessages);
     setMode('COUNCIL');
     setIsTyping(true);
@@ -319,7 +334,7 @@ export default function Inner() {
     }
 
     try {
-      const response = await getInnerVoiceResponse(transitionMsg, 'COUNCIL', 'The Council', messages, userApiKey, language);
+      const response = await getInnerVoiceResponse(transitionMsg, 'COUNCIL', 'The Council', currentMessages, userApiKey, language, isFreeTier);
       const aiMsgId = (Date.now() + 1).toString();
       const finalMessages = [...newMessages, { id: aiMsgId, text: response, isAi: true }];
       setMessages(finalMessages);
@@ -350,10 +365,23 @@ export default function Inner() {
 
     triggerHaptic();
 
+    const { allowed, isFreeTier, justReachedLimit } = await checkAndIncrementMessageLimit();
+    if (!allowed) return;
+
+    let currentMessages = messages;
+    if (justReachedLimit) {
+      const limitMsgId = Date.now().toString() + "_limit";
+      const limitMsg = lang === 'en' 
+        ? "[System] Daily premium limit reached. Automatically switching to the free version." 
+        : "[System] आपकी दैनिक प्रीमियम सीमा समाप्त हो गई है। स्वचालित रूप से मुफ्त संस्करण पर स्विच किया जा रहा है।";
+      currentMessages = [...currentMessages, { id: limitMsgId, text: limitMsg, isAi: true }];
+      setMessages(currentMessages);
+    }
+
     const userMessage = input.trim();
     const userMsgId = Date.now().toString();
     const isImageReq = inputAction === 'IMAGE';
-    const newMessages = [...messages, { id: userMsgId, text: userMessage, isAi: false, isImageRequest: isImageReq }];
+    const newMessages = [...currentMessages, { id: userMsgId, text: userMessage, isAi: false, isImageRequest: isImageReq }];
     setMessages(newMessages);
     setInput('');
     setIsTyping(true);
@@ -394,7 +422,7 @@ export default function Inner() {
     try {
       if (isImageReq) {
         setIsGeneratingImage(true);
-        const { dialogue, imagePrompt } = await getInnerVoiceImageResponse(userMessage, mode, selectedCharacter, newMessages.slice(0, -1), userApiKey, language);
+        const { dialogue, imagePrompt } = await getInnerVoiceImageResponse(userMessage, mode, selectedCharacter, newMessages.slice(0, -1), userApiKey, language, isFreeTier);
         const apiKey = "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";
         const imageUrl = await generateImage(imagePrompt, apiKey);
         const aiMsgId = (Date.now() + 1).toString();
@@ -405,7 +433,7 @@ export default function Inner() {
         } catch (e) {}
         setIsGeneratingImage(false);
       } else {
-        const response = await getInnerVoiceResponse(userMessage, mode, selectedCharacter, newMessages.slice(0, -1), userApiKey, language);
+        const response = await getInnerVoiceResponse(userMessage, mode, selectedCharacter, newMessages.slice(0, -1), userApiKey, language, isFreeTier);
         console.log("Received response:", response);
         const aiMsgId = (Date.now() + 1).toString();
         const finalMessages = [...newMessages, { id: aiMsgId, text: response, isAi: true, character: mode === 'MENTOR' ? selectedCharacter : undefined }];
@@ -443,18 +471,31 @@ export default function Inner() {
     // Actually, let's just re-run the logic but skip adding the user message again.
     
     triggerHaptic();
-    setIsTyping(true);
     
-    const currentMessages = messages[messages.length - 1].isAi && messages[messages.length - 1].text.startsWith('[System Error]')
+    const { allowed, isFreeTier, justReachedLimit } = await checkAndIncrementMessageLimit();
+    if (!allowed) return;
+
+    let currentMessages = messages[messages.length - 1].isAi && messages[messages.length - 1].text.startsWith('[System Error]')
       ? messages.slice(0, -1)
       : messages;
+
+    if (justReachedLimit) {
+      const limitMsgId = Date.now().toString() + "_limit";
+      const limitMsg = lang === 'en' 
+        ? "[System] Daily premium limit reached. Automatically switching to the free version." 
+        : "[System] आपकी दैनिक प्रीमियम सीमा समाप्त हो गई है। स्वचालित रूप से मुफ्त संस्करण पर स्विच किया जा रहा है।";
+      currentMessages = [...currentMessages, { id: limitMsgId, text: limitMsg, isAi: true }];
+      setMessages(currentMessages);
+    }
+
+    setIsTyping(true);
 
     const isImageReq = lastUserMsg.isImageRequest;
 
     try {
       if (isImageReq) {
         setIsGeneratingImage(true);
-        const { dialogue, imagePrompt } = await getInnerVoiceImageResponse(lastUserMsg.text, mode, selectedCharacter, currentMessages.filter(m => m.id !== lastUserMsg.id), userApiKey, language);
+        const { dialogue, imagePrompt } = await getInnerVoiceImageResponse(lastUserMsg.text, mode, selectedCharacter, currentMessages.filter(m => m.id !== lastUserMsg.id), userApiKey, language, isFreeTier);
         const apiKey = "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";
         const imageUrl = await generateImage(imagePrompt, apiKey);
         const aiMsgId = (Date.now() + 1).toString();
@@ -465,7 +506,7 @@ export default function Inner() {
         }
         setIsGeneratingImage(false);
       } else {
-        const response = await getInnerVoiceResponse(lastUserMsg.text, mode, selectedCharacter, currentMessages.filter(m => m.id !== lastUserMsg.id), userApiKey, language);
+        const response = await getInnerVoiceResponse(lastUserMsg.text, mode, selectedCharacter, currentMessages.filter(m => m.id !== lastUserMsg.id), userApiKey, language, isFreeTier);
         const aiMsgId = (Date.now() + 1).toString();
         const finalMessages = [...currentMessages, { id: aiMsgId, text: response, isAi: true, character: mode === 'MENTOR' ? selectedCharacter : undefined }];
         setMessages(finalMessages);

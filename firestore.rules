@@ -1,0 +1,126 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - displayName: string (optional)
+    //   - photoURL: string (optional)
+    //   - role: string (required, 'user' or 'admin')
+    //   - createdAt: timestamp (required)
+    //   - lastLoginAt: timestamp (required)
+    //
+    // Collection: sessions
+    // Document ID: {sessionId}
+    // Fields:
+    //   - sessionId: string (required)
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - startTime: timestamp (required)
+    //   - endTime: timestamp (optional)
+    //   - durationSeconds: number (optional)
+    //
+    // Collection: settings
+    // Document ID: {settingId}
+    // Fields:
+    //   - maintenanceMode: boolean (required)
+    //   - welcomeMessage: string (optional)
+    //
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        (request.auth.token.email == "vk1234888i@gmail.com" && request.auth.token.email_verified == true));
+    }
+    
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+    
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+    
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt', 'lastLoginAt', 'dailyMessageCount', 'lastMessageDate']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.email is string && isValidEmail(data.email) &&
+             (!('displayName' in data) || data.displayName is string) &&
+             (!('photoURL' in data) || data.photoURL is string) &&
+             data.role in ['user', 'admin'] &&
+             data.createdAt is timestamp &&
+             data.lastLoginAt is timestamp &&
+             (!('dailyMessageCount' in data) || data.dailyMessageCount is number) &&
+             (!('lastMessageDate' in data) || data.lastMessageDate is string);
+    }
+    
+    function isValidSession(data) {
+      return hasOnlyAllowedFields(['sessionId', 'uid', 'email', 'startTime', 'endTime', 'durationSeconds']) &&
+             data.sessionId is string && data.sessionId.size() > 0 &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.startTime is timestamp &&
+             (!('endTime' in data) || data.endTime is timestamp) &&
+             (!('durationSeconds' in data) || data.durationSeconds is number);
+    }
+    
+    function isValidSetting(data) {
+      return hasOnlyAllowedFields(['maintenanceMode', 'welcomeMessage']) &&
+             data.maintenanceMode is bool &&
+             (!('welcomeMessage' in data) || data.welcomeMessage is string);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && 
+                    (request.resource.data.role == 'user' || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    ((isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin());
+      allow delete: if isAdmin();
+    }
+    
+    match /sessions/{sessionId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.uid == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid && isValidSession(request.resource.data);
+      allow update: if isAuthenticated() && request.resource.data.uid == request.auth.uid && isValidSession(request.resource.data) &&
+                    request.resource.data.startTime == resource.data.startTime &&
+                    request.resource.data.uid == resource.data.uid;
+      allow delete: if isAdmin();
+    }
+    
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin() && isValidSetting(request.resource.data);
+    }
+  }
+}

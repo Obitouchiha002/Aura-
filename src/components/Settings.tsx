@@ -1,13 +1,15 @@
 import React from 'react';
 import { useSettings } from '../context/SettingsContext';
-import { X } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { X, LogOut, ShieldAlert } from 'lucide-react';
 
 interface SettingsProps {
   onClose: () => void;
 }
 
 export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
-  const { language, setLanguage, hapticFeedback, setHapticFeedback, vibration, setVibration, music, setMusic, volume, setVolume, customMusicUrl, setCustomMusicUrl, userApiKey, setUserApiKey } = useSettings();
+  const { language, setLanguage, hapticFeedback, setHapticFeedback, vibration, setVibration, music, setMusic, volume, setVolume, customMusicUrl, setCustomMusicUrl } = useSettings();
+  const { logout, isAdmin } = useAuth();
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
@@ -18,19 +20,18 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
         </div>
 
         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 scrollbar-hide">
-          <div>
-            <label className="text-xs text-white/50 uppercase tracking-wider">Custom Gemini API Key</label>
-            <input
-              type="password"
-              value={userApiKey || ''}
-              onChange={(e) => setUserApiKey(e.target.value)}
-              placeholder="Enter your own key to bypass limits"
-              className="w-full mt-1 bg-white/5 border border-white/10 p-2 rounded-lg text-white placeholder:text-white/20 text-sm"
-            />
-            <p className="text-[10px] text-white/40 mt-1 leading-tight">
-              Get a free key from <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" className="text-aura-red hover:underline">Google AI Studio</a> to never run out of daily limits. Your key is saved locally.
-            </p>
-          </div>
+          {isAdmin && (
+            <button
+              onClick={() => {
+                onClose();
+                window.location.hash = 'admin';
+              }}
+              className="w-full flex items-center justify-center space-x-2 bg-aura-red/10 hover:bg-aura-red/20 text-aura-red border border-aura-red/20 p-3 rounded-xl transition-colors"
+            >
+              <ShieldAlert size={18} />
+              <span className="font-medium">Admin Dashboard</span>
+            </button>
+          )}
 
           <div>
             <label className="text-xs text-white/50 uppercase tracking-wider mb-2 block">Language</label>
@@ -113,6 +114,19 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
               onChange={(e) => setVolume(parseFloat(e.target.value))} 
               className="accent-aura-red w-24" 
             />
+          </div>
+
+          <div className="pt-4 mt-4 border-t border-white/10">
+            <button
+              onClick={async () => {
+                await logout();
+                onClose();
+              }}
+              className="w-full flex items-center justify-center space-x-2 bg-white/5 hover:bg-white/10 text-white p-3 rounded-xl transition-colors"
+            >
+              <LogOut size={18} />
+              <span className="font-medium">Logout</span>
+            </button>
           </div>
         </div>
       </div>
