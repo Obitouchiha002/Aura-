@@ -11,9 +11,41 @@
         "photoURL": { "type": "string" },
         "role": { "type": "string", "enum": ["user", "admin"] },
         "createdAt": { "type": "string", "format": "date-time" },
-        "lastLoginAt": { "type": "string", "format": "date-time" }
+        "lastLoginAt": { "type": "string", "format": "date-time" },
+        "dailyMessageCount": { "type": "number", "description": "Number of messages sent today" },
+        "lastMessageDate": { "type": "string", "description": "Date string of the last message sent (YYYY-MM-DD)" }
       },
       "required": ["uid", "email", "role", "createdAt", "lastLoginAt"]
+    },
+    "ChatSession": {
+      "title": "ChatSession",
+      "description": "A chat session for a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "title": { "type": "string" },
+        "mode": { "type": "string" },
+        "character": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "uid", "title", "mode", "updatedAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "A message within a chat session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sessionId": { "type": "string" },
+        "uid": { "type": "string" },
+        "text": { "type": "string" },
+        "isAi": { "type": "boolean" },
+        "character": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["id", "sessionId", "uid", "text", "isAi", "timestamp"]
     },
     "Session": {
       "title": "Session",
@@ -44,6 +76,14 @@
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/User" },
       "description": "Stores user profiles and roles"
+    },
+    "/users/{userId}/chatSessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/ChatSession" },
+      "description": "Stores chat sessions for a user"
+    },
+    "/users/{userId}/chatSessions/{sessionId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Stores messages within a chat session"
     },
     "/sessions/{sessionId}": {
       "schema": { "$ref": "#/entities/Session" },

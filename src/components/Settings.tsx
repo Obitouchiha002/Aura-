@@ -87,28 +87,31 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
 
           <div>
             <label className="text-xs text-white/50 uppercase tracking-wider mb-2 block">Background Music</label>
-            <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide snap-x">
-              {[
-                { id: 'none', label: 'None' },
-                { id: 'ambient', label: 'Ambient' },
-                { id: 'lofi', label: 'Lo-Fi' },
-                { id: 'nature', label: 'Nature' },
-                { id: 'classical', label: 'Classical' },
-                { id: 'focus', label: 'Focus' },
-                { id: 'custom', label: 'Custom' }
-              ].map(m => (
-                <button
-                  key={m.id}
-                  onClick={() => setMusic(m.id as any)}
-                  className={`flex-shrink-0 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all snap-center ${
-                    music === m.id 
-                      ? 'bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.3)]' 
-                      : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white border border-white/5'
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
+            <div className="relative">
+              <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide snap-x mask-linear-fade">
+                {[
+                  { id: 'none', label: 'None' },
+                  { id: 'ambient', label: 'Ambient' },
+                  { id: 'lofi', label: 'Lo-Fi' },
+                  { id: 'nature', label: 'Nature' },
+                  { id: 'classical', label: 'Classical' },
+                  { id: 'focus', label: 'Focus' },
+                  { id: 'custom', label: 'Custom' }
+                ].map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => setMusic(m.id as any)}
+                    className={`flex-shrink-0 p-2 min-w-[80px] rounded-xl text-xs font-bold uppercase tracking-wider transition-all snap-center ${
+                      music === m.id 
+                        ? 'bg-aura-red text-black shadow-[0_0_15px_rgba(239,68,68,0.4)]' 
+                        : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white border border-white/5'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              <div className="absolute top-0 right-0 bottom-2 w-8 bg-gradient-to-l from-[#0a0a0a] to-transparent pointer-events-none" />
             </div>
           </div>
 

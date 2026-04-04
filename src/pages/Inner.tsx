@@ -221,8 +221,15 @@ export default function Inner() {
         return sanitized;
       });
 
+      const sanitizedMeta = { ...sessionMeta };
+      Object.keys(sanitizedMeta).forEach(key => {
+        if (sanitizedMeta[key as keyof typeof sanitizedMeta] === undefined) {
+          delete sanitizedMeta[key as keyof typeof sanitizedMeta];
+        }
+      });
+
       setDoc(doc(db, 'users', user.uid, 'chatSessions', currentSessionId), {
-        ...sessionMeta,
+        ...sanitizedMeta,
         messages: sanitizedMessages
       }, { merge: true }).catch(console.error);
     }
@@ -428,11 +435,12 @@ export default function Inner() {
         const finalMessages = [...newMessages, { id: aiMsgId, text: response, isAi: true, character: mode === 'MENTOR' ? selectedCharacter : undefined }];
         setMessages(finalMessages);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error in handleSubmit:", error);
       setIsGeneratingImage(false);
       const errorMsgId = (Date.now() + 2).toString();
-      const finalMessages = [...newMessages, { id: errorMsgId, text: isImageReq ? "[System Error] Failed to generate image." : "Silence.", isAi: true }];
+      const errorMessage = error?.message || "Failed to generate response.";
+      const finalMessages = [...newMessages, { id: errorMsgId, text: `[System Error] ${errorMessage}`, isAi: true }];
       setMessages(finalMessages);
     } finally {
       setIsTyping(false);
@@ -491,10 +499,11 @@ export default function Inner() {
         const finalMessages = [...currentMessages, { id: aiMsgId, text: response, isAi: true, character: mode === 'MENTOR' ? selectedCharacter : undefined }];
         setMessages(finalMessages);
       }
-    } catch (error) {
+    } catch (error: any) {
       setIsGeneratingImage(false);
       const errorMsgId = (Date.now() + 2).toString();
-      setMessages([...currentMessages, { id: errorMsgId, text: "[System Error] The connection failed again. Please wait a moment.", isAi: true }]);
+      const errorMessage = error?.message || "The connection failed again. Please wait a moment.";
+      setMessages([...currentMessages, { id: errorMsgId, text: `[System Error] ${errorMessage}`, isAi: true }]);
     } finally {
       setIsTyping(false);
       setInput('');
