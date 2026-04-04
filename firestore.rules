@@ -107,6 +107,14 @@ service cloud.firestore {
       allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
                     ((isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin());
       allow delete: if isAdmin();
+      
+      match /chatSessions/{sessionId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      match /simulatorState/{document=**} {
+        allow read, write: if isOwner(userId);
+      }
     }
     
     match /sessions/{sessionId} {

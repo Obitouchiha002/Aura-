@@ -6,6 +6,8 @@ import { generateImage } from '../services/nvidiaService';
 import { useSettings } from '../context/SettingsContext';
 import { useLang } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
+import { collection, doc, getDocs, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { db } from '../firebase';
 import { Send, User, Bot, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as SettingsIcon, RefreshCcw, Image as ImageIcon, Users, Sparkles, Target, Gamepad2 } from 'lucide-react';
 import { Settings } from '../components/Settings';
 import Focus from './Focus';
@@ -23,6 +25,7 @@ interface ChatSession {
   mode: 'COUNCIL' | 'MENTOR';
   character: string;
   updatedAt: number;
+  messages?: any[];
 }
 
 function HistoryDrawerComponent({ isOpen, onClose, sessions, loadSession, currentSessionId, deleteSession, lang }: any) {
@@ -106,61 +109,13 @@ function HistoryDrawerComponent({ isOpen, onClose, sessions, loadSession, curren
 export default function Inner() {
   const { lang } = useLang();
   const { hapticFeedback, vibration, userApiKey, language } = useSettings();
-  const { checkAndIncrementMessageLimit } = useAuth();
+  const { checkAndIncrementMessageLimit, user } = useAuth();
 
   const [input, setInput] = useState('');
-  const [sessions, setSessions] = useState<ChatSession[]>(() => {
-    try {
-      const saved = localStorage.getItem('aura_chat_sessions');
-      if (saved) return JSON.parse(saved);
-
-      // Migration from old system
-      const migratedSessions: ChatSession[] = [];
-      const councilData = localStorage.getItem('aura_inner_messages_council');
-      if (councilData) {
-        const parsed = JSON.parse(councilData);
-        if (parsed.length > 0) {
-          const id = 'migrated_council';
-          migratedSessions.push({ id, title: parsed[0].text.substring(0, 30) + '...', mode: 'COUNCIL', character: 'The Council', updatedAt: Date.now() });
-          localStorage.setItem(`aura_chat_messages_${id}`, councilData);
-        }
-      }
-      CHARACTERS.forEach(char => {
-        const data = localStorage.getItem(`aura_inner_messages_${char.replace(/\s+/g, '_')}`);
-        if (data) {
-          const parsed = JSON.parse(data);
-          if (parsed.length > 0) {
-            const id = `migrated_${char.replace(/\s+/g, '_')}`;
-            migratedSessions.push({ id, title: parsed[0].text.substring(0, 30) + '...', mode: 'MENTOR', character: char, updatedAt: Date.now() });
-            localStorage.setItem(`aura_chat_messages_${id}`, data);
-          }
-        }
-      });
-      if (migratedSessions.length > 0) {
-        localStorage.setItem('aura_chat_sessions', JSON.stringify(migratedSessions));
-      }
-      return migratedSessions;
-    } catch (e) { return []; }
-  });
-
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-
-  const [mode, setMode] = useState<'COUNCIL' | 'MENTOR'>(() => {
-    try {
-      return (localStorage.getItem('aura_inner_mode') as 'COUNCIL' | 'MENTOR') || 'COUNCIL';
-    } catch (e) {
-      return 'COUNCIL';
-    }
-  });
-
-  const [selectedCharacter, setSelectedCharacter] = useState(() => {
-    try {
-      return localStorage.getItem('aura_inner_character') || CHARACTERS[0];
-    } catch (e) {
-      return CHARACTERS[0];
-    }
-  });
-
+  const [mode, setMode] = useState<'COUNCIL' | 'MENTOR'>('COUNCIL');
+  const [selectedCharacter, setSelectedCharacter] = useState(CHARACTERS[0]);
   const [messages, setMessages] = useState<{ id: string; text: string; isAi: boolean; character?: string; imageUrl?: string; isImageRequest?: boolean }[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -212,30 +167,63 @@ export default function Inner() {
   };
 
   useEffect(() => {
-    if (currentSessionId && messages.length > 0) {
-      try {
-        localStorage.setItem(`aura_chat_messages_${currentSessionId}`, JSON.stringify(messages));
-      } catch (e) {}
+    if (!user) {
+      setSessions([]);
+      setMessages([]);
+      setCurrentSessionId(null);
+      return;
     }
-  }, [messages, currentSessionId]);
+    
+    const loadData = async () => {
+      try {
+        const q = query(collection(db, 'users', user.uid, 'chatSessions'), orderBy('updatedAt', 'desc'));
+        const snap = await getDocs(q);
+        const fetchedSessions = snap.docs.map(d => {
+          const data = d.data();
+          return {
+            id: d.id,
+            title: data.title,
+            mode: data.mode,
+            character: data.character,
+            updatedAt: data.updatedAt,
+            messages: data.messages || []
+          } as ChatSession;
+        });
+        
+        setSessions(fetchedSessions);
+        if (fetchedSessions.length > 0) {
+          setCurrentSessionId(fetchedSessions[0].id);
+          setMode(fetchedSessions[0].mode);
+          if (fetchedSessions[0].mode === 'MENTOR') {
+            setSelectedCharacter(fetchedSessions[0].character);
+          }
+          setMessages(fetchedSessions[0].messages || []);
+        }
+      } catch (e) {
+        console.error("Failed to load sessions", e);
+      }
+    };
+    loadData();
+  }, [user]);
 
+  // Sync messages and session metadata to Firestore
   useEffect(() => {
-    try {
-      localStorage.setItem('aura_chat_sessions', JSON.stringify(sessions));
-    } catch (e) {}
-  }, [sessions]);
+    if (!user || !currentSessionId) return;
+    const sessionMeta = sessions.find(s => s.id === currentSessionId);
+    if (sessionMeta) {
+      setDoc(doc(db, 'users', user.uid, 'chatSessions', currentSessionId), {
+        ...sessionMeta,
+        messages
+      }, { merge: true }).catch(console.error);
+    }
+  }, [messages, sessions, currentSessionId, user]);
 
   useEffect(() => {
     try {
       localStorage.setItem('aura_inner_mode', mode);
-    } catch (e) {}
-  }, [mode]);
-
-  useEffect(() => {
-    try {
       localStorage.setItem('aura_inner_character', selectedCharacter);
     } catch (e) {}
-  }, [selectedCharacter]);
+  }, [mode, selectedCharacter]);
 
   const startNewChat = () => {
     setCurrentSessionId(null);
@@ -244,25 +232,26 @@ export default function Inner() {
   };
 
   const loadSession = (session: ChatSession) => {
+    triggerHaptic();
     setCurrentSessionId(session.id);
     setMode(session.mode);
     if (session.mode === 'MENTOR') {
       setSelectedCharacter(session.character);
     }
-    try {
-      const saved = localStorage.getItem(`aura_chat_messages_${session.id}`);
-      setMessages(saved ? JSON.parse(saved) : []);
-    } catch (e) {
-      setMessages([]);
-    }
+    setMessages(session.messages || []);
     window.location.hash = 'chat';
   };
 
   const deleteSession = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
+    triggerHaptic();
     const updatedSessions = sessions.filter(s => s.id !== id);
     setSessions(updatedSessions);
-    localStorage.removeItem(`aura_chat_messages_${id}`);
+    
+    if (user) {
+      deleteDoc(doc(db, 'users', user.uid, 'chatSessions', id)).catch(console.error);
+    }
+
     if (currentSessionId === id) {
       if (updatedSessions.length > 0) {
         loadSession(updatedSessions[0]);
@@ -273,10 +262,13 @@ export default function Inner() {
   };
 
   const clearCurrentChat = () => {
+    triggerHaptic();
     setMessages([]);
     if (currentSessionId) {
-      localStorage.removeItem(`aura_chat_messages_${currentSessionId}`);
       setSessions(prev => prev.filter(s => s.id !== currentSessionId));
+      if (user) {
+        deleteDoc(doc(db, 'users', user.uid, 'chatSessions', currentSessionId)).catch(console.error);
+      }
       setCurrentSessionId(null);
     }
   };
@@ -328,9 +320,6 @@ export default function Inner() {
         character: 'The Council',
         updatedAt: Date.now()
       } : s));
-      try {
-        localStorage.setItem(`aura_chat_messages_${currentSessionId}`, JSON.stringify(newMessages));
-      } catch (e) {}
     }
 
     try {
@@ -338,9 +327,6 @@ export default function Inner() {
       const aiMsgId = (Date.now() + 1).toString();
       const finalMessages = [...newMessages, { id: aiMsgId, text: response, isAi: true }];
       setMessages(finalMessages);
-      if (currentSessionId) {
-        localStorage.setItem(`aura_chat_messages_${currentSessionId}`, JSON.stringify(finalMessages));
-      }
     } catch (error) {
       const errorMsgId = (Date.now() + 2).toString();
       setMessages([...newMessages, { id: errorMsgId, text: "[System Error] Failed to consult the Council.", isAi: true }]);
@@ -414,10 +400,6 @@ export default function Inner() {
       }
     });
 
-    try {
-      localStorage.setItem(`aura_chat_messages_${sessionId}`, JSON.stringify(newMessages));
-    } catch (e) {}
-
     console.log("Submitting message:", userMessage);
     try {
       if (isImageReq) {
@@ -428,9 +410,6 @@ export default function Inner() {
         const aiMsgId = (Date.now() + 1).toString();
         const finalMessages = [...newMessages, { id: aiMsgId, text: dialogue, isAi: true, character: mode === 'MENTOR' ? selectedCharacter : undefined, imageUrl }];
         setMessages(finalMessages);
-        try {
-          localStorage.setItem(`aura_chat_messages_${sessionId}`, JSON.stringify(finalMessages));
-        } catch (e) {}
         setIsGeneratingImage(false);
       } else {
         const response = await getInnerVoiceResponse(userMessage, mode, selectedCharacter, newMessages.slice(0, -1), userApiKey, language, isFreeTier);
@@ -438,9 +417,6 @@ export default function Inner() {
         const aiMsgId = (Date.now() + 1).toString();
         const finalMessages = [...newMessages, { id: aiMsgId, text: response, isAi: true, character: mode === 'MENTOR' ? selectedCharacter : undefined }];
         setMessages(finalMessages);
-        try {
-          localStorage.setItem(`aura_chat_messages_${sessionId}`, JSON.stringify(finalMessages));
-        } catch (e) {}
       }
     } catch (error) {
       console.error("Error in handleSubmit:", error);
@@ -448,9 +424,6 @@ export default function Inner() {
       const errorMsgId = (Date.now() + 2).toString();
       const finalMessages = [...newMessages, { id: errorMsgId, text: isImageReq ? "[System Error] Failed to generate image." : "Silence.", isAi: true }];
       setMessages(finalMessages);
-      try {
-        localStorage.setItem(`aura_chat_messages_${sessionId}`, JSON.stringify(finalMessages));
-      } catch (e) {}
     } finally {
       setIsTyping(false);
     }
@@ -501,18 +474,12 @@ export default function Inner() {
         const aiMsgId = (Date.now() + 1).toString();
         const finalMessages = [...currentMessages, { id: aiMsgId, text: dialogue, isAi: true, character: mode === 'MENTOR' ? selectedCharacter : undefined, imageUrl }];
         setMessages(finalMessages);
-        if (currentSessionId) {
-          localStorage.setItem(`aura_chat_messages_${currentSessionId}`, JSON.stringify(finalMessages));
-        }
         setIsGeneratingImage(false);
       } else {
         const response = await getInnerVoiceResponse(lastUserMsg.text, mode, selectedCharacter, currentMessages.filter(m => m.id !== lastUserMsg.id), userApiKey, language, isFreeTier);
         const aiMsgId = (Date.now() + 1).toString();
         const finalMessages = [...currentMessages, { id: aiMsgId, text: response, isAi: true, character: mode === 'MENTOR' ? selectedCharacter : undefined }];
         setMessages(finalMessages);
-        if (currentSessionId) {
-          localStorage.setItem(`aura_chat_messages_${currentSessionId}`, JSON.stringify(finalMessages));
-        }
       }
     } catch (error) {
       setIsGeneratingImage(false);

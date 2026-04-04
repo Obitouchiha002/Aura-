@@ -4,6 +4,8 @@ import { getSimulatorNextScenario, evaluateSimulatorAction, getSimulatorReport }
 import { useSettings } from '../context/SettingsContext';
 import { useLang } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
+import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { Send, Bot, RefreshCcw, Trash2, Settings as SettingsIcon, Activity, X, Brain, ArrowLeft } from 'lucide-react';
 
 type SimState = 'START' | 'SCENARIO' | 'EVALUATING' | 'RESULT' | 'BREAK';
@@ -11,7 +13,7 @@ type SimState = 'START' | 'SCENARIO' | 'EVALUATING' | 'RESULT' | 'BREAK';
 export default function Simulator() {
   const { lang } = useLang();
   const { hapticFeedback, userApiKey, language } = useSettings();
-  const { checkAndIncrementMessageLimit } = useAuth();
+  const { checkAndIncrementMessageLimit, user } = useAuth();
 
   const [simState, setSimState] = useState<SimState>('START');
   const [level, setLevel] = useState(1);
@@ -33,27 +35,42 @@ export default function Simulator() {
 
   // Load state
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('aura_simulator_state');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setSimState(parsed.simState || 'START');
-        setLevel(parsed.level || 1);
-        setScenarioText(parsed.scenarioText || '');
-        setEvaluationText(parsed.evaluationText || '');
-        setHistory(parsed.history || []);
+    if (!user) {
+      setSimState('START');
+      setLevel(1);
+      setScenarioText('');
+      setEvaluationText('');
+      setHistory([]);
+      return;
+    }
+    const loadState = async () => {
+      try {
+        const docRef = doc(db, 'users', user.uid, 'simulatorState', 'current');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const parsed = docSnap.data();
+          setSimState(parsed.simState || 'START');
+          setLevel(parsed.level || 1);
+          setScenarioText(parsed.scenarioText || '');
+          setEvaluationText(parsed.evaluationText || '');
+          setHistory(parsed.history || []);
+        }
+      } catch (e) {
+        console.error("Failed to load simulator state", e);
       }
-    } catch (e) {}
-  }, []);
+    };
+    loadState();
+  }, [user]);
 
   // Save state
   useEffect(() => {
+    if (!user) return;
     try {
-      localStorage.setItem('aura_simulator_state', JSON.stringify({
+      setDoc(doc(db, 'users', user.uid, 'simulatorState', 'current'), {
         simState, level, scenarioText, evaluationText, history
-      }));
+      }, { merge: true }).catch(console.error);
     } catch (e) {}
-  }, [simState, level, scenarioText, evaluationText, history]);
+  }, [simState, level, scenarioText, evaluationText, history, user]);
 
   const clearSimulator = () => {
     triggerHaptic();
@@ -63,7 +80,9 @@ export default function Simulator() {
     setEvaluationText('');
     setHistory([]);
     setInput('');
-    localStorage.removeItem('aura_simulator_state');
+    if (user) {
+      deleteDoc(doc(db, 'users', user.uid, 'simulatorState', 'current')).catch(console.error);
+    }
   };
 
   const handleStart = async () => {

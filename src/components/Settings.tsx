@@ -1,7 +1,7 @@
 import React from 'react';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
-import { X, LogOut, ShieldAlert } from 'lucide-react';
+import { X, LogOut, ShieldAlert, User } from 'lucide-react';
 
 interface SettingsProps {
   onClose: () => void;
@@ -9,7 +9,7 @@ interface SettingsProps {
 
 export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
   const { language, setLanguage, hapticFeedback, setHapticFeedback, vibration, setVibration, music, setMusic, volume, setVolume, customMusicUrl, setCustomMusicUrl } = useSettings();
-  const { logout, isAdmin } = useAuth();
+  const { logout, isAdmin, user } = useAuth();
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
@@ -20,6 +20,22 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
         </div>
 
         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 scrollbar-hide">
+          {user && (
+            <div className="bg-white/5 border border-white/10 p-4 rounded-xl flex items-center space-x-4">
+              {user.photoURL ? (
+                <img src={user.photoURL} alt="Profile" className="w-12 h-12 rounded-full border border-white/20" />
+              ) : (
+                <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center text-lg font-bold text-white border border-white/20">
+                  {user.displayName?.[0] || user.email?.[0]?.toUpperCase() || <User size={20} />}
+                </div>
+              )}
+              <div className="overflow-hidden flex-1">
+                <p className="text-sm font-bold text-white truncate">{user.displayName || 'User'}</p>
+                <p className="text-xs text-white/50 truncate">{user.email}</p>
+              </div>
+            </div>
+          )}
+
           {isAdmin && (
             <button
               onClick={() => {
@@ -70,16 +86,30 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
           </div>
 
           <div>
-            <label className="text-xs text-white/50 uppercase tracking-wider">Background Music</label>
-            <select value={music} onChange={(e) => setMusic(e.target.value as any)} className="w-full mt-1 bg-white/5 border border-white/10 p-2 rounded-lg text-white">
-              <option value="none">None</option>
-              <option value="ambient">Ambient</option>
-              <option value="lofi">Lo-Fi</option>
-              <option value="nature">Nature</option>
-              <option value="classical">Classical</option>
-              <option value="focus">Focus</option>
-              <option value="custom">Custom (Upload)</option>
-            </select>
+            <label className="text-xs text-white/50 uppercase tracking-wider mb-2 block">Background Music</label>
+            <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide snap-x">
+              {[
+                { id: 'none', label: 'None' },
+                { id: 'ambient', label: 'Ambient' },
+                { id: 'lofi', label: 'Lo-Fi' },
+                { id: 'nature', label: 'Nature' },
+                { id: 'classical', label: 'Classical' },
+                { id: 'focus', label: 'Focus' },
+                { id: 'custom', label: 'Custom' }
+              ].map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => setMusic(m.id as any)}
+                  className={`flex-shrink-0 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all snap-center ${
+                    music === m.id 
+                      ? 'bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.3)]' 
+                      : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white border border-white/5'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {music === 'custom' && (
