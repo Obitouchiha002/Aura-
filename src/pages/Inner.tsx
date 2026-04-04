@@ -211,9 +211,19 @@ export default function Inner() {
     if (!user || !currentSessionId) return;
     const sessionMeta = sessions.find(s => s.id === currentSessionId);
     if (sessionMeta) {
+      const sanitizedMessages = messages.map(msg => {
+        const sanitized = { ...msg };
+        Object.keys(sanitized).forEach(key => {
+          if (sanitized[key as keyof typeof sanitized] === undefined) {
+            delete sanitized[key as keyof typeof sanitized];
+          }
+        });
+        return sanitized;
+      });
+
       setDoc(doc(db, 'users', user.uid, 'chatSessions', currentSessionId), {
         ...sessionMeta,
-        messages
+        messages: sanitizedMessages
       }, { merge: true }).catch(console.error);
     }
   }, [messages, sessions, currentSessionId, user]);
