@@ -12,6 +12,7 @@ import { Send, User, Bot, Trash2, ChevronDown, History, X, MessageSquare, Plus, 
 import { Settings } from '../components/Settings';
 import Focus from './Focus';
 import Simulator from './Simulator';
+import { ReportIssueModal } from '../components/ReportIssueModal';
 
 const CHARACTERS = [
   "Thomas Shelby", "Tywin Lannister", "Petyr Baelish", "Cersei Lannister", "Tyrion Lannister",
@@ -122,6 +123,7 @@ export default function Inner() {
   
   const [inputAction, setInputAction] = useState<'CHAT' | 'IMAGE'>('CHAT');
   const [showActionMenu, setShowActionMenu] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   const [hash, setHash] = useState(window.location.hash || '#chat');
   const previousViewRef = useRef<'chat' | 'focus' | 'simulator'>('chat');
@@ -191,14 +193,7 @@ export default function Inner() {
         });
         
         setSessions(fetchedSessions);
-        if (fetchedSessions.length > 0) {
-          setCurrentSessionId(fetchedSessions[0].id);
-          setMode(fetchedSessions[0].mode);
-          if (fetchedSessions[0].mode === 'MENTOR') {
-            setSelectedCharacter(fetchedSessions[0].character);
-          }
-          setMessages(fetchedSessions[0].messages || []);
-        }
+        // Do not auto-load the first session. Start with a new chat.
       } catch (e) {
         console.error("Failed to load sessions", e);
       }
@@ -868,6 +863,14 @@ export default function Inner() {
             {inputAction === 'IMAGE' ? <ImageIcon size={18} /> : <Send size={18} />}
           </button>
         </form>
+        <div className="flex justify-center px-4 pb-2">
+          <button 
+            onClick={() => setShowReportModal(true)}
+            className="text-[10px] text-white/30 hover:text-white/60 transition-colors flex items-center gap-1"
+          >
+            Developer: Vansh Kashyap | Report Issue
+          </button>
+        </div>
         <div className="h-safe-bottom" /> {/* Handle safe area for mobile */}
       </div>
       </>
@@ -879,6 +882,11 @@ export default function Inner() {
 
       {/* Settings Modal */}
       {isSettingsOpen && <Settings onClose={closeModals} />}
+      
+      <ReportIssueModal 
+        isOpen={showReportModal} 
+        onClose={() => setShowReportModal(false)} 
+      />
     </div>
   );
 }

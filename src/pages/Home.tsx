@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Typewriter } from '../components/Typewriter';
+import { ReportIssueModal } from '../components/ReportIssueModal';
 
 interface HomeProps {
   onEnter: () => void;
@@ -32,6 +33,7 @@ const QUOTES = [
 export const Home: React.FC<HomeProps> = ({ onEnter }) => {
   const [quote, setQuote] = useState<{ character: string; quote: string; theme: string } | null>(null);
   const [showExitToast, setShowExitToast] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   useEffect(() => {
     // Pick a random quote on mount
@@ -99,6 +101,20 @@ export const Home: React.FC<HomeProps> = ({ onEnter }) => {
           Press back again to exit
         </motion.div>
       )}
+
+      <div className="absolute bottom-4 left-0 right-0 flex justify-center z-20">
+        <button 
+          onClick={() => setShowReportModal(true)}
+          className="text-[10px] text-white/30 hover:text-white/60 transition-colors flex items-center gap-1"
+        >
+          Developer: Vansh Kashyap | Report Issue
+        </button>
+      </div>
+
+      <ReportIssueModal 
+        isOpen={showReportModal} 
+        onClose={() => setShowReportModal(false)} 
+      />
     </div>
   );
 };

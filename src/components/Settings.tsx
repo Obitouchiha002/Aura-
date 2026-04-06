@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
-import { X, LogOut, ShieldAlert, User } from 'lucide-react';
+import { X, LogOut, ShieldAlert, User, AlertCircle } from 'lucide-react';
+import { ReportIssueModal } from './ReportIssueModal';
 
 interface SettingsProps {
   onClose: () => void;
@@ -10,6 +11,7 @@ interface SettingsProps {
 export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
   const { language, setLanguage, hapticFeedback, setHapticFeedback, vibration, setVibration, music, setMusic, volume, setVolume, customMusicUrl, setCustomMusicUrl } = useSettings();
   const { logout, isAdmin, user } = useAuth();
+  const [showReportModal, setShowReportModal] = useState(false);
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
@@ -149,7 +151,14 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
             />
           </div>
 
-          <div className="pt-4 mt-4 border-t border-white/10">
+          <div className="pt-4 mt-4 border-t border-white/10 space-y-2">
+            <button
+              onClick={() => setShowReportModal(true)}
+              className="w-full flex items-center justify-center space-x-2 bg-white/5 hover:bg-white/10 text-white p-3 rounded-xl transition-colors"
+            >
+              <AlertCircle size={18} />
+              <span className="font-medium">Report Issue</span>
+            </button>
             <button
               onClick={async () => {
                 await logout();
@@ -163,6 +172,10 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
           </div>
         </div>
       </div>
+      <ReportIssueModal 
+        isOpen={showReportModal} 
+        onClose={() => setShowReportModal(false)} 
+      />
     </div>
   );
 };

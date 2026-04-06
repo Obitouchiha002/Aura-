@@ -31,6 +31,15 @@ export const Login: React.FC = () => {
           <span className="font-medium tracking-wide">Sign in with Google</span>
         </motion.button>
       </motion.div>
+
+      <div className="absolute bottom-4 right-4 z-20">
+        <a 
+          href="mailto:vk1234888i@gmail.com?subject=Aura%20App%20Issue" 
+          className="text-[10px] text-white/30 hover:text-white/60 transition-colors flex items-center gap-1"
+        >
+          Developer: Vansh Kashyap | Report Issue
+        </a>
+      </div>
     </div>
   );
 };
