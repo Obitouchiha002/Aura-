@@ -8,15 +8,17 @@ import { useLang } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { collection, doc, getDocs, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Send, User, Bot, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as SettingsIcon, RefreshCcw, Image as ImageIcon, Users, Sparkles, Target, Gamepad2 } from 'lucide-react';
+import { Send, User, Bot, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as SettingsIcon, RefreshCcw, Image as ImageIcon, Users, Sparkles, Target, Gamepad2, Volume2, Square } from 'lucide-react';
 import { Settings } from '../components/Settings';
+import { useTTS } from '../hooks/useTTS';
 import Focus from './Focus';
 import Simulator from './Simulator';
 
 const CHARACTERS = [
   "Thomas Shelby", "Tywin Lannister", "Petyr Baelish", "Cersei Lannister", "Tyrion Lannister",
   "Madara Uchiha", "Itachi Uchiha", "Pain", "Shikamaru Nara", "Johan Liebert", "Kiyotaka Ayanokoji",
-  "Baki Hanma", "Hajime no Ippo", "Mike Tyson", "Muhammad Ali", "Bruce Lee", "Khabib Nurmagomedov", "Miyamoto Musashi"
+  "L (Death Note)", "Sosuke Aizen (Bleach)", "Senku Ishigami (Dr. Stone)", "Chanakya (चाणक्य)",
+  "Sun Tzu (The Art of War)", "Niccolò Machiavelli", "Harvey Specter (Suits)", "Gustavo Fring (Breaking Bad)"
 ];
 
 interface ChatSession {
@@ -122,6 +124,8 @@ export default function Inner() {
   
   const [inputAction, setInputAction] = useState<'CHAT' | 'IMAGE'>('CHAT');
   const [showActionMenu, setShowActionMenu] = useState(false);
+
+  const { speakingId, speak, stop } = useTTS(lang);
 
   const [hash, setHash] = useState(window.location.hash || '#chat');
   const previousViewRef = useRef<'chat' | 'focus' | 'simulator'>('chat');
@@ -694,16 +698,41 @@ export default function Inner() {
                           <img src={msg.imageUrl} alt="Generated" className="w-full h-auto max-w-sm" />
                         </div>
                       )}
-                      {msg.isAi && msg.text.startsWith('[System Error]') && (
-                        <button
-                          onClick={retryLastMessage}
-                          disabled={isTyping}
-                          className="mt-3 flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-[10px] uppercase tracking-widest transition-all border border-white/10"
-                        >
-                          <RefreshCcw size={12} className={isTyping ? 'animate-spin' : ''} />
-                          {lang === 'en' ? 'Retry' : 'पुनः प्रयास करें'}
-                        </button>
-                      )}
+                      
+                      <div className="flex gap-2">
+                        {msg.isAi && msg.text.startsWith('[System Error]') && (
+                          <button
+                            onClick={retryLastMessage}
+                            disabled={isTyping}
+                            className="mt-3 flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-[10px] uppercase tracking-widest transition-all border border-white/10"
+                          >
+                            <RefreshCcw size={12} className={isTyping ? 'animate-spin' : ''} />
+                            {lang === 'en' ? 'Retry' : 'पुनः प्रयास करें'}
+                          </button>
+                        )}
+                        {msg.isAi && !msg.isImageRequest && msg.text && !msg.text.startsWith('[System') && (
+                          <button
+                            onClick={() => speak(msg.id, msg.text)}
+                            className={`mt-3 flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] uppercase tracking-widest transition-all border ${
+                              speakingId === msg.id
+                                ? 'bg-aura-red/20 border-aura-red/50 text-aura-red'
+                                : 'bg-white/10 hover:bg-white/20 border-white/10 text-white'
+                            }`}
+                          >
+                            {speakingId === msg.id ? (
+                              <>
+                                <Square size={12} className="fill-current" />
+                                {lang === 'en' ? 'Stop' : 'रोकें'}
+                              </>
+                            ) : (
+                              <>
+                                <Volume2 size={12} />
+                                {lang === 'en' ? 'Speak' : 'सुने'}
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -743,10 +772,17 @@ export default function Inner() {
                   animate={{ opacity: 1, y: 0 }}
                   className="flex justify-start"
                 >
-                  <div className="bg-white/5 px-4 py-2 rounded-2xl rounded-bl-none border border-white/10 flex gap-1 items-center">
-                    <span className="w-1.5 h-1.5 bg-aura-red rounded-full animate-bounce [animation-delay:-0.3s]" />
-                    <span className="w-1.5 h-1.5 bg-aura-red rounded-full animate-bounce [animation-delay:-0.15s]" />
-                    <span className="w-1.5 h-1.5 bg-aura-red rounded-full animate-bounce" />
+                  <div className="bg-white/5 px-5 py-3 rounded-2xl rounded-bl-none border border-white/10 flex items-center gap-3 w-fit max-w-[80%]">
+                    <div className="flex gap-1.5">
+                      <span className="w-1.5 h-1.5 bg-aura-red rounded-full animate-bounce [animation-delay:-0.3s]" />
+                      <span className="w-1.5 h-1.5 bg-aura-red rounded-full animate-bounce [animation-delay:-0.15s]" />
+                      <span className="w-1.5 h-1.5 bg-aura-red rounded-full animate-bounce" />
+                    </div>
+                    <span className="text-[11px] uppercase tracking-widest text-white/50 font-bold">
+                      {mode === 'COUNCIL' 
+                        ? (lang === 'en' ? 'Council is analyzing...' : 'काउंसिल विश्लेषण कर रही है...')
+                        : (lang === 'en' ? `${selectedCharacter} is thinking...` : `${selectedCharacter} सोच रहे हैं...`)}
+                    </span>
                   </div>
                 </motion.div>
               )}

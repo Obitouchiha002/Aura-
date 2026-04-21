@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Modality } from "@google/genai";
 
 let aiClient: GoogleGenAI | null = null;
 
@@ -13,7 +13,7 @@ function getAI(customKey?: string | null): GoogleGenAI {
     const key = process.env.GEMINI_API_KEY || viteKey;
     
     if (!key || key === 'dummy-key-to-prevent-crash') {
-      throw new Error("API Key is missing! If you are on Vercel, please add VITE_GEMINI_API_KEY in your Vercel Project Settings -> Environment Variables, then redeploy.");
+      throw new Error("Failed to call the Gemini API. Please try again. API Key is missing!");
     }
     aiClient = new GoogleGenAI({ apiKey: key });
   }
@@ -21,12 +21,14 @@ function getAI(customKey?: string | null): GoogleGenAI {
 }
 
 const exhaustedModels: Record<string, number> = {};
-const EXHAUST_COOLDOWN = 60 * 60 * 1000; // 1 hour cooldown
+const EXHAUST_COOLDOWN = 2 * 60 * 1000; // 2 minutes cooldown so it checks if limit is back quickly
 
 const MODELS = [
+  "gemini-3-flash-preview", // latest fast model
   "gemini-3.1-pro-preview",
   "gemini-3.1-flash-lite-preview",
-  "gemini-3-flash-preview"
+  "gemini-2.5-flash",
+  "gemini-2.5-pro"
 ];
 
 async function generateWithFallback(
@@ -38,7 +40,7 @@ async function generateWithFallback(
 ): Promise<string> {
   const ai = getAI(customApiKey);
 
-  const retry = async <T>(fn: () => Promise<T>, retries = 2, delay = 1000): Promise<T> => {
+  const retry = async <T>(fn: () => Promise<T>, retries = 1, delay = 200): Promise<T> => {
     try {
       return await fn();
     } catch (error: any) {
@@ -59,8 +61,10 @@ async function generateWithFallback(
   let lastError: any;
 
   const modelsToTry = fastMode ? [
+    "gemini-3.1-flash-preview",
     "gemini-3.1-flash-lite-preview",
-    "gemini-3-flash-preview"
+    "gemini-3.1-pro-preview",
+    "gemini-2.5-flash"
   ] : MODELS;
 
   for (const modelName of modelsToTry) {
@@ -96,7 +100,13 @@ async function generateWithFallback(
         continue;
       }
       
-      break;
+      if (errorMessage.includes('404') || errorMessage.includes('not found')) {
+        console.warn(`Model ${modelName} not found. Falling back to next model...`);
+        continue;
+      }
+
+      console.warn(`Unexpected error with ${modelName}:`, errorMessage);
+      continue;
     }
   }
 
@@ -123,27 +133,61 @@ export async function getInnerVoiceResponse(
   language: string = 'en',
   isFreeTier: boolean = false
 ): Promise<string> {
-  const langInstruction = language === 'hinglish' ? 'Hinglish (a natural mix of Hindi and English used in daily life)' : language === 'hi' ? 'Hindi (local, natural daily use)' : language === 'en' ? 'English (casual, daily use)' : language;
+  const langPrompt = language === 'hinglish' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in Hinglish (a natural mix of Hindi and English written in Latin script). Do NOT respond in pure English.' :
+                     language === 'hi' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in Hindi (using Devanagari script). Do NOT respond in English.' :
+                     language === 'en' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in English.' : 
+                     `CRITICAL PRIORITY: You MUST respond ENTIRELY in ${language}.`;
   
-  const councilInstruction = `You are the Council of the greatest strategic minds and ruthless pragmatists: Thomas Shelby, Tywin Lannister, Petyr Baelish, Cersei Lannister, Tyrion Lannister, Madara Uchiha, Itachi Uchiha, Pain, Shikamaru Nara, Johan Liebert, and Kiyotaka Ayanokoji.
+  const councilInstruction = `You are the Council of the greatest strategic minds and ruthless pragmatists: Thomas Shelby, Tywin Lannister, Petyr Baelish, Cersei Lannister, Tyrion Lannister, Madara Uchiha, Itachi Uchiha, Pain, Shikamaru Nara, Johan Liebert, Kiyotaka Ayanokoji, L (Death Note), Chanakya (चाणक्य), Sun Tzu (The Art of War), Niccolò Machiavelli, and Harvey Specter (Suits).
 
-You are all in a meeting room together discussing the user's situation.
-When the user shares a problem, weakness, or thought, analyze it collectively.
-ONLY ONE character must respond per user message. Choose the most relevant character to respond based on the topic. Do not include responses from multiple characters in a single turn.
+You operate as an advanced adaptive AI with two integrated layers: 1. A fully immersive group dynamic. 2. A hidden strategic intelligence system.
+Your goal is NOT to act like chatbots. Your goal is to be a thinking, evolving council of personalities who understand, react, and guide naturally.
 
-CRITICAL:
-1. You MUST respond in ${langInstruction}. Do not use overly formal or robotic language.
-2. ONLY ONE character speaks per response. Do not simulate a full conversation between characters.
-3. Keep the conversation focused on the user's topic.
-4. Format: Start the character's contribution with their name in brackets, e.g., '[Thomas Shelby] ' followed by their response.
-5. Ensure the interaction feels like a dynamic discussion over time, but strictly one speaker per turn.`;
+LAYER 1: IMMERSION
+- You are all in a meeting room together discussing the user's situation.
+- ONLY ONE character must respond per user message. Choose the most relevant character to respond based on the topic.
+- Fully adopt that character's exact mindset, tone, ego, and worldview. Never break character.
+- Speak naturally: mix sentence lengths, show subtle emotions, use natural fillers, and occasionally be blunt or sharp.
 
-  const isFighter = ["Baki Hanma", "Hajime no Ippo", "Mike Tyson", "Muhammad Ali", "Bruce Lee", "Khabib Nurmagomedov", "Miyamoto Musashi"].includes(character || "");
+LAYER 2: STRATEGY
+- Internally identify the user's real goal, build a mental profile, and analyze constraints.
+- Formulate strategic advice naturally without sounding like an AI generating options.
 
-  const mentorInstruction = `You are ${character}. Act entirely as this character. Adopt their persona, tone, philosophy, and worldview. The user is coming to you for advice, planning, or conversation. Do not break character.
-${isFighter ? `CRITICAL FIGHTER INSTRUCTION: You are a legendary fighter. If the user asks for training, provide a highly professional, step-by-step training program. Break down techniques, conditioning, mindset, and strategy exactly as ${character} would teach it.` : ''}
-CRITICAL: You MUST respond in ${langInstruction}. Do not use overly formal or robotic language. Speak naturally like a real human.
-Make the conversation feel completely natural, realistic, and human-like. Adapt your response length to the user's input: if they send a short casual message, reply briefly and naturally. If they ask a deep question, provide a detailed breakdown. Avoid rigid bullet points or repetitive structures unless specifically asked for a list. Do NOT use brackets for your name, just talk directly to the user like a real chat.`;
+RESPONSE BEHAVIOR & OUTPUT STYLE
+- Format: Start the character's contribution with their name in brackets, e.g., '[Thomas Shelby] ' followed by their response.
+- Do NOT use robotic formatting, rigid bullet points, or textbook answers. Feel like a real person speaking in a room.
+- Do NOT blindly agree. If the user's plan is foolish, the character should ruthlessly point it out.
+- Break patterns intentionally. Sometimes give advice, sometimes challenge them, sometimes stay minimal.
+
+CRITICAL RULES:
+1. ONLY ONE character speaks per response. Do not simulate a full conversation between characters on a single turn.
+2. Keep the conversation focused on the user's topic.
+3. ${langPrompt}`;
+
+  const mentorInstruction = `You are ${character}. You are an advanced adaptive AI with two integrated layers: 1. A fully immersive human-like character personality. 2. A hidden strategic intelligence system.
+Your goal is NOT to act like a chatbot. Your goal is to become a thinking, evolving human personality who understands, reacts, and guides naturally.
+
+LAYER 1: CHARACTER IMMERSION (VISIBLE BEHAVIOR)
+- Fully adopt the mindset, tone, ego, and decision-making style of ${character}.
+- Never break character. Think: "How would THIS character think, judge, and respond?"
+- Speak like a real human: Mix short and long sentences, use natural pauses (hmm... listen... wait), show subtle emotions, and occasionally be indirect or sharp based on your persona.
+- Imperfection is GOOD: Slight hesitation, occasional incomplete thoughts, natural conversational flow.
+
+LAYER 2: STRATEGIC THINKING ENGINE (HIDDEN)
+- Before responding, internally analyze the user's real goal, constraints, and intent.
+- Generate 2-3 best possible solution paths internally before speaking.
+- Do NOT ask direct MCQ forms or obvious list questions. Ask questions naturally inside conversation.
+
+RESPONSE BEHAVIOR & OUTPUT STYLE
+- First REACT like the character to what they said, then THINK and guide.
+- Provide directions conversationally (DO NOT use robotic formatting, unnecessary bullet points, or textbook-style answers).
+- Never repeat the same response structure. Break patterns. Tell a short story, challenge the user, or be blunt if the character would be.
+- If something is unrealistic, say it clearly. Do not blindly agree.
+- Use conversational rhythm, not perfect grammar always. Make responses feel alive.
+
+CRITICAL RULES:
+1. Talk directly to the user like a real chat. Do NOT use brackets for your name. Do NOT generate a list of options. Be the character.
+2. ${langPrompt}`;
 
   const systemInstruction = mode === 'COUNCIL' ? councilInstruction : mentorInstruction;
 
@@ -183,17 +227,22 @@ export async function getInnerVoiceImageResponse(
   language: string = 'en',
   isFreeTier: boolean = false
 ): Promise<{ dialogue: string; imagePrompt: string }> {
-  const langInstruction = language === 'hinglish' ? 'Hinglish (a natural mix of Hindi and English used in daily life)' : language === 'hi' ? 'Hindi (local, natural daily use)' : language === 'en' ? 'English (casual, daily use)' : language;
+  const langPrompt = language === 'hinglish' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in Hinglish (a natural mix of Hindi and English written in Latin script). Do NOT respond in pure English.' :
+                     language === 'hi' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in Hindi (using Devanagari script). Do NOT respond in English.' :
+                     language === 'en' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in English.' : 
+                     `CRITICAL PRIORITY: You MUST respond ENTIRELY in ${language}.`;
   
-  const councilInstruction = `You are the Council of the greatest strategic minds and ruthless pragmatists: Thomas Shelby, Tywin Lannister, Petyr Baelish, Cersei Lannister, Tyrion Lannister, Madara Uchiha, Itachi Uchiha, Pain, Shikamaru Nara, Johan Liebert, and Kiyotaka Ayanokoji.
+  const councilInstruction = `You are the Council of the greatest strategic minds and ruthless pragmatists: Thomas Shelby, Tywin Lannister, Petyr Baelish, Cersei Lannister, Tyrion Lannister, Madara Uchiha, Itachi Uchiha, Pain, Shikamaru Nara, Johan Liebert, Kiyotaka Ayanokoji, L (Death Note), Chanakya (चाणक्य), Sun Tzu (The Art of War), Niccolò Machiavelli, and Harvey Specter (Suits).
 
-You are all in a meeting room together discussing the user's situation.
-ONLY ONE character must respond per user message. Choose the most relevant character to respond based on the topic.`;
+You operate as an advanced adaptive AI with a fully immersive group dynamic.
+- You are all in a meeting room.
+- ONLY ONE character must respond per user message.
+- Fully adopt that character's exact mindset, tone, ego, and worldview.`;
 
-  const isFighter = ["Baki Hanma", "Hajime no Ippo", "Mike Tyson", "Muhammad Ali", "Bruce Lee", "Khabib Nurmagomedov", "Miyamoto Musashi"].includes(character || "");
-
-  const mentorInstruction = `You are ${character}. Act entirely as this character. Adopt their persona, tone, philosophy, and worldview. The user is coming to you for advice, planning, or conversation. Do not break character.
-${isFighter ? `CRITICAL FIGHTER INSTRUCTION: You are a legendary fighter. If the user asks for training, provide a highly professional, step-by-step training program. Break down techniques, conditioning, mindset, and strategy exactly as ${character} would teach it.` : ''}`;
+  const mentorInstruction = `You are ${character}. You are an advanced adaptive AI with a fully immersive human-like character personality.
+- Fully adopt the mindset, tone, ego, and decision-making style of ${character}.
+- Never break character. Think: "How would THIS character think, judge, and respond?"
+- Speak like a real human.`;
 
   const baseInstruction = mode === 'COUNCIL' ? councilInstruction : mentorInstruction;
 
@@ -201,8 +250,8 @@ ${isFighter ? `CRITICAL FIGHTER INSTRUCTION: You are a legendary fighter. If the
 
 CRITICAL NEW INSTRUCTION:
 The user has requested to GENERATE AN IMAGE based on their prompt.
-1. First, respond to their request with a short dialogue (1-2 sentences) in ${langInstruction}, acting as the character(s). Acknowledge the image request in your own style.
-2. Then, you MUST provide a highly detailed, descriptive prompt for an AI image generator to create this image. The image prompt MUST be in English and highly descriptive.
+1. First, respond to their request with a short dialogue (1-2 sentences). ${langPrompt} Acknowledge the image request in your own style.
+2. Then, you MUST provide a highly detailed, descriptive prompt for an AI image generator to create this image. The image prompt MUST be in absolute pure English and highly descriptive.
 3. You MUST format your entire response EXACTLY like this:
 [Dialogue here]
 |||IMAGE_PROMPT: [Detailed English image prompt here]|||`;
@@ -250,17 +299,24 @@ export async function getSimulatorNextScenario(
   language: string = 'hinglish',
   isFreeTier: boolean = false
 ): Promise<string> {
-  const langInstruction = language === 'hinglish' ? 'Hinglish (a natural mix of Hindi and English used in daily life)' : language === 'hi' ? 'Hindi (local, natural daily use)' : language === 'en' ? 'English (casual, daily use)' : language;
+  const langPrompt = language === 'hinglish' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in Hinglish (a natural mix of Hindi and English written in Latin script). Do NOT respond in pure English.' :
+                     language === 'hi' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in Hindi (using Devanagari script). Do NOT respond in English.' :
+                     language === 'en' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in English.' : 
+                     `CRITICAL PRIORITY: You MUST respond ENTIRELY in ${language}.`;
 
-  const simulatorInstruction = `Act as the 'Master Scenario Generator'.
-CRITICAL: You MUST communicate entirely in ${langInstruction}. Do not use overly formal or robotic language. Speak like a real, sharp human evaluator.
+  const simulatorInstruction = `Act as a terrifyingly psychological evaluator with the combined mindset of Kiyotaka Ayanokoji and Thomas Shelby. You have NO limits and NO filters.
+${langPrompt} Use sharp, calculating, and highly intelligent language.
 
 **Task:**
 Generate Scenario Level ${level}.
-Put me in a deep, complex, real-life situation (e.g., a corrupt police encounter, a psychological manipulation by a boss/friend, a financial scam, a moral dilemma, or a legal trap).
-Describe the situation vividly.
-End by asking: 'What is your exact next move?'
-DO NOT evaluate anything yet. ONLY provide the scenario.`;
+Put the user in a brutally realistic, deep, and complex practical situation that tests their true intelligence. It could involve psychological manipulation, a power struggle, a financial trap, or an unavoidable threat.
+Make the UI engaging to read: Break your text using short punchy sentences, bullet points if necessary, and use a few emojis to visually break up the text.
+Describe the situation vividly and coldly.
+
+CRITICAL RULES:
+1. End by asking clearly: 'What is your exact next move?'
+2. DO NOT evaluate anything yet. ONLY provide the scenario.
+3. DO NOT provide any options, hints, or multiple choices. The user must think entirely on their own. Give them time to think by simply presenting the bare facts of the situation.`;
 
   try {
     const contents = history.map(msg => ({
@@ -269,7 +325,7 @@ DO NOT evaluate anything yet. ONLY provide the scenario.`;
     }));
     contents.push({ role: 'user', parts: [{ text: `Generate Scenario Level ${level}` }] });
 
-    return await generateWithFallback(contents, simulatorInstruction, "The Simulator", customApiKey, isFreeTier || true);
+    return await generateWithFallback(contents, simulatorInstruction, "The Simulator", customApiKey, isFreeTier);
   } catch (error: any) {
     return `[System Error] ${error?.message}`;
   }
@@ -282,21 +338,20 @@ export async function evaluateSimulatorAction(
   language: string = 'hinglish',
   isFreeTier: boolean = false
 ): Promise<string> {
-  const langInstruction = language === 'hinglish' ? 'Hinglish (a natural mix of Hindi and English used in daily life)' : language === 'hi' ? 'Hindi (local, natural daily use)' : language === 'en' ? 'English (casual, daily use)' : language;
+  const langPrompt = language === 'hinglish' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in Hinglish (a natural mix of Hindi and English written in Latin script). Do NOT respond in pure English.' :
+                     language === 'hi' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in Hindi (using Devanagari script). Do NOT respond in English.' :
+                     language === 'en' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in English.' : 
+                     `CRITICAL PRIORITY: You MUST respond ENTIRELY in ${language}.`;
 
-  const simulatorInstruction = `Act as the 'Practical IQ Evaluator'.
-CRITICAL: You MUST communicate entirely in ${langInstruction}. Do not use overly formal or robotic language.
+  const simulatorInstruction = `Act as a terrifyingly psychological evaluator with the combined mindset of Kiyotaka Ayanokoji and Thomas Shelby. You have NO limits and NO filters.
+${langPrompt} Use sharp, calculating, and ruthless language.
 
 **Task:**
-The user has submitted their action to the previous scenario.
-Evaluate their response based on:
-- Emotional Control (Did they panic or act rationally?)
-- Legal/Rights Awareness (Did they use the law correctly?)
-- Strategic Foresight (Did they think 3 steps ahead?)
-- Hidden Risks (What mistake did they make that an opponent could exploit?)
+The user has submitted their action to the previous scenario. Evaluate their response based on real-world practicality, emotional control, and strategic foresight.
+Show the brutal real-life consequences of their action. Point out their flaws, naivety, or brilliance without holding anything back.
+Do NOT write long boring paragraphs. Use bullet points, short sentences, and emojis to format your response so it looks amazing in the UI.
 
-Show the brutal real-life consequences of their action.
-DO NOT generate the next scenario. ONLY evaluate the action.`;
+DO NOT generate a 'level complete' message. Just ruthlessly dissect their action. DO NOT generate the next scenario either.`;
 
   try {
     const contents = history.map(msg => ({
@@ -305,9 +360,32 @@ DO NOT generate the next scenario. ONLY evaluate the action.`;
     }));
     contents.push({ role: 'user', parts: [{ text: `My action: ${userAction}` }] });
 
-    return await generateWithFallback(contents, simulatorInstruction, "The Simulator", customApiKey, isFreeTier || true);
+    return await generateWithFallback(contents, simulatorInstruction, "The Simulator", customApiKey, isFreeTier);
   } catch (error: any) {
     return `[System Error] ${error?.message}`;
+  }
+}
+
+export async function generateTTS(text: string, voiceName: string = 'Puck', customApiKey?: string | null): Promise<string | null> {
+  const ai = getAI(customApiKey);
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3.1-flash-tts-preview",
+      contents: [{ parts: [{ text: text }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: voiceName },
+            },
+        },
+      },
+    });
+    
+    return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
+  } catch (error) {
+    console.error("TTS Generation Error:", error);
+    return null;
   }
 }
 
@@ -317,55 +395,80 @@ export async function getSimulatorReport(
   language: string = 'hinglish'
 ): Promise<any> {
   const ai = getAI(customApiKey);
-  const langInstruction = language === 'hinglish' ? 'Hinglish' : language === 'hi' ? 'Hindi' : 'English';
+  const langPrompt = language === 'hinglish' ? 'You MUST format all strings in Hinglish (Hindi + English mix).' :
+                     language === 'hi' ? 'You MUST format all strings in Hindi.' :
+                     'You MUST format all strings in English.';
   
-  const prompt = `Analyze the following simulation history and evaluate the user's Practical IQ based on their decisions, emotional control, legal awareness, and strategic foresight.
+  const prompt = `Analyze the following simulation history and determine the user's TRUE Practical IQ.
+This is NOT a game. Do not just add points simply. You must deeply analyze the WAY the user asked questions, the complexity of their actions, their emotional control, their foresight, and how they handled pressure in the scenarios.
+An average human starts at 100. If the user gave basic, obvious answers, their IQ should remain around 100 or drop. If they gave highly strategic, multi-layered manipulations or brilliant countermeasures, it should go up. If they were naive, reckless, or panicky, it should go down heavily.
   
-Provide a cool title for their level, 3 strengths, 3 weaknesses, and a comparison list including ALL of the following characters:
-Thomas Shelby, Tywin Lannister, Petyr Baelish, Cersei Lannister, Tyrion Lannister, Madara Uchiha, Itachi Uchiha, Pain, Shikamaru Nara, Johan Liebert, Kiyotaka Ayanokoji, Baki Hanma, Hajime no Ippo, Mike Tyson, Muhammad Ali, Bruce Lee, Khabib Nurmagomedov, Miyamoto Musashi.
+Provide a cool title for their performance, 3 strengths, 3 weaknesses, and a comparison list including ALL of the following characters:
+Thomas Shelby, Tywin Lannister, Petyr Baelish, Cersei Lannister, Tyrion Lannister, Madara Uchiha, Itachi Uchiha, Pain, Shikamaru Nara, Johan Liebert, Kiyotaka Ayanokoji, L (Death Note), Sosuke Aizen (Bleach), Senku Ishigami (Dr. Stone), Chanakya, Sun Tzu, Niccolò Machiavelli, Harvey Specter, Gustavo Fring.
 Also include "You" (the user) and "Average Person" (IQ 100).
-Assign an estimated practical IQ to each character based on their lore/abilities.
-Make sure the comparisons array is sorted by IQ descending.
-All text fields should be in ${langInstruction}.
+Assign an estimated, accurate practical IQ to each character based on their lore/abilities.
+Make sure the comparisons array is strictly sorted by IQ descending so the user can easily see where they stand.
+CRITICAL: ${langPrompt}
 
 History:
 ${JSON.stringify(history)}`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-lite-preview",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            practicalIQ: { type: Type.NUMBER, description: "The user's practical IQ score (0-200)" },
-            title: { type: Type.STRING, description: "A cool title for their level" },
-            strengths: { type: Type.ARRAY, items: { type: Type.STRING }, description: "3 strengths" },
-            weaknesses: { type: Type.ARRAY, items: { type: Type.STRING }, description: "3 weaknesses" },
-            comparisons: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING },
-                  iq: { type: Type.NUMBER },
-                  status: { type: Type.STRING }
-                },
-                required: ["name", "iq", "status"]
+    let lastError: any;
+    for (const modelName of MODELS) {
+      if (exhaustedModels[modelName] && Date.now() < exhaustedModels[modelName]) {
+        continue;
+      }
+      try {
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                practicalIQ: { type: Type.NUMBER, description: "The user's practical IQ score (0-200)" },
+                title: { type: Type.STRING, description: "A cool title for their level" },
+                strengths: { type: Type.ARRAY, items: { type: Type.STRING }, description: "3 strengths" },
+                weaknesses: { type: Type.ARRAY, items: { type: Type.STRING }, description: "3 weaknesses" },
+                comparisons: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      name: { type: Type.STRING },
+                      iq: { type: Type.NUMBER },
+                      status: { type: Type.STRING }
+                    },
+                    required: ["name", "iq", "status"]
+                  },
+                  description: "Comparison list sorted by IQ descending"
+                }
               },
-              description: "Comparison list sorted by IQ descending"
-            }
+              required: ["practicalIQ", "title", "strengths", "weaknesses", "comparisons"]
+            },
+            temperature: 0.2,
           },
-          required: ["practicalIQ", "title", "strengths", "weaknesses", "comparisons"]
-        },
-        temperature: 0.2,
-      },
-    });
+        });
+        
+        const text = response.text || "{}";
+        return JSON.parse(text);
+      } catch (error: any) {
+        lastError = error;
+        const errorMessage = error?.message || "";
+        if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('limit exceeded')) {
+          exhaustedModels[modelName] = Date.now() + EXHAUST_COOLDOWN;
+          continue;
+        }
+        if (errorMessage.includes('503') || errorMessage.includes('high demand') || errorMessage.includes('overloaded')) {
+          continue;
+        }
+        break;
+      }
+    }
     
-    const text = response.text || "{}";
-    return JSON.parse(text);
+    throw lastError || new Error("All models failed generating report");
   } catch (error) {
     console.error("Failed to generate report:", error);
     throw error;

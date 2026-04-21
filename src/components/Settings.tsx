@@ -9,7 +9,7 @@ interface SettingsProps {
 }
 
 export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
-  const { language, setLanguage, hapticFeedback, setHapticFeedback, vibration, setVibration, music, setMusic, volume, setVolume, customMusicUrl, setCustomMusicUrl } = useSettings();
+  const { language, setLanguage, hapticFeedback, setHapticFeedback, vibration, setVibration, music, setMusic, volume, setVolume, customMusicUrl, setCustomMusicUrl, ttsVoiceURI, setTtsVoiceURI } = useSettings();
   const { logout, isAdmin, user } = useAuth();
   const [showReportModal, setShowReportModal] = useState(false);
 
@@ -74,6 +74,31 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
                   {l.label}
                 </button>
               ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-white/50 uppercase tracking-wider mb-2 block">AI Voice Engine</label>
+            <div className="relative group">
+              <select
+                value={ttsVoiceURI || 'Charon'}
+                onChange={(e) => setTtsVoiceURI(e.target.value)}
+                className="w-full bg-[#111] border border-white/10 text-white rounded-xl p-3 text-sm focus:outline-none focus:border-aura-red appearance-none custom-select shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]"
+                style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
+              >
+                <optgroup label="Deep Male AI Voices" className="bg-[#111] text-aura-red font-bold">
+                  <option value="Charon" className="bg-[#1a1a1a] text-white font-normal">Charon (Deep & Resonant)</option>
+                  <option value="Fenrir" className="bg-[#1a1a1a] text-white font-normal">Fenrir (Strong & Powerful)</option>
+                  <option value="Zephyr" className="bg-[#1a1a1a] text-white font-normal">Zephyr (Intense & Deep)</option>
+                </optgroup>
+                <optgroup label="Standard AI Voices" className="bg-[#111] text-aura-red font-bold">
+                   <option value="Puck" className="bg-[#1a1a1a] text-white font-normal">Puck (Standard Male)</option>
+                </optgroup>
+              </select>
+              {/* Custom arrow for select */}
+              <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-white/50 group-focus-within:text-aura-red">
+                 <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" fillRule="evenodd"></path></svg>
+              </div>
             </div>
           </div>
 

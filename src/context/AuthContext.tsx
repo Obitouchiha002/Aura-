@@ -29,64 +29,72 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (currentUser) {
         setUser(currentUser);
         
-        // Check or create user profile in Firestore
-        const userRef = doc(db, 'users', currentUser.uid);
-        const userSnap = await getDoc(userRef);
-        
-        let role = 'user';
-        if (currentUser.email === 'vk1234888i@gmail.com') {
-          role = 'admin';
-        }
+        try {
+          // Check or create user profile in Firestore
+          const userRef = doc(db, 'users', currentUser.uid);
+          const userSnap = await getDoc(userRef);
+          
+          let role = 'user';
+          if (currentUser.email === 'vk1234888i@gmail.com') {
+            role = 'admin';
+          }
 
-        const today = new Date().toISOString().split('T')[0];
+          const today = new Date().toISOString().split('T')[0];
 
-        if (!userSnap.exists()) {
-          await setDoc(userRef, {
+          if (!userSnap.exists()) {
+            await setDoc(userRef, {
+              uid: currentUser.uid,
+              email: currentUser.email,
+              displayName: currentUser.displayName,
+              photoURL: currentUser.photoURL,
+              role: role,
+              createdAt: serverTimestamp(),
+              lastLoginAt: serverTimestamp(),
+              dailyMessageCount: 0,
+              lastMessageDate: today
+            });
+          } else {
+            // Update last login
+            await setDoc(userRef, {
+              lastLoginAt: serverTimestamp()
+            }, { merge: true });
+            
+            role = userSnap.data().role;
+          }
+          
+          setIsAdmin(role === 'admin');
+
+          // Start session tracking
+          currentSessionId = `session_${Date.now()}_${currentUser.uid}`;
+          const sessionRef = doc(db, 'sessions', currentSessionId);
+          const startTime = new Date();
+          
+          await setDoc(sessionRef, {
+            sessionId: currentSessionId,
             uid: currentUser.uid,
             email: currentUser.email,
-            displayName: currentUser.displayName,
-            photoURL: currentUser.photoURL,
-            role: role,
-            createdAt: serverTimestamp(),
-            lastLoginAt: serverTimestamp(),
-            dailyMessageCount: 0,
-            lastMessageDate: today
+            startTime: serverTimestamp(),
+            endTime: serverTimestamp(),
+            durationSeconds: 0
           });
-        } else {
-          // Update last login
-          await setDoc(userRef, {
-            lastLoginAt: serverTimestamp()
-          }, { merge: true });
-          
-          role = userSnap.data().role;
+
+          sessionInterval = setInterval(async () => {
+            if (currentSessionId) {
+              try {
+                const duration = Math.floor((new Date().getTime() - startTime.getTime()) / 1000);
+                await setDoc(doc(db, 'sessions', currentSessionId), {
+                  endTime: serverTimestamp(),
+                  durationSeconds: duration
+                }, { merge: true });
+              } catch (e) {
+                console.error("Failed to update session:", e);
+              }
+            }
+          }, 30000); // Update every 30 seconds
+        } catch (error) {
+          console.error("Firestore initialization error during auth:", error);
+          // Don't crash auth state if firestore fails initially
         }
-        
-        setIsAdmin(role === 'admin');
-
-        // Start session tracking
-        currentSessionId = `session_${Date.now()}_${currentUser.uid}`;
-        const sessionRef = doc(db, 'sessions', currentSessionId);
-        const startTime = new Date();
-        
-        await setDoc(sessionRef, {
-          sessionId: currentSessionId,
-          uid: currentUser.uid,
-          email: currentUser.email,
-          startTime: serverTimestamp(),
-          endTime: serverTimestamp(),
-          durationSeconds: 0
-        });
-
-        sessionInterval = setInterval(async () => {
-          if (currentSessionId) {
-            const duration = Math.floor((new Date().getTime() - startTime.getTime()) / 1000);
-            await setDoc(doc(db, 'sessions', currentSessionId), {
-              endTime: serverTimestamp(),
-              durationSeconds: duration
-            }, { merge: true });
-          }
-        }, 30000); // Update every 30 seconds
-
       } else {
         setUser(null);
         setIsAdmin(false);

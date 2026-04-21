@@ -20,6 +20,8 @@ interface SettingsContextType {
   setCustomMusicUrl: (url: string | null) => void;
   userApiKey: string | null;
   setUserApiKey: (key: string | null) => void;
+  ttsVoiceURI: string;
+  setTtsVoiceURI: (uri: string) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -32,6 +34,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [volume, setVolume] = useState<number>(0.5);
   const [customMusicUrl, setCustomMusicUrl] = useState<string | null>(null);
   const [userApiKey, setUserApiKey] = useState<string | null>(null);
+  const [ttsVoiceURI, setTtsVoiceURI] = useState<string>('');
 
   // Load settings from localStorage and IndexedDB
   useEffect(() => {
@@ -45,6 +48,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setMusic(parsed.music || 'none');
         setVolume(parsed.volume ?? 0.5);
         setUserApiKey(parsed.userApiKey || null);
+        setTtsVoiceURI(parsed.ttsVoiceURI || '');
       }
       
       const customMusic = await getAsset('custom_music');
@@ -57,7 +61,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Save settings to localStorage
   useEffect(() => {
-    localStorage.setItem('aura_settings', JSON.stringify({ language, hapticFeedback, vibration, music, volume, userApiKey }));
+    localStorage.setItem('aura_settings', JSON.stringify({ language, hapticFeedback, vibration, music, volume, userApiKey, ttsVoiceURI }));
     
     globalAudio.setVolume(volume);
 
@@ -67,7 +71,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } else {
       globalAudio.play(music as any, customMusicUrl);
     }
-  }, [language, hapticFeedback, vibration, music, volume, customMusicUrl, userApiKey]);
+  }, [language, hapticFeedback, vibration, music, volume, customMusicUrl, userApiKey, ttsVoiceURI]);
 
   const updateCustomMusic = async (url: string | null) => {
     setCustomMusicUrl(url);
@@ -86,7 +90,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       customMusicUrl, 
       setCustomMusicUrl: updateCustomMusic,
       userApiKey,
-      setUserApiKey
+      setUserApiKey,
+      ttsVoiceURI,
+      setTtsVoiceURI
     }}>
       {children}
     </SettingsContext.Provider>

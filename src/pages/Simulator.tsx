@@ -6,7 +6,8 @@ import { useLang } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Send, Bot, RefreshCcw, Trash2, Settings as SettingsIcon, Activity, X, Brain, ArrowLeft } from 'lucide-react';
+import { Send, Bot, RefreshCcw, Trash2, Settings as SettingsIcon, Activity, X, Brain, ArrowLeft, Volume2, Square } from 'lucide-react';
+import { useTTS } from '../hooks/useTTS';
 
 type SimState = 'START' | 'SCENARIO' | 'EVALUATING' | 'RESULT' | 'BREAK';
 
@@ -26,6 +27,8 @@ export default function Simulator() {
   const [showReport, setShowReport] = useState(false);
   const [reportData, setReportData] = useState<any>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+
+  const { speakingId, speak, stop } = useTTS(lang);
 
   const triggerHaptic = () => {
     if (hapticFeedback && navigator.vibrate) {
@@ -73,6 +76,7 @@ export default function Simulator() {
   }, [simState, level, scenarioText, evaluationText, history, user]);
 
   const clearSimulator = () => {
+    stop();
     triggerHaptic();
     setSimState('START');
     setLevel(1);
@@ -86,6 +90,7 @@ export default function Simulator() {
   };
 
   const handleStart = async () => {
+    stop();
     triggerHaptic();
     
     const { allowed, isFreeTier, justReachedLimit } = await checkAndIncrementMessageLimit();
@@ -119,6 +124,7 @@ export default function Simulator() {
     const userAction = input.trim();
     if (!userAction) return;
 
+    stop();
     triggerHaptic();
     
     const { allowed, isFreeTier, justReachedLimit } = await checkAndIncrementMessageLimit();
@@ -136,6 +142,7 @@ export default function Simulator() {
     setLoadingText(lang === 'en' ? 'Calculating your result...' : 'Result calculate ho raha hai...');
     
     const res = await evaluateSimulatorAction(userAction, currentHistory, userApiKey, language, isFreeTier);
+
     setEvaluationText(res);
     setHistory([
       ...currentHistory,
@@ -147,6 +154,7 @@ export default function Simulator() {
   };
 
   const handleContinue = async () => {
+    stop();
     triggerHaptic();
     
     const { allowed, isFreeTier, justReachedLimit } = await checkAndIncrementMessageLimit();
@@ -176,6 +184,7 @@ export default function Simulator() {
   };
 
   const handleBreak = () => {
+    stop();
     triggerHaptic();
     setSimState('BREAK');
   };
@@ -340,9 +349,19 @@ export default function Simulator() {
                 <span className="text-aura-red font-bold uppercase tracking-widest text-xs font-mono">
                   Level {level}
                 </span>
-                <span className="text-white/30 uppercase tracking-widest text-[10px] font-mono">
-                  Awaiting Input
-                </span>
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => speak('scenario', scenarioText)}
+                    className={`flex items-center gap-2 px-3 py-1 text-[10px] uppercase tracking-widest transition-all rounded ${
+                      speakingId === 'scenario' ? 'text-aura-red bg-aura-red/10' : 'text-white/50 hover:text-white bg-white/5 hover:bg-white/10'
+                    }`}
+                  >
+                    {speakingId === 'scenario' ? <><Square size={12}/> Stop</> : <><Volume2 size={12}/> Listen</>}
+                  </button>
+                  <span className="text-white/30 uppercase tracking-widest text-[10px] font-mono">
+                    Awaiting Input
+                  </span>
+                </div>
               </div>
               
               <div className="flex-1 overflow-y-auto mb-8 text-white/90 leading-relaxed text-sm md:text-base whitespace-pre-wrap font-mono scrollbar-hide">
@@ -390,9 +409,19 @@ export default function Simulator() {
               exit={{ opacity: 0, y: -20 }}
               className="flex-1 flex flex-col p-4 md:p-8 max-w-3xl mx-auto w-full"
             >
-              <h2 className="text-aura-red font-bold uppercase tracking-widest text-sm mb-6 font-mono border-b border-white/10 pb-4">
-                Evaluation Result
-              </h2>
+              <div className="flex justify-between items-center mb-6 border-b border-white/10 pb-4">
+                <h2 className="text-aura-red font-bold uppercase tracking-widest text-sm font-mono">
+                  Evaluation Result
+                </h2>
+                <button
+                  onClick={() => speak('evaluation', evaluationText)}
+                  className={`flex items-center gap-2 px-3 py-1 text-[10px] uppercase tracking-widest transition-all rounded ${
+                    speakingId === 'evaluation' ? 'text-aura-red bg-aura-red/10' : 'text-white/50 hover:text-white bg-white/5 hover:bg-white/10'
+                  }`}
+                >
+                  {speakingId === 'evaluation' ? <><Square size={12}/> Stop</> : <><Volume2 size={12}/> Listen</>}
+                </button>
+              </div>
               
               <div className="flex-1 overflow-y-auto mb-8 text-white/90 leading-relaxed text-sm md:text-base whitespace-pre-wrap font-mono scrollbar-hide">
                 {evaluationText}
