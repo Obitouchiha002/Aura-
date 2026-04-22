@@ -399,23 +399,35 @@ export async function getSimulatorReport(
                      language === 'hi' ? 'You MUST format all strings in Hindi.' :
                      'You MUST format all strings in English.';
   
+  // Keep only the last 10 messages to ensure extremely fast processing
+  const recentHistory = history.length > 10 ? history.slice(history.length - 10) : history;
+
   const prompt = `Analyze the following simulation history and determine the user's TRUE Practical IQ.
 This is NOT a game. Do not just add points simply. You must deeply analyze the WAY the user asked questions, the complexity of their actions, their emotional control, their foresight, and how they handled pressure in the scenarios.
-An average human starts at 100. If the user gave basic, obvious answers, their IQ should remain around 100 or drop. If they gave highly strategic, multi-layered manipulations or brilliant countermeasures, it should go up. If they were naive, reckless, or panicky, it should go down heavily.
+An average human starts at 100. If the user gave basic, obvious answers, their IQ should remain around 100 or drop. If they gave highly strategic, multi-layered manipulations, it should go up. If they were naive or reckless, it should go down.
   
-Provide a cool title for their performance, 3 strengths, 3 weaknesses, and a comparison list including ALL of the following characters:
-Thomas Shelby, Tywin Lannister, Petyr Baelish, Cersei Lannister, Tyrion Lannister, Madara Uchiha, Itachi Uchiha, Pain, Shikamaru Nara, Johan Liebert, Kiyotaka Ayanokoji, L (Death Note), Sosuke Aizen (Bleach), Senku Ishigami (Dr. Stone), Chanakya, Sun Tzu, Niccolò Machiavelli, Harvey Specter, Gustavo Fring.
-Also include "You" (the user) and "Average Person" (IQ 100).
-Assign an estimated, accurate practical IQ to each character based on their lore/abilities.
-Make sure the comparisons array is strictly sorted by IQ descending so the user can easily see where they stand.
+Provide a cool title for their performance, 3 strengths, 3 weaknesses, and a comparison list.
+From the following list of characters, ONLY select the 4-5 characters that are closest to the user's IQ to include in the comparisons array:
+Thomas Shelby, Tywin Lannister, Petyr Baelish, Cersei Lannister, Tyrion Lannister, Madara Uchiha, Itachi Uchiha, Pain, Shikamaru Nara, Johan Liebert, Kiyotaka Ayanokoji, L, Sosuke Aizen, Senku Ishigami, Chanakya, Sun Tzu, Niccolò Machiavelli, Harvey Specter.
+Also ALWAYS include "You" (the user) and "Average Person" (IQ 100) in the comparison list. You should output exactly 6-7 items in the comparison array to keep it FAST.
+Assign an estimated practical IQ to the selected characters.
+Make sure the comparisons array is strictly sorted by IQ descending.
 CRITICAL: ${langPrompt}
 
 History:
-${JSON.stringify(history)}`;
+${JSON.stringify(recentHistory)}`;
 
   try {
     let lastError: any;
-    for (const modelName of MODELS) {
+    // For reports, prioritize speed
+    const REPORT_MODELS = [
+      "gemini-3.1-flash-lite-preview",
+      "gemini-3-flash-preview", 
+      "gemini-2.5-flash",
+      "gemini-3.1-pro-preview"
+    ];
+
+    for (const modelName of REPORT_MODELS) {
       if (exhaustedModels[modelName] && Date.now() < exhaustedModels[modelName]) {
         continue;
       }
@@ -452,7 +464,8 @@ ${JSON.stringify(history)}`;
           },
         });
         
-        const text = response.text || "{}";
+        let text = response.text || "{}";
+        text = text.replace(/^```json\n?/, '').replace(/\n?```$/, '');
         return JSON.parse(text);
       } catch (error: any) {
         lastError = error;

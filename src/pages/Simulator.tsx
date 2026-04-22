@@ -356,7 +356,7 @@ export default function Simulator() {
                       speakingId === 'scenario' ? 'text-aura-red bg-aura-red/10' : 'text-white/50 hover:text-white bg-white/5 hover:bg-white/10'
                     }`}
                   >
-                    {speakingId === 'scenario' ? <><Square size={12}/> Stop</> : <><Volume2 size={12}/> Listen</>}
+                    {speakingId === 'scenario' ? <><Square size={12}/> Pause</> : <><Volume2 size={12}/> Listen</>}
                   </button>
                   <span className="text-white/30 uppercase tracking-widest text-[10px] font-mono">
                     Awaiting Input
@@ -419,7 +419,7 @@ export default function Simulator() {
                     speakingId === 'evaluation' ? 'text-aura-red bg-aura-red/10' : 'text-white/50 hover:text-white bg-white/5 hover:bg-white/10'
                   }`}
                 >
-                  {speakingId === 'evaluation' ? <><Square size={12}/> Stop</> : <><Volume2 size={12}/> Listen</>}
+                  {speakingId === 'evaluation' ? <><Square size={12}/> Pause</> : <><Volume2 size={12}/> Listen</>}
                 </button>
               </div>
               
@@ -529,21 +529,29 @@ export default function Simulator() {
                       <div className="space-y-3">
                         <h4 className="text-[10px] uppercase tracking-widest text-green-400 border-b border-green-400/20 pb-2">Strengths</h4>
                         <ul className="space-y-2">
-                          {reportData.strengths?.map((s: string, i: number) => (
+                          {Array.isArray(reportData.strengths) ? reportData.strengths.map((s: string, i: number) => (
                             <li key={i} className="text-[10px] md:text-xs text-white/70 flex items-start gap-2 leading-relaxed">
                               <span className="text-green-400 mt-0.5">+</span> {s}
                             </li>
-                          ))}
+                          )) : (
+                            <li className="text-[10px] md:text-xs text-white/70 flex items-start gap-2 leading-relaxed">
+                              <span className="text-green-400 mt-0.5">+</span> {reportData.strengths}
+                            </li>
+                          )}
                         </ul>
                       </div>
                       <div className="space-y-3">
                         <h4 className="text-[10px] uppercase tracking-widest text-red-400 border-b border-red-400/20 pb-2">Weaknesses</h4>
                         <ul className="space-y-2">
-                          {reportData.weaknesses?.map((w: string, i: number) => (
+                          {Array.isArray(reportData.weaknesses) ? reportData.weaknesses.map((w: string, i: number) => (
                             <li key={i} className="text-[10px] md:text-xs text-white/70 flex items-start gap-2 leading-relaxed">
                               <span className="text-red-400 mt-0.5">-</span> {w}
                             </li>
-                          ))}
+                          )) : (
+                            <li className="text-[10px] md:text-xs text-white/70 flex items-start gap-2 leading-relaxed">
+                              <span className="text-red-400 mt-0.5">-</span> {reportData.weaknesses}
+                            </li>
+                          )}
                         </ul>
                       </div>
                     </div>
@@ -552,26 +560,26 @@ export default function Simulator() {
                     <div className="space-y-4">
                       <h4 className="text-[10px] uppercase tracking-widest text-white/50 text-center border-b border-white/10 pb-2">Where You Stand</h4>
                       <div className="space-y-2 max-h-[30vh] overflow-y-auto pr-2 scrollbar-hide">
-                        {reportData.comparisons?.map((comp: any, i: number) => (
+                        {Array.isArray(reportData.comparisons) ? reportData.comparisons.map((comp: any, i: number) => (
                           <div 
                             key={i} 
                             className={`flex items-center justify-between p-3 rounded-none border ${
-                              comp.name === 'You' 
+                              comp?.name === 'You' || comp?.name === 'User' || comp?.name === 'user' 
                                 ? 'bg-aura-red/10 border-aura-red/50 shadow-[0_0_10px_rgba(239,68,68,0.2)]' 
                                 : 'bg-white/5 border-white/5'
                             }`}
                           >
                             <div className="flex items-center gap-3">
-                              <span className={`text-xs font-bold uppercase tracking-wider ${comp.name === 'You' ? 'text-aura-red' : 'text-white/90'}`}>
-                                {comp.name}
+                              <span className={`text-xs font-bold uppercase tracking-wider ${comp?.name === 'You' || comp?.name === 'User' || comp?.name === 'user' ? 'text-aura-red' : 'text-white/90'}`}>
+                                {comp?.name || 'Unknown'}
                               </span>
                             </div>
                             <div className="flex items-center gap-4">
-                              <span className="text-[9px] uppercase tracking-widest text-white/40 hidden sm:inline">{comp.status}</span>
-                              <span className="text-xs font-bold text-white/70 w-8 text-right">{comp.iq}</span>
+                              <span className="text-[9px] uppercase tracking-widest text-white/40 hidden sm:inline">{comp?.status || ''}</span>
+                              <span className="text-xs font-bold text-white/70 w-8 text-right">{comp?.iq || 0}</span>
                             </div>
                           </div>
-                        ))}
+                        )) : null}
                       </div>
                     </div>
                     

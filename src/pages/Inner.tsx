@@ -722,7 +722,7 @@ export default function Inner() {
                             {speakingId === msg.id ? (
                               <>
                                 <Square size={12} className="fill-current" />
-                                {lang === 'en' ? 'Stop' : 'रोकें'}
+                                {lang === 'en' ? 'Pause' : 'रोकें'}
                               </>
                             ) : (
                               <>
