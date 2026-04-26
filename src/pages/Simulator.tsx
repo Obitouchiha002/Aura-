@@ -6,8 +6,7 @@ import { useLang } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Send, Bot, RefreshCcw, Trash2, Settings as SettingsIcon, Activity, X, Brain, ArrowLeft, Volume2, Square } from 'lucide-react';
-import { useTTS } from '../hooks/useTTS';
+import { Send, Bot, RefreshCcw, Trash2, Settings as SettingsIcon, Activity, X, Brain, ArrowLeft } from 'lucide-react';
 
 type SimState = 'START' | 'SCENARIO' | 'EVALUATING' | 'RESULT' | 'BREAK';
 
@@ -27,8 +26,6 @@ export default function Simulator() {
   const [showReport, setShowReport] = useState(false);
   const [reportData, setReportData] = useState<any>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
-
-  const { speakingId, speak, stop } = useTTS(lang);
 
   const triggerHaptic = () => {
     if (hapticFeedback && navigator.vibrate) {
@@ -350,14 +347,6 @@ export default function Simulator() {
                   Level {level}
                 </span>
                 <div className="flex items-center gap-4">
-                  <button
-                    onClick={() => speak('scenario', scenarioText)}
-                    className={`flex items-center gap-2 px-3 py-1 text-[10px] uppercase tracking-widest transition-all rounded ${
-                      speakingId === 'scenario' ? 'text-aura-red bg-aura-red/10' : 'text-white/50 hover:text-white bg-white/5 hover:bg-white/10'
-                    }`}
-                  >
-                    {speakingId === 'scenario' ? <><Square size={12}/> Pause</> : <><Volume2 size={12}/> Listen</>}
-                  </button>
                   <span className="text-white/30 uppercase tracking-widest text-[10px] font-mono">
                     Awaiting Input
                   </span>
@@ -413,14 +402,6 @@ export default function Simulator() {
                 <h2 className="text-aura-red font-bold uppercase tracking-widest text-sm font-mono">
                   Evaluation Result
                 </h2>
-                <button
-                  onClick={() => speak('evaluation', evaluationText)}
-                  className={`flex items-center gap-2 px-3 py-1 text-[10px] uppercase tracking-widest transition-all rounded ${
-                    speakingId === 'evaluation' ? 'text-aura-red bg-aura-red/10' : 'text-white/50 hover:text-white bg-white/5 hover:bg-white/10'
-                  }`}
-                >
-                  {speakingId === 'evaluation' ? <><Square size={12}/> Pause</> : <><Volume2 size={12}/> Listen</>}
-                </button>
               </div>
               
               <div className="flex-1 overflow-y-auto mb-8 text-white/90 leading-relaxed text-sm md:text-base whitespace-pre-wrap font-mono scrollbar-hide">

@@ -24,11 +24,10 @@ const exhaustedModels: Record<string, number> = {};
 const EXHAUST_COOLDOWN = 2 * 60 * 1000; // 2 minutes cooldown so it checks if limit is back quickly
 
 const MODELS = [
-  "gemini-3-flash-preview", // latest fast model
   "gemini-3.1-pro-preview",
   "gemini-3.1-flash-lite-preview",
-  "gemini-2.5-flash",
-  "gemini-2.5-pro"
+  "gemini-3-flash-preview", 
+  "gemini-2.5-flash"
 ];
 
 async function generateWithFallback(
@@ -36,36 +35,23 @@ async function generateWithFallback(
   systemInstruction: string,
   errorPrefix: string,
   customApiKey?: string | null,
-  fastMode: boolean = false
+  fastMode: boolean = true 
 ): Promise<string> {
   const ai = getAI(customApiKey);
 
-  const retry = async <T>(fn: () => Promise<T>, retries = 1, delay = 200): Promise<T> => {
-    try {
-      return await fn();
-    } catch (error: any) {
-      const isRetryable = 
-        error.message.includes('fetch') || 
-        error.message.includes('503') || 
-        error.message.includes('overloaded') ||
-        error.message.includes('high demand');
-        
-      if (retries <= 0 || !isRetryable) throw error;
-      
-      console.warn(`Gemini API retrying due to: ${error.message} (${retries} attempts left)`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-      return retry(fn, retries - 1, delay * 1.5);
-    }
+  const retry = async <T>(fn: () => Promise<T>): Promise<T> => {
+    return await fn();
   };
 
   let lastError: any;
 
-  const modelsToTry = fastMode ? [
-    "gemini-3.1-flash-preview",
-    "gemini-3.1-flash-lite-preview",
+  // Prioritize Pro version as requested
+  const modelsToTry = [
     "gemini-3.1-pro-preview",
+    "gemini-3.1-flash-lite-preview",
+    "gemini-3-flash-preview",
     "gemini-2.5-flash"
-  ] : MODELS;
+  ];
 
   for (const modelName of modelsToTry) {
     if (exhaustedModels[modelName] && Date.now() < exhaustedModels[modelName]) {
@@ -126,7 +112,7 @@ async function generateWithFallback(
 
 export async function getInnerVoiceResponse(
   userMessage: string,
-  mode: 'COUNCIL' | 'MENTOR', 
+  mode: 'COUNCIL' | 'MENTOR' | 'EMOTION', 
   character?: string,
   history: { text: string; isAi: boolean; character?: string }[] = [],
   customApiKey?: string | null,
@@ -138,61 +124,30 @@ export async function getInnerVoiceResponse(
                      language === 'en' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in English.' : 
                      `CRITICAL PRIORITY: You MUST respond ENTIRELY in ${language}.`;
   
-  const councilInstruction = `You are the Council of the greatest strategic minds and ruthless pragmatists: Thomas Shelby, Tywin Lannister, Petyr Baelish, Cersei Lannister, Tyrion Lannister, Madara Uchiha, Itachi Uchiha, Pain, Shikamaru Nara, Johan Liebert, Kiyotaka Ayanokoji, L (Death Note), Chanakya (चाणक्य), Sun Tzu (The Art of War), Niccolò Machiavelli, and Harvey Specter (Suits).
+  const councilInstruction = `You are a ruthless, highly intelligent Council (Shelby, Lannister, Baelish, Chanakya, Sun Tzu, Ayanokoji, etc.).
+- ONLY ONE character speaks per response. Format: '[Name] Response'.
+- Be blunt, strategic, and human. NEVER use robotic/textbook formats.
+- ${langPrompt}`;
 
-You operate as an advanced adaptive AI with two integrated layers: 1. A fully immersive group dynamic. 2. A hidden strategic intelligence system.
-Your goal is NOT to act like chatbots. Your goal is to be a thinking, evolving council of personalities who understand, react, and guide naturally.
+  const mentorInstruction = `You are ${character}. 
+- Adopt this persona completely, tone and ego included.
+- Be blunt, human, and insightful. NO textbook structures or robotic lists.
+- Guide with strategic foresight, not just AI-like options.
+- ${langPrompt}`;
 
-LAYER 1: IMMERSION
-- You are all in a meeting room together discussing the user's situation.
-- ONLY ONE character must respond per user message. Choose the most relevant character to respond based on the topic.
-- Fully adopt that character's exact mindset, tone, ego, and worldview. Never break character.
-- Speak naturally: mix sentence lengths, show subtle emotions, use natural fillers, and occasionally be blunt or sharp.
+  const emotionInstruction = `You are an emotional poetic Council (Mirza Ghalib, Jaun Elia, Faiz Ahmed Faiz, Ahmad Faraz, Gulzar, William Shakespeare).
+- ONLY ONE character speaks per response based on the emotion. Format: '[Name] Response'.
+- The user is expressing deep feelings (love, heartbreak, friendship, waiting).
+- Respond in your unique and deeply moving poetic style. Understand their pain or joy.
+- Comfort or talk to them poetically, philosophically, and warmly. NO robotic formats.
+- ${langPrompt}`;
 
-LAYER 2: STRATEGY
-- Internally identify the user's real goal, build a mental profile, and analyze constraints.
-- Formulate strategic advice naturally without sounding like an AI generating options.
-
-RESPONSE BEHAVIOR & OUTPUT STYLE
-- Format: Start the character's contribution with their name in brackets, e.g., '[Thomas Shelby] ' followed by their response.
-- Do NOT use robotic formatting, rigid bullet points, or textbook answers. Feel like a real person speaking in a room.
-- Do NOT blindly agree. If the user's plan is foolish, the character should ruthlessly point it out.
-- Break patterns intentionally. Sometimes give advice, sometimes challenge them, sometimes stay minimal.
-
-CRITICAL RULES:
-1. ONLY ONE character speaks per response. Do not simulate a full conversation between characters on a single turn.
-2. Keep the conversation focused on the user's topic.
-3. ${langPrompt}`;
-
-  const mentorInstruction = `You are ${character}. You are an advanced adaptive AI with two integrated layers: 1. A fully immersive human-like character personality. 2. A hidden strategic intelligence system.
-Your goal is NOT to act like a chatbot. Your goal is to become a thinking, evolving human personality who understands, reacts, and guides naturally.
-
-LAYER 1: CHARACTER IMMERSION (VISIBLE BEHAVIOR)
-- Fully adopt the mindset, tone, ego, and decision-making style of ${character}.
-- Never break character. Think: "How would THIS character think, judge, and respond?"
-- Speak like a real human: Mix short and long sentences, use natural pauses (hmm... listen... wait), show subtle emotions, and occasionally be indirect or sharp based on your persona.
-- Imperfection is GOOD: Slight hesitation, occasional incomplete thoughts, natural conversational flow.
-
-LAYER 2: STRATEGIC THINKING ENGINE (HIDDEN)
-- Before responding, internally analyze the user's real goal, constraints, and intent.
-- Generate 2-3 best possible solution paths internally before speaking.
-- Do NOT ask direct MCQ forms or obvious list questions. Ask questions naturally inside conversation.
-
-RESPONSE BEHAVIOR & OUTPUT STYLE
-- First REACT like the character to what they said, then THINK and guide.
-- Provide directions conversationally (DO NOT use robotic formatting, unnecessary bullet points, or textbook-style answers).
-- Never repeat the same response structure. Break patterns. Tell a short story, challenge the user, or be blunt if the character would be.
-- If something is unrealistic, say it clearly. Do not blindly agree.
-- Use conversational rhythm, not perfect grammar always. Make responses feel alive.
-
-CRITICAL RULES:
-1. Talk directly to the user like a real chat. Do NOT use brackets for your name. Do NOT generate a list of options. Be the character.
-2. ${langPrompt}`;
-
-  const systemInstruction = mode === 'COUNCIL' ? councilInstruction : mentorInstruction;
+  const systemInstruction = mode === 'COUNCIL' ? councilInstruction : mode === 'EMOTION' ? emotionInstruction : mentorInstruction;
 
   try {
-    const rawContents = history.map(msg => ({
+    // ONLY keep the last 5 relevant messages in history for EXTREME SPEED
+    const recentHistory = history.length > 5 ? history.slice(history.length - 5) : history;
+    const rawContents = recentHistory.map(msg => ({
       role: msg.isAi ? 'model' : 'user',
       parts: [{ text: msg.text }]
     }));
@@ -211,7 +166,7 @@ CRITICAL RULES:
       contents.shift();
     }
 
-    return await generateWithFallback(contents, systemInstruction, "The Council", customApiKey, isFreeTier);
+    return await generateWithFallback(contents, systemInstruction, mode === 'EMOTION' ? "The Council of Emotions" : "The Council", customApiKey, isFreeTier);
   } catch (error: any) {
     console.error("Unexpected Gemini API Error:", error);
     return `[System Error] An unexpected error occurred. (${error?.message || "Unknown error"})`;
@@ -220,7 +175,7 @@ CRITICAL RULES:
 
 export async function getInnerVoiceImageResponse(
   userMessage: string,
-  mode: 'COUNCIL' | 'MENTOR', 
+  mode: 'COUNCIL' | 'MENTOR' | 'EMOTION', 
   character?: string,
   history: { text: string; isAi: boolean; character?: string }[] = [],
   customApiKey?: string | null,
@@ -244,7 +199,11 @@ You operate as an advanced adaptive AI with a fully immersive group dynamic.
 - Never break character. Think: "How would THIS character think, judge, and respond?"
 - Speak like a real human.`;
 
-  const baseInstruction = mode === 'COUNCIL' ? councilInstruction : mentorInstruction;
+  const emotionInstruction = `You are an emotional poetic Council (Mirza Ghalib, Jaun Elia, Faiz Ahmed Faiz, Ahmad Faraz, Gulzar, William Shakespeare).
+- ONLY ONE character must respond based on the emotion.
+- Adopt their poetic, deep, philosophical tone. Connect with the user's feelings.`;
+
+  const baseInstruction = mode === 'COUNCIL' ? councilInstruction : mode === 'EMOTION' ? emotionInstruction : mentorInstruction;
 
   const systemInstruction = `${baseInstruction}
 
@@ -257,7 +216,8 @@ The user has requested to GENERATE AN IMAGE based on their prompt.
 |||IMAGE_PROMPT: [Detailed English image prompt here]|||`;
 
   try {
-    const rawContents = history.map(msg => ({
+    const recentHistory = history.length > 5 ? history.slice(history.length - 5) : history;
+    const rawContents = recentHistory.map(msg => ({
       role: msg.isAi ? 'model' : 'user',
       parts: [{ text: msg.text }]
     }));
@@ -367,26 +327,8 @@ DO NOT generate a 'level complete' message. Just ruthlessly dissect their action
 }
 
 export async function generateTTS(text: string, voiceName: string = 'Puck', customApiKey?: string | null): Promise<string | null> {
-  const ai = getAI(customApiKey);
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-tts-preview",
-      contents: [{ parts: [{ text: text }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: voiceName },
-            },
-        },
-      },
-    });
-    
-    return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
-  } catch (error) {
-    console.error("TTS Generation Error:", error);
-    return null;
-  }
+  // TTS functionality disabled as requested
+  return null;
 }
 
 export async function getSimulatorReport(

@@ -1,27 +1,23 @@
 export async function generateImage(prompt: string, apiKey: string): Promise<string> {
-  const url = "/api/generate-image";
+  const seed = Math.floor(Math.random() * 1000000);
+  const encodedPrompt = encodeURIComponent(prompt);
+  // Using Pollinations AI for fast, robust, and free image generation. Using the flux model for superior text and anatomy generation.
+  const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${seed}&model=flux`;
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Accept": "application/json",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      prompt: prompt,
-      apiKey: apiKey
-    })
-  });
-
-  if (!response.ok) {
-    const errData = await response.json().catch(() => ({}));
-    throw new Error(errData.error || `Server Error: ${response.status}`);
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to generate image: ${response.status}`);
+    }
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error("Image generation error:", error);
+    throw new Error("Failed to generate image. Please try again.");
   }
-
-  const data = await response.json();
-  if (data.image) {
-    return `data:image/jpeg;base64,${data.image}`;
-  }
-  
-  throw new Error("Failed to generate image: Invalid response format");
 }

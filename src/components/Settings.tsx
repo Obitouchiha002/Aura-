@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
-import { X, LogOut, ShieldAlert, User, AlertCircle } from 'lucide-react';
+import { X, LogOut, ShieldAlert, User, AlertCircle, MessageSquareHeart } from 'lucide-react';
 import { ReportIssueModal } from './ReportIssueModal';
+import { FeedbackModal } from './FeedbackModal';
 
 interface SettingsProps {
   onClose: () => void;
 }
 
 export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
-  const { language, setLanguage, hapticFeedback, setHapticFeedback, vibration, setVibration, music, setMusic, volume, setVolume, customMusicUrl, setCustomMusicUrl, ttsVoiceURI, setTtsVoiceURI } = useSettings();
+  const { language, setLanguage, hapticFeedback, setHapticFeedback, vibration, setVibration, music, setMusic, volume, setVolume, customMusicUrl, setCustomMusicUrl } = useSettings();
   const { logout, isAdmin, user } = useAuth();
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
@@ -51,7 +53,7 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
             </button>
           )}
 
-          <div>
+           <div>
             <label className="text-xs text-white/50 uppercase tracking-wider mb-2 block">Language</label>
             <div className="grid grid-cols-2 gap-2">
               {[
@@ -74,31 +76,6 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
                   {l.label}
                 </button>
               ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs text-white/50 uppercase tracking-wider mb-2 block">AI Voice Engine</label>
-            <div className="relative group">
-              <select
-                value={ttsVoiceURI || 'Charon'}
-                onChange={(e) => setTtsVoiceURI(e.target.value)}
-                className="w-full bg-[#111] border border-white/10 text-white rounded-xl p-3 text-sm focus:outline-none focus:border-aura-red appearance-none custom-select shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]"
-                style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
-              >
-                <optgroup label="Deep Male AI Voices" className="bg-[#111] text-aura-red font-bold">
-                  <option value="Charon" className="bg-[#1a1a1a] text-white font-normal">Charon (Deep & Resonant)</option>
-                  <option value="Fenrir" className="bg-[#1a1a1a] text-white font-normal">Fenrir (Strong & Powerful)</option>
-                  <option value="Zephyr" className="bg-[#1a1a1a] text-white font-normal">Zephyr (Intense & Deep)</option>
-                </optgroup>
-                <optgroup label="Standard AI Voices" className="bg-[#111] text-aura-red font-bold">
-                   <option value="Puck" className="bg-[#1a1a1a] text-white font-normal">Puck (Standard Male)</option>
-                </optgroup>
-              </select>
-              {/* Custom arrow for select */}
-              <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-white/50 group-focus-within:text-aura-red">
-                 <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" fillRule="evenodd"></path></svg>
-              </div>
             </div>
           </div>
 
@@ -178,28 +155,41 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
 
           <div className="pt-4 mt-4 border-t border-white/10 space-y-2">
             <button
-              onClick={() => setShowReportModal(true)}
-              className="w-full flex items-center justify-center space-x-2 bg-white/5 hover:bg-white/10 text-white p-3 rounded-xl transition-colors"
+              onClick={() => setShowFeedbackModal(true)}
+              className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-aura-red/10 to-transparent hover:from-aura-red/20 text-white p-3 rounded-xl transition-all border border-aura-red/20 shadow-[inset_0_0_10px_rgba(239,68,68,0.05)] text-left"
             >
-              <AlertCircle size={18} />
-              <span className="font-medium">Report Issue</span>
+              <MessageSquareHeart size={18} className="text-aura-red" />
+              <span className="font-medium flex-1 text-center pr-5">Share Feedback</span>
             </button>
-            <button
-              onClick={async () => {
-                await logout();
-                onClose();
-              }}
-              className="w-full flex items-center justify-center space-x-2 bg-white/5 hover:bg-white/10 text-white p-3 rounded-xl transition-colors"
-            >
-              <LogOut size={18} />
-              <span className="font-medium">Logout</span>
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowReportModal(true)}
+                className="flex-1 flex items-center justify-center space-x-2 bg-white/5 hover:bg-white/10 text-white p-3 rounded-xl transition-colors"
+              >
+                <AlertCircle size={18} />
+                <span className="font-medium text-sm">Report Issue</span>
+              </button>
+              <button
+                onClick={async () => {
+                  await logout();
+                  onClose();
+                }}
+                className="flex-1 flex items-center justify-center space-x-2 bg-white/5 hover:bg-white/10 text-white p-3 rounded-xl transition-colors"
+              >
+                <LogOut size={18} />
+                <span className="font-medium text-sm">Logout</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
       <ReportIssueModal 
         isOpen={showReportModal} 
         onClose={() => setShowReportModal(false)} 
+      />
+      <FeedbackModal
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
       />
     </div>
   );

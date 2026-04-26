@@ -2,13 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { collection, getDocs, query, orderBy, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Users, Clock, Activity, ArrowLeft, Settings as SettingsIcon, Save, Key } from 'lucide-react';
+import { Users, Clock, Activity, ArrowLeft, Settings as SettingsIcon, Save, Key, ShieldAlert, MessageSquareHeart, Star } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 
 export const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const { userApiKey, setUserApiKey } = useSettings();
   const [users, setUsers] = useState<any[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
+  const [feedbacks, setFeedbacks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [appSettings, setAppSettings] = useState({ maintenanceMode: false, welcomeMessage: '' });
   const [savingSettings, setSavingSettings] = useState(false);
@@ -25,6 +26,11 @@ export const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => 
         const sessionsSnap = await getDocs(sessionsQuery);
         const sessionsData = sessionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setSessions(sessionsData);
+
+        const feedbackQuery = query(collection(db, 'feedback'), orderBy('createdAt', 'desc'));
+        const feedbackSnap = await getDocs(feedbackQuery);
+        const feedbackData = feedbackSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setFeedbacks(feedbackData);
 
         const settingsRef = doc(db, 'settings', 'global');
         const settingsSnap = await getDoc(settingsRef);
@@ -165,6 +171,26 @@ export const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => 
                   </p>
                 </div>
 
+                <div className="space-y-2 p-4 bg-white/5 rounded-xl border border-white/10">
+                  <div className="flex items-center space-x-2 mb-2 text-aura-red">
+                    <ShieldAlert className="w-5 h-5" />
+                    <label className="font-medium block">Advanced Admin Controls</label>
+                  </div>
+                  
+                  <div className="space-y-4 pt-2">
+                     <button
+                      onClick={async () => {
+                        if (confirm('Are you sure you want to clear ALL user chat sessions? This cannot be undone.')) {
+                          alert('Session clearing functionality not fully implemented.');
+                        }
+                      }}
+                      className="w-full bg-red-900/30 hover:bg-red-900/50 text-red-400 p-3 rounded-xl transition-colors border border-red-900/50 text-sm"
+                    >
+                      Clear All Chat Sessions
+                    </button>
+                  </div>
+                </div>
+
                 <button
                   onClick={handleSaveSettings}
                   disabled={savingSettings}
@@ -173,6 +199,43 @@ export const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => 
                   <Save className="w-5 h-5" />
                   <span>{savingSettings ? 'Saving...' : 'Save Settings'}</span>
                 </button>
+              </div>
+            </div>
+
+            {/* Feedback List */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+              <div className="p-6 border-b border-white/10 flex items-center space-x-3">
+                <MessageSquareHeart className="w-6 h-6 text-aura-red" />
+                <h2 className="text-xl font-medium">User Feedback</h2>
+                <span className="bg-aura-red/20 text-aura-red px-3 py-1 rounded-full text-xs font-bold">{feedbacks.length} Total</span>
+              </div>
+              <div className="divide-y divide-white/10">
+                {feedbacks.length === 0 ? (
+                  <div className="p-8 text-center text-gray-500 italic">No feedback yet.</div>
+                ) : (
+                  feedbacks.map(feedback => (
+                    <div key={feedback.id} className="p-6 hover:bg-white/5 transition-colors">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <p className="font-medium text-white">{feedback.email}</p>
+                          <p className="text-xs text-gray-500">
+                            {feedback.createdAt?.toDate ? feedback.createdAt.toDate().toLocaleString() : 'N/A'}
+                          </p>
+                        </div>
+                        <div className="flex bg-white/5 px-3 py-1 rounded-full border border-white/10 items-center">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star 
+                              key={i} 
+                              size={14} 
+                              className={i < feedback.rating ? "fill-aura-red text-aura-red" : "text-white/20"} 
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-gray-300 bg-black/40 p-4 rounded-xl border border-white/5">{feedback.feedbackText}</p>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 

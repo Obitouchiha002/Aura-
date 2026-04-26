@@ -8,23 +8,29 @@ import { useLang } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { collection, doc, getDocs, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Send, User, Bot, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as SettingsIcon, RefreshCcw, Image as ImageIcon, Users, Sparkles, Target, Gamepad2, Volume2, Square } from 'lucide-react';
+import { Send, User, Bot, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as SettingsIcon, RefreshCcw, Download, Image as ImageIcon, Users, Sparkles, Target, Gamepad2, Square } from 'lucide-react';
 import { Settings } from '../components/Settings';
-import { useTTS } from '../hooks/useTTS';
 import Focus from './Focus';
 import Simulator from './Simulator';
 
-const CHARACTERS = [
-  "Thomas Shelby", "Tywin Lannister", "Petyr Baelish", "Cersei Lannister", "Tyrion Lannister",
-  "Madara Uchiha", "Itachi Uchiha", "Pain", "Shikamaru Nara", "Johan Liebert", "Kiyotaka Ayanokoji",
-  "L (Death Note)", "Sosuke Aizen (Bleach)", "Senku Ishigami (Dr. Stone)", "Chanakya (चाणक्य)",
-  "Sun Tzu (The Art of War)", "Niccolò Machiavelli", "Harvey Specter (Suits)", "Gustavo Fring (Breaking Bad)"
-];
+const CHARACTERS: Record<'MENTOR' | 'EMOTION', string[]> = {
+  MENTOR: [
+    "Thomas Shelby", "Tywin Lannister", "Petyr Baelish", "Cersei Lannister", "Tyrion Lannister",
+    "Madara Uchiha", "Itachi Uchiha", "Pain", "Shikamaru Nara", "Johan Liebert", "Kiyotaka Ayanokoji",
+    "L (Death Note)", "Sosuke Aizen (Bleach)", "Senku Ishigami (Dr. Stone)", "Chanakya (चाणक्य)",
+    "Sun Tzu (The Art of War)", "Niccolò Machiavelli", "Harvey Specter (Suits)", "Gustavo Fring (Breaking Bad)"
+  ],
+  EMOTION: [
+    "Mirza Ghalib", "Jaun Elia", "Faiz Ahmed Faiz", "Ahmad Faraz", "Gulzar", "William Shakespeare"
+  ]
+};
+
+type Mode = 'COUNCIL' | 'MENTOR' | 'EMOTION';
 
 interface ChatSession {
   id: string;
   title: string;
-  mode: 'COUNCIL' | 'MENTOR';
+  mode: Mode;
   character: string;
   updatedAt: number;
   messages?: any[];
@@ -116,16 +122,14 @@ export default function Inner() {
   const [input, setInput] = useState('');
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-  const [mode, setMode] = useState<'COUNCIL' | 'MENTOR'>('COUNCIL');
-  const [selectedCharacter, setSelectedCharacter] = useState(CHARACTERS[0]);
+  const [mode, setMode] = useState<Mode>('COUNCIL');
+  const [selectedCharacter, setSelectedCharacter] = useState(CHARACTERS.MENTOR[0]);
   const [messages, setMessages] = useState<{ id: string; text: string; isAi: boolean; character?: string; imageUrl?: string; isImageRequest?: boolean }[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   
   const [inputAction, setInputAction] = useState<'CHAT' | 'IMAGE'>('CHAT');
   const [showActionMenu, setShowActionMenu] = useState(false);
-
-  const { speakingId, speak, stop } = useTTS(lang);
 
   const [hash, setHash] = useState(window.location.hash || '#chat');
   const previousViewRef = useRef<'chat' | 'focus' | 'simulator'>('chat');
@@ -249,7 +253,7 @@ export default function Inner() {
     triggerHaptic();
     setCurrentSessionId(session.id);
     setMode(session.mode);
-    if (session.mode === 'MENTOR') {
+    if (session.mode !== 'COUNCIL') {
       setSelectedCharacter(session.character);
     }
     setMessages(session.messages || []);
@@ -287,13 +291,19 @@ export default function Inner() {
     }
   };
 
-  const switchChat = (newMode: 'COUNCIL' | 'MENTOR', newChar: string) => {
+  const switchChat = (newMode: Mode, newChar?: string) => {
     if (mode !== newMode) {
       setCurrentSessionId(null);
       setMessages([]);
     }
     setMode(newMode);
-    setSelectedCharacter(newChar);
+    
+    if (newChar) {
+      setSelectedCharacter(newChar);
+    } else if (newMode !== 'COUNCIL') {
+      setSelectedCharacter(CHARACTERS[newMode][0]);
+    }
+    
     if (isSelectorOpen) {
       window.history.back();
     }
@@ -401,14 +411,14 @@ export default function Inner() {
           id: sessionId!,
           title: userMessage.length > 30 ? userMessage.substring(0, 30) + '...' : userMessage,
           mode,
-          character: mode === 'COUNCIL' ? 'The Council' : selectedCharacter,
+          character: mode === 'COUNCIL' ? 'The Council' : mode === 'EMOTION' ? 'The Poets' : selectedCharacter,
           updatedAt: Date.now()
         }, ...prev];
       } else {
         return prev.map(s => s.id === sessionId ? { 
           ...s, 
           mode, 
-          character: mode === 'COUNCIL' ? 'The Council' : selectedCharacter, 
+          character: mode === 'COUNCIL' ? 'The Council' : mode === 'EMOTION' ? 'The Poets' : selectedCharacter, 
           updatedAt: Date.now() 
         } : s).sort((a, b) => b.updatedAt - a.updatedAt);
       }
@@ -512,59 +522,70 @@ export default function Inner() {
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,rgba(239,68,68,0.05)_0%,rgba(0,0,0,1)_70%)] pointer-events-none" />
 
       {/* Header / Mode Selection */}
-      <div className="relative z-20 px-4 py-2 flex flex-col items-center gap-2 border-b border-white/5 bg-black/40 backdrop-blur-md">
+      <div className="relative z-20 px-2 sm:px-4 py-2 flex flex-row justify-between items-center border-b border-white/5 bg-black/40 backdrop-blur-md gap-1">
         {view === 'chat' && (
-          <div className="w-full flex justify-between items-center max-w-3xl mx-auto">
+          <div className="w-full flex justify-between items-center max-w-3xl mx-auto flex-nowrap gap-1">
             {/* Left: History & New Chat */}
-            <div className="flex items-center gap-2 flex-1">
+            <div className="flex items-center gap-1 shrink-0">
               <button
                 onClick={() => { triggerHaptic(); window.location.hash = 'history'; }}
-                className="p-2 text-white/60 hover:text-white transition-colors rounded-full hover:bg-white/10 bg-white/5 border border-white/10"
+                className="p-1.5 sm:p-2 text-white/60 hover:text-white transition-colors rounded-full hover:bg-white/10 bg-white/5 border border-white/10"
                 title={lang === 'en' ? 'Chat History' : 'चैट हिस्ट्री'}
               >
-                <History size={18} />
+                <History size={16} />
               </button>
               <button
                 onClick={startNewChat}
-                className="p-2 text-white/60 hover:text-white transition-colors rounded-full hover:bg-white/10 bg-white/5 border border-white/10"
+                className="p-1.5 sm:p-2 text-white/60 hover:text-white transition-colors rounded-full hover:bg-white/10 bg-white/5 border border-white/10"
                 title={lang === 'en' ? 'New Chat' : 'नई चैट'}
               >
-                <Plus size={18} />
+                <Plus size={16} />
               </button>
             </div>
 
             {/* Center: Mode Toggle */}
-            <div className="flex items-center gap-1 p-1 bg-white/5 rounded-full border border-white/10">
-              <button
-                onClick={() => { if (mode !== 'COUNCIL') { triggerHaptic(); switchChat('COUNCIL', selectedCharacter); } }}
-                className={`px-3 py-1.5 md:px-4 md:py-2 rounded-full text-[10px] md:text-xs tracking-[0.2em] uppercase transition-all ${mode === 'COUNCIL' ? 'bg-aura-red text-black font-bold shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'text-white/40 hover:text-white'}`}
-              >
-                {lang === 'en' ? 'Council' : 'परिषद'}
-              </button>
-              <button
-                onClick={() => { if (mode !== 'MENTOR') { triggerHaptic(); switchChat('MENTOR', selectedCharacter); } }}
-                className={`px-3 py-1.5 md:px-4 md:py-2 rounded-full text-[10px] md:text-xs tracking-[0.2em] uppercase transition-all ${mode === 'MENTOR' ? 'bg-aura-red text-black font-bold shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'text-white/40 hover:text-white'}`}
-              >
-                {lang === 'en' ? 'Mentor' : 'गुरु'}
-              </button>
+            <div className="flex items-center p-0.5 bg-black/60 rounded-xl border border-white/10 mx-1 shadow-lg shadow-black/50 overflow-hidden shrink min-w-0">
+              {(['COUNCIL', 'MENTOR', 'EMOTION'] as const).map((m) => {
+                const isActive = mode === m;
+                return (
+                  <button
+                    key={m}
+                    onClick={() => { if (mode !== m) { triggerHaptic(); switchChat(m); } }}
+                    className={`relative px-2 sm:px-4 py-1.5 rounded-lg text-[8px] sm:text-xs font-bold tracking-widest uppercase transition-all duration-300 ${isActive ? 'text-black' : 'text-white/40 hover:text-white'}`}
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeMode"
+                        className="absolute inset-0 bg-aura-red rounded-lg"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                    <span className="relative z-10 whitespace-nowrap">
+                      {lang === 'en' 
+                        ? (m === 'COUNCIL' ? 'Council' : m === 'MENTOR' ? 'Mentor' : 'Emotion')
+                        : (m === 'COUNCIL' ? 'परिषद' : m === 'MENTOR' ? 'गुरु' : 'भावना')}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
             
             {/* Right: Clear Chat & Settings */}
-            <div className="flex items-center justify-end gap-2 flex-1">
+            <div className="flex items-center justify-end gap-1 shrink-0">
               {messages.length > 0 && (
                 <button
                   onClick={clearCurrentChat}
-                  className="p-2 text-white/40 hover:text-aura-red transition-colors rounded-full hover:bg-white/10"
+                  className="p-1.5 sm:p-2 text-white/40 hover:text-aura-red transition-colors rounded-full hover:bg-white/10"
                   title={lang === 'en' ? 'Clear Chat' : 'चैट मिटाएं'}
                 >
-                  <Trash2 size={18} />
+                  <Trash2 size={16} />
                 </button>
               )}
               <button
                 onClick={() => { triggerHaptic(); window.location.hash = 'settings'; }}
-                className="p-2 text-white/60 hover:text-white transition-colors rounded-full hover:bg-white/10 bg-white/5 border border-white/10"
+                className="p-1.5 sm:p-2 text-white/60 hover:text-white transition-colors rounded-full hover:bg-white/10 bg-white/5 border border-white/10"
               >
-                <SettingsIcon size={18} />
+                <SettingsIcon size={16} />
               </button>
             </div>
           </div>
@@ -603,7 +624,7 @@ export default function Inner() {
                       className="absolute top-full left-4 right-4 md:left-auto md:right-auto md:w-[600px] bg-[#0a0a0a]/95 backdrop-blur-2xl border border-white/10 rounded-2xl p-4 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50"
                     >
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-[50vh] overflow-y-auto scrollbar-hide pr-1">
-                        {CHARACTERS.map(char => (
+                        {CHARACTERS.MENTOR.map(char => (
                           <button
                             key={char}
                             onClick={() => {
@@ -649,9 +670,9 @@ export default function Inner() {
         <AnimatePresence mode="wait">
           <motion.div
             key={mode + (currentSessionId || 'new')}
-            initial={{ opacity: 0, x: mode === 'COUNCIL' ? -20 : 20, filter: 'blur(4px)' }}
+            initial={{ opacity: 0, x: mode === 'COUNCIL' || mode === 'EMOTION' ? -20 : 20, filter: 'blur(4px)' }}
             animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, x: mode === 'COUNCIL' ? 20 : -20, filter: 'blur(4px)' }}
+            exit={{ opacity: 0, x: mode === 'COUNCIL' || mode === 'EMOTION' ? 20 : -20, filter: 'blur(4px)' }}
             transition={{ duration: 0.3, ease: "easeOut" }}
             className="min-h-full flex flex-col space-y-4"
           >
@@ -662,7 +683,7 @@ export default function Inner() {
                 </div>
                 <div className="space-y-1">
                   <h3 className="font-display text-xs tracking-[0.3em] uppercase">
-                    {mode === 'COUNCIL' ? 'The Council Awaits' : `Consult ${selectedCharacter}`}
+                    {mode === 'COUNCIL' ? 'The Council Awaits' : mode === 'EMOTION' ? 'The Poets Await' : `Consult ${selectedCharacter}`}
                   </h3>
                   <p className="text-[10px] tracking-widest uppercase">
                     {lang === 'en' ? 'Ask your question' : 'अपना प्रश्न पूछें'}
@@ -682,7 +703,7 @@ export default function Inner() {
                   <div className={`flex flex-col max-w-[85%] md:max-w-[70%] ${msg.isAi ? 'items-start' : 'items-end'}`}>
                     {msg.isAi && (
                       <span className="text-[9px] uppercase tracking-widest text-aura-red/60 mb-1 ml-2">
-                        {msg.character || 'The Council'}
+                        {msg.character || (mode === 'EMOTION' ? 'The Poets' : 'The Council')}
                       </span>
                     )}
                     <div
@@ -694,8 +715,22 @@ export default function Inner() {
                     >
                       {msg.text}
                       {msg.imageUrl && (
-                        <div className="mt-3 rounded-xl overflow-hidden border border-white/10">
-                          <img src={msg.imageUrl} alt="Generated" className="w-full h-auto max-w-sm" />
+                        <div className="mt-3 relative rounded-xl overflow-hidden border border-white/10 group max-w-sm inline-block">
+                          <img src={msg.imageUrl} alt="Generated" className="w-full h-auto block" />
+                          <button
+                            onClick={() => {
+                              const link = document.createElement('a');
+                              link.href = msg.imageUrl!;
+                              link.download = `inner-${Date.now()}.png`;
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                            }}
+                            className="absolute bottom-2 right-2 p-2 bg-black/60 hover:bg-black border border-white/20 hover:border-white/40 text-white/80 hover:text-white rounded-lg transition-all md:opacity-0 md:group-hover:opacity-100"
+                            title={lang === 'en' ? 'Download Image' : 'चित्र डाउनलोड करें'}
+                          >
+                            <Download size={16} />
+                          </button>
                         </div>
                       )}
                       
@@ -708,28 +743,6 @@ export default function Inner() {
                           >
                             <RefreshCcw size={12} className={isTyping ? 'animate-spin' : ''} />
                             {lang === 'en' ? 'Retry' : 'पुनः प्रयास करें'}
-                          </button>
-                        )}
-                        {msg.isAi && !msg.isImageRequest && msg.text && !msg.text.startsWith('[System') && (
-                          <button
-                            onClick={() => speak(msg.id, msg.text)}
-                            className={`mt-3 flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] uppercase tracking-widest transition-all border ${
-                              speakingId === msg.id
-                                ? 'bg-aura-red/20 border-aura-red/50 text-aura-red'
-                                : 'bg-white/10 hover:bg-white/20 border-white/10 text-white'
-                            }`}
-                          >
-                            {speakingId === msg.id ? (
-                              <>
-                                <Square size={12} className="fill-current" />
-                                {lang === 'en' ? 'Pause' : 'रोकें'}
-                              </>
-                            ) : (
-                              <>
-                                <Volume2 size={12} />
-                                {lang === 'en' ? 'Speak' : 'सुने'}
-                              </>
-                            )}
                           </button>
                         )}
                       </div>
@@ -781,6 +794,8 @@ export default function Inner() {
                     <span className="text-[11px] uppercase tracking-widest text-white/50 font-bold">
                       {mode === 'COUNCIL' 
                         ? (lang === 'en' ? 'Council is analyzing...' : 'काउंसिल विश्लेषण कर रही है...')
+                        : mode === 'EMOTION'
+                        ? (lang === 'en' ? 'Poets are listening...' : 'कवि सुन रहे हैं...')
                         : (lang === 'en' ? `${selectedCharacter} is thinking...` : `${selectedCharacter} सोच रहे हैं...`)}
                     </span>
                   </div>
@@ -885,6 +900,8 @@ export default function Inner() {
               ? (lang === 'en' ? "Describe the image to generate..." : "बनाने के लिए चित्र का वर्णन करें...")
               : mode === 'COUNCIL' 
               ? (lang === 'en' ? "Message the Council..." : "परिषद को संदेश भेजें...")
+              : mode === 'EMOTION'
+              ? (lang === 'en' ? "Express your feelings..." : "अपनी भावनाएं व्यक्त करें...")
               : (lang === 'en' ? `Message ${selectedCharacter}...` : `${selectedCharacter} को संदेश भेजें...`)}
             className="flex-1 bg-transparent border-none py-2 text-sm text-white placeholder:text-white/20 focus:outline-none resize-none overflow-y-auto scrollbar-hide ml-1"
             style={{ minHeight: '40px', maxHeight: '150px' }}

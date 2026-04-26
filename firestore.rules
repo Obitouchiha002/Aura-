@@ -96,6 +96,16 @@ service cloud.firestore {
              (!('welcomeMessage' in data) || data.welcomeMessage is string);
     }
 
+    function isValidFeedback(data) {
+      return hasOnlyAllowedFields(['userId', 'email', 'feedbackText', 'rating', 'createdAt', 'status']) &&
+             data.userId is string && data.userId.size() > 0 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.feedbackText is string && data.feedbackText.size() <= 2000 &&
+             (!('rating' in data) || (data.rating is number && data.rating >= 1 && data.rating <= 5)) &&
+             data.createdAt is timestamp &&
+             (!('status' in data) || data.status in ['new', 'read', 'resolved']);
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -129,6 +139,13 @@ service cloud.firestore {
     match /settings/{settingId} {
       allow read: if isAuthenticated();
       allow create, update, delete: if isAdmin() && isValidSetting(request.resource.data);
+    }
+    
+    match /feedback/{feedbackId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid && isValidFeedback(request.resource.data);
+      allow update: if isAdmin() && isValidFeedback(request.resource.data);
+      allow delete: if isAdmin();
     }
   }
 }
