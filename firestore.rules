@@ -68,7 +68,7 @@ service cloud.firestore {
     // ===============================================================
     
     function isValidUser(data) {
-      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt', 'lastLoginAt', 'dailyMessageCount', 'lastMessageDate']) &&
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt', 'lastLoginAt', 'dailyMessageCount', 'lastMessageDate', 'referredBy', 'invitesSent']) &&
              data.uid is string && data.uid.size() > 0 &&
              data.email is string && isValidEmail(data.email) &&
              (!('displayName' in data) || data.displayName is string) &&
@@ -77,7 +77,9 @@ service cloud.firestore {
              data.createdAt is timestamp &&
              data.lastLoginAt is timestamp &&
              (!('dailyMessageCount' in data) || data.dailyMessageCount is number) &&
-             (!('lastMessageDate' in data) || data.lastMessageDate is string);
+             (!('lastMessageDate' in data) || data.lastMessageDate is string) &&
+             (!('referredBy' in data) || data.referredBy is string) &&
+             (!('invitesSent' in data) || data.invitesSent is number);
     }
     
     function isValidSession(data) {
@@ -111,7 +113,7 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
+      allow read: if isOwner(userId) || isAdmin() || (isAuthenticated() && resource.data.referredBy == request.auth.uid);
       allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && 
                     (request.resource.data.role == 'user' || isAdmin());
       allow update: if isAuthenticated() && isValidUser(request.resource.data) && 

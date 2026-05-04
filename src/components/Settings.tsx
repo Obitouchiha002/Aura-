@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
-import { X, LogOut, ShieldAlert, User, AlertCircle, MessageSquareHeart } from 'lucide-react';
+import { X, LogOut, ShieldAlert, User, AlertCircle, MessageSquareHeart, Check } from 'lucide-react';
 import { ReportIssueModal } from './ReportIssueModal';
 import { FeedbackModal } from './FeedbackModal';
+import { doc, getDoc, collection, query, where, getDocs, updateDoc, increment } from 'firebase/firestore';
+import { db } from '../firebase';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface SettingsProps {
   onClose: () => void;
@@ -14,6 +17,48 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
   const { logout, isAdmin, user } = useAuth();
   const [showReportModal, setShowReportModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [invitesCount, setInvitesCount] = useState(0);
+  const [joinedCount, setJoinedCount] = useState(0);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    
+    const fetchReferralStats = async () => {
+      try {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('referredBy', '==', user.uid));
+        const snapshot = await getDocs(q);
+        setJoinedCount(snapshot.size);
+
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          setInvitesCount(userDocSnap.data().invitesSent || 0);
+        }
+      } catch (err) {
+        console.error("Failed to fetch referral stats", err);
+      }
+    };
+    fetchReferralStats();
+  }, [user]);
+
+  const handleCopyLink = async () => {
+    const inviteLink = `http://aurashakti.vercel.app/?ref=${user?.uid}`;
+    navigator.clipboard.writeText(inviteLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    
+    if (user?.uid) {
+      try {
+        const userDocRef = doc(db, 'users', user.uid);
+        await updateDoc(userDocRef, { invitesSent: increment(1) });
+        setInvitesCount(prev => prev + 1);
+      } catch (err) {
+        console.error("Failed to update invites sent count", err);
+      }
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
@@ -154,6 +199,60 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
           </div>
 
           <div className="pt-4 mt-4 border-t border-white/10 space-y-2">
+            <div className="bg-white/5 border border-white/10 p-4 rounded-xl space-y-3 relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-r from-aura-red/5 to-transparent pointer-events-none opacity-50 group-hover:opacity-100 transition-opacity"></div>
+              <div className="relative z-10">
+                <h3 className="text-sm font-bold text-white mb-1">Invite & Share</h3>
+                <p className="text-xs text-white/50 mb-3">Share Aura with friends and earn rewards.</p>
+                <div className="flex gap-2">
+                  <div className="bg-black/50 border border-white/10 px-3 py-2 rounded-lg flex-1 overflow-hidden flex items-center justify-center">
+                    <p className="text-[10px] text-white/70 truncate font-mono tracking-tighter">aurashakti.vercel.app/?ref={user?.uid?.substring(0, 6) || 'guest'}</p>
+                  </div>
+                  <button 
+                    onClick={handleCopyLink}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all min-w-[70px] flex items-center justify-center gap-1 ${
+                      copied 
+                        ? 'bg-green-500 text-white shadow-[0_0_15px_rgba(34,197,94,0.4)]' 
+                        : 'bg-aura-red text-black hover:bg-white'
+                    }`}
+                  >
+                    <AnimatePresence mode="wait">
+                      {copied ? (
+                        <motion.div
+                          key="check"
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          exit={{ scale: 0 }}
+                          className="flex items-center gap-1"
+                        >
+                          <Check size={14} />
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="copy"
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          exit={{ scale: 0 }}
+                        >
+                          Copy
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </button>
+                </div>
+                <div className="flex gap-4 mt-3 text-xs">
+                  <div>
+                    <span className="text-white/40 block uppercase tracking-widest text-[9px]">Invites</span>
+                    <span className="text-aura-red font-bold">{invitesCount}</span>
+                  </div>
+                  <div>
+                    <span className="text-white/40 block uppercase tracking-widest text-[9px]">Joined</span>
+                    <span className="text-white font-bold">{joinedCount}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <button
               onClick={() => setShowFeedbackModal(true)}
               className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-aura-red/10 to-transparent hover:from-aura-red/20 text-white p-3 rounded-xl transition-all border border-aura-red/20 shadow-[inset_0_0_10px_rgba(239,68,68,0.05)] text-left"

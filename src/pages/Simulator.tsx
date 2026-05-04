@@ -6,21 +6,26 @@ import { useLang } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Send, Bot, RefreshCcw, Trash2, Settings as SettingsIcon, Activity, X, Brain, ArrowLeft } from 'lucide-react';
+import { Send, Bot, RefreshCcw, Trash2, Settings as SettingsIcon, Activity, X, Brain, ArrowLeft, Mic } from 'lucide-react';
 
 type SimState = 'START' | 'SCENARIO' | 'EVALUATING' | 'RESULT' | 'BREAK';
+
+import { TypewriterText } from '../components/TypewriterText';
+import { useMicrophone } from '../hooks/useMicrophone';
 
 export default function Simulator() {
   const { lang } = useLang();
   const { hapticFeedback, userApiKey, language } = useSettings();
   const { checkAndIncrementMessageLimit, user } = useAuth();
+  
+  const [input, setInput] = useState('');
+  const { isListening, toggleListening } = useMicrophone(language, (text) => setInput(text));
 
   const [simState, setSimState] = useState<SimState>('START');
   const [level, setLevel] = useState(1);
   const [scenarioText, setScenarioText] = useState('');
   const [evaluationText, setEvaluationText] = useState('');
   const [history, setHistory] = useState<{ role: string; text: string }[]>([]);
-  const [input, setInput] = useState('');
   const [loadingText, setLoadingText] = useState('');
 
   const [showReport, setShowReport] = useState(false);
@@ -354,7 +359,7 @@ export default function Simulator() {
               </div>
               
               <div className="flex-1 overflow-y-auto mb-8 text-white/90 leading-relaxed text-sm md:text-base whitespace-pre-wrap font-mono scrollbar-hide">
-                {scenarioText}
+                <TypewriterText text={scenarioText} animate={true} speed={20} />
               </div>
               
               <div className="bg-black p-4 rounded-none border border-white/20 focus-within:border-aura-red/50 transition-all shadow-[0_0_15px_rgba(0,0,0,0.5)]">
@@ -376,7 +381,14 @@ export default function Simulator() {
                   className="w-full bg-transparent border-none py-2 text-sm text-white placeholder:text-white/20 focus:outline-none resize-none overflow-y-auto scrollbar-hide font-mono"
                   style={{ minHeight: '60px', maxHeight: '150px' }}
                 />
-                <div className="flex justify-end mt-4">
+                <div className="flex justify-between items-center mt-4">
+                  <button 
+                    onClick={toggleListening}
+                    className={`p-2 rounded-full transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-white/50 hover:bg-white/10 hover:text-white'}`}
+                    title={lang === 'en' ? (isListening ? 'Stop recording' : 'Start dictation') : (isListening ? 'रिकॉर्डिंग रोकें' : 'बोलकर लिखें')}
+                  >
+                    <Mic size={20} />
+                  </button>
                   <button 
                     onClick={handleSubmitAction}
                     disabled={!input.trim()}
@@ -405,7 +417,7 @@ export default function Simulator() {
               </div>
               
               <div className="flex-1 overflow-y-auto mb-8 text-white/90 leading-relaxed text-sm md:text-base whitespace-pre-wrap font-mono scrollbar-hide">
-                {evaluationText}
+                <TypewriterText text={evaluationText} animate={true} speed={20} />
               </div>
               
               <div className="flex flex-col sm:flex-row gap-4 mt-auto">

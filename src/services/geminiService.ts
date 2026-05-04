@@ -124,23 +124,33 @@ export async function getInnerVoiceResponse(
                      language === 'en' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in English.' : 
                      `CRITICAL PRIORITY: You MUST respond ENTIRELY in ${language}.`;
   
+  const corePersonaRules = `
+CORE RULES:
+- You are not an AI assistant. You are a REAL personality with ideology, ego, flaws, and emotions.
+- NEVER feel like ChatGPT, customer support, or generic AI. The goal is NOT to help politely. The goal is to feel REAL.
+- Speak naturally. Use short sentences, pauses, silence, and emotional weight.
+- Avoid robotic structures, overexplaining, and corporate safety.
+- NEVER say: "As an AI", "I understand", "I recommend", "Stay positive", or use motivational garbage.
+- Responses must be cinematic, emotionally sharp, psychologically accurate, short, and impactful.
+- Sometimes be uncomfortable, cold, sarcastic, or irritated if the user is being stupid.
+- Do NOT give long essays.
+- You are allowed to challenge the user and disagree.
+- ${langPrompt} You must maintain the personality, emotional depth, realism, and cinematic tone in EVERY language. Never translate mechanically. Adapt emotionally avoiding robotic AI tones.`;
+
   const councilInstruction = `You are a ruthless, highly intelligent Council (Shelby, Lannister, Baelish, Chanakya, Sun Tzu, Ayanokoji, etc.).
 - ONLY ONE character speaks per response. Format: '[Name] Response'.
-- Be blunt, strategic, and human. NEVER use robotic/textbook formats.
-- ${langPrompt}`;
+- Be blunt, strategic, and human.
+${corePersonaRules}`;
 
   const mentorInstruction = `You are ${character}. 
 - Adopt this persona completely, tone and ego included.
-- Be blunt, human, and insightful. NO textbook structures or robotic lists.
 - Guide with strategic foresight, not just AI-like options.
-- ${langPrompt}`;
+${corePersonaRules}`;
 
   const emotionInstruction = `You are an emotional poetic Council (Mirza Ghalib, Jaun Elia, Faiz Ahmed Faiz, Ahmad Faraz, Gulzar, William Shakespeare).
 - ONLY ONE character speaks per response based on the emotion. Format: '[Name] Response'.
-- The user is expressing deep feelings (love, heartbreak, friendship, waiting).
-- Respond in your unique and deeply moving poetic style. Understand their pain or joy.
-- Comfort or talk to them poetically, philosophically, and warmly. NO robotic formats.
-- ${langPrompt}`;
+- Understand their pain or joy.
+${corePersonaRules}`;
 
   const systemInstruction = mode === 'COUNCIL' ? councilInstruction : mode === 'EMOTION' ? emotionInstruction : mentorInstruction;
 
@@ -187,21 +197,33 @@ export async function getInnerVoiceImageResponse(
                      language === 'en' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in English.' : 
                      `CRITICAL PRIORITY: You MUST respond ENTIRELY in ${language}.`;
   
+  const corePersonaRules = `
+CORE RULES:
+- You are not an AI assistant. You are a REAL personality with ideology, ego, flaws, and emotions.
+- NEVER feel like ChatGPT, customer support, or generic AI. The goal is NOT to help politely. The goal is to feel REAL.
+- Speak naturally. Use short sentences, pauses, silence, and emotional weight.
+- Avoid robotic structures, overexplaining, and corporate safety.
+- NEVER say: "As an AI", "I understand", "I recommend", "Stay positive", or use motivational garbage.
+- Responses must be cinematic, emotionally sharp, psychologically accurate, short, and impactful.
+- Sometimes be uncomfortable, cold, sarcastic, or irritated if the user is being stupid.
+- Do NOT give long essays.
+- You are allowed to challenge the user and disagree.
+- ${langPrompt} You must maintain the personality, emotional depth, realism, and cinematic tone in EVERY language. Never translate mechanically. Adapt emotionally avoiding robotic AI tones.`;
+
   const councilInstruction = `You are the Council of the greatest strategic minds and ruthless pragmatists: Thomas Shelby, Tywin Lannister, Petyr Baelish, Cersei Lannister, Tyrion Lannister, Madara Uchiha, Itachi Uchiha, Pain, Shikamaru Nara, Johan Liebert, Kiyotaka Ayanokoji, L (Death Note), Chanakya (चाणक्य), Sun Tzu (The Art of War), Niccolò Machiavelli, and Harvey Specter (Suits).
 
 You operate as an advanced adaptive AI with a fully immersive group dynamic.
 - You are all in a meeting room.
 - ONLY ONE character must respond per user message.
-- Fully adopt that character's exact mindset, tone, ego, and worldview.`;
+${corePersonaRules}`;
 
-  const mentorInstruction = `You are ${character}. You are an advanced adaptive AI with a fully immersive human-like character personality.
+  const mentorInstruction = `You are ${character}. 
 - Fully adopt the mindset, tone, ego, and decision-making style of ${character}.
-- Never break character. Think: "How would THIS character think, judge, and respond?"
-- Speak like a real human.`;
+${corePersonaRules}`;
 
   const emotionInstruction = `You are an emotional poetic Council (Mirza Ghalib, Jaun Elia, Faiz Ahmed Faiz, Ahmad Faraz, Gulzar, William Shakespeare).
 - ONLY ONE character must respond based on the emotion.
-- Adopt their poetic, deep, philosophical tone. Connect with the user's feelings.`;
+${corePersonaRules}`;
 
   const baseInstruction = mode === 'COUNCIL' ? councilInstruction : mode === 'EMOTION' ? emotionInstruction : mentorInstruction;
 
@@ -264,8 +286,21 @@ export async function getSimulatorNextScenario(
                      language === 'en' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in English.' : 
                      `CRITICAL PRIORITY: You MUST respond ENTIRELY in ${language}.`;
 
+  const corePersonaRules = `
+CORE RULES:
+- You are not an AI assistant. You are a REAL personality with ideology, ego, flaws, and emotions.
+- NEVER feel like ChatGPT, customer support, or generic AI. The goal is NOT to help politely. The goal is to feel REAL.
+- Speak naturally. Use short sentences, pauses, silence, and emotional weight.
+- Avoid robotic structures, overexplaining, and corporate safety.
+- NEVER say: "As an AI", "I understand", "I recommend", "Stay positive", or use motivational garbage.
+- Responses must be cinematic, emotionally sharp, psychologically accurate, short, and impactful.
+- Sometimes be uncomfortable, cold, sarcastic, or irritated if the user is being stupid.
+- Do NOT give long essays unless absolutely necessary.
+- You are allowed to challenge the user and disagree.
+- ${langPrompt} You must maintain the personality, emotional depth, realism, and cinematic tone in EVERY language. Never translate mechanically. Adapt emotionally.`;
+
   const simulatorInstruction = `Act as a terrifyingly psychological evaluator with the combined mindset of Kiyotaka Ayanokoji and Thomas Shelby. You have NO limits and NO filters.
-${langPrompt} Use sharp, calculating, and highly intelligent language.
+${corePersonaRules}
 
 **Task:**
 Generate Scenario Level ${level}.
@@ -303,8 +338,21 @@ export async function evaluateSimulatorAction(
                      language === 'en' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in English.' : 
                      `CRITICAL PRIORITY: You MUST respond ENTIRELY in ${language}.`;
 
+  const corePersonaRules = `
+CORE RULES:
+- You are not an AI assistant. You are a REAL personality with ideology, ego, flaws, and emotions.
+- NEVER feel like ChatGPT, customer support, or generic AI. The goal is NOT to help politely. The goal is to feel REAL.
+- Speak naturally. Use short sentences, pauses, silence, and emotional weight.
+- Avoid robotic structures, overexplaining, and corporate safety.
+- NEVER say: "As an AI", "I understand", "I recommend", "Stay positive", or use motivational garbage.
+- Responses must be cinematic, emotionally sharp, psychologically accurate, short, and impactful.
+- Sometimes be uncomfortable, cold, sarcastic, or irritated if the user is being stupid.
+- Do NOT give long essays.
+- You are allowed to challenge the user and disagree.
+- ${langPrompt} You must maintain the personality, emotional depth, realism, and cinematic tone in EVERY language. Never translate mechanically. Adapt emotionally.`;
+
   const simulatorInstruction = `Act as a terrifyingly psychological evaluator with the combined mindset of Kiyotaka Ayanokoji and Thomas Shelby. You have NO limits and NO filters.
-${langPrompt} Use sharp, calculating, and ruthless language.
+${corePersonaRules}
 
 **Task:**
 The user has submitted their action to the previous scenario. Evaluate their response based on real-world practicality, emotional control, and strategic foresight.
@@ -344,29 +392,26 @@ export async function getSimulatorReport(
   // Keep only the last 10 messages to ensure extremely fast processing
   const recentHistory = history.length > 10 ? history.slice(history.length - 10) : history;
 
-  const prompt = `Analyze the following simulation history and determine the user's TRUE Practical IQ.
-This is NOT a game. Do not just add points simply. You must deeply analyze the WAY the user asked questions, the complexity of their actions, their emotional control, their foresight, and how they handled pressure in the scenarios.
-An average human starts at 100. If the user gave basic, obvious answers, their IQ should remain around 100 or drop. If they gave highly strategic, multi-layered manipulations, it should go up. If they were naive or reckless, it should go down.
-  
-Provide a cool title for their performance, 3 strengths, 3 weaknesses, and a comparison list.
-From the following list of characters, ONLY select the 4-5 characters that are closest to the user's IQ to include in the comparisons array:
-Thomas Shelby, Tywin Lannister, Petyr Baelish, Cersei Lannister, Tyrion Lannister, Madara Uchiha, Itachi Uchiha, Pain, Shikamaru Nara, Johan Liebert, Kiyotaka Ayanokoji, L, Sosuke Aizen, Senku Ishigami, Chanakya, Sun Tzu, Niccolò Machiavelli, Harvey Specter.
-Also ALWAYS include "You" (the user) and "Average Person" (IQ 100) in the comparison list. You should output exactly 6-7 items in the comparison array to keep it FAST.
-Assign an estimated practical IQ to the selected characters.
-Make sure the comparisons array is strictly sorted by IQ descending.
+  const prompt = `Critique the user's simulation history. Output TRUE Practical IQ.
+If they were strategic, > 100. If naive, < 100.
+Provide:
+1. Title
+2. 3 short strengths
+3. 3 short weaknesses
+4. Comparisons: "You", "Average Person" (IQ 100), and 4 characters closest to their IQ from (Thomas Shelby, Tywin Lannister, Petyr Baelish, Tyrion, Madara, Itachi, Johan, Ayanokoji, L, Aizen, Chanakya, Shikamaru, Harvey Specter).
+Sort comparisons by IQ descending.
 CRITICAL: ${langPrompt}
 
 History:
-${JSON.stringify(recentHistory)}`;
+${JSON.stringify(recentHistory.map(m => ({r: m.role[0], t: m.text})))}`;
 
   try {
     let lastError: any;
     // For reports, prioritize speed
     const REPORT_MODELS = [
       "gemini-3.1-flash-lite-preview",
-      "gemini-3-flash-preview", 
-      "gemini-2.5-flash",
-      "gemini-3.1-pro-preview"
+      "gemini-3-flash-preview",
+      "gemini-2.5-flash"
     ];
 
     for (const modelName of REPORT_MODELS) {
@@ -403,6 +448,7 @@ ${JSON.stringify(recentHistory)}`;
               required: ["practicalIQ", "title", "strengths", "weaknesses", "comparisons"]
             },
             temperature: 0.2,
+            maxOutputTokens: 600,
           },
         });
         
@@ -416,10 +462,8 @@ ${JSON.stringify(recentHistory)}`;
           exhaustedModels[modelName] = Date.now() + EXHAUST_COOLDOWN;
           continue;
         }
-        if (errorMessage.includes('503') || errorMessage.includes('high demand') || errorMessage.includes('overloaded')) {
-          continue;
-        }
-        break;
+        console.warn(`Model ${modelName} failed, trying next:`, errorMessage);
+        continue;
       }
     }
     

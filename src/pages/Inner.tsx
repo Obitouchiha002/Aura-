@@ -8,7 +8,7 @@ import { useLang } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { collection, doc, getDocs, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Send, User, Bot, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as SettingsIcon, RefreshCcw, Download, Image as ImageIcon, Users, Sparkles, Target, Gamepad2, Square } from 'lucide-react';
+import { Send, User, Bot, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as SettingsIcon, RefreshCcw, Download, Image as ImageIcon, Users, Sparkles, Target, Gamepad2, Square, Mic } from 'lucide-react';
 import { Settings } from '../components/Settings';
 import Focus from './Focus';
 import Simulator from './Simulator';
@@ -114,12 +114,17 @@ function HistoryDrawerComponent({ isOpen, onClose, sessions, loadSession, curren
   );
 }
 
+import { TypewriterText } from '../components/TypewriterText';
+import { useMicrophone } from '../hooks/useMicrophone';
+
 export default function Inner() {
   const { lang } = useLang();
   const { hapticFeedback, vibration, userApiKey, language } = useSettings();
   const { checkAndIncrementMessageLimit, user } = useAuth();
 
   const [input, setInput] = useState('');
+  
+  const { isListening, toggleListening } = useMicrophone(language, (text) => setInput(text));
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>('COUNCIL');
@@ -693,7 +698,7 @@ export default function Inner() {
             )}
 
             <AnimatePresence initial={false}>
-              {messages.map((msg) => (
+              {messages.map((msg, index) => (
                 <motion.div
                   key={msg.id}
                   initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -713,7 +718,11 @@ export default function Inner() {
                           : 'bg-aura-red text-black font-medium rounded-2xl rounded-br-none shadow-[0_0_20px_rgba(239,68,68,0.2)]'
                       }`}
                     >
-                      {msg.text}
+                      {msg.isAi && index === messages.length - 1 ? (
+                        <TypewriterText text={msg.text} animate={true} speed={25} />
+                      ) : (
+                        <>{msg.text}</>
+                      )}
                       {msg.imageUrl && (
                         <div className="mt-3 relative rounded-xl overflow-hidden border border-white/10 group max-w-sm inline-block">
                           <img src={msg.imageUrl} alt="Generated" className="w-full h-auto block" />
@@ -906,6 +915,14 @@ export default function Inner() {
             className="flex-1 bg-transparent border-none py-2 text-sm text-white placeholder:text-white/20 focus:outline-none resize-none overflow-y-auto scrollbar-hide ml-1"
             style={{ minHeight: '40px', maxHeight: '150px' }}
           />
+          <button
+            type="button"
+            onClick={toggleListening}
+            className={`p-2 mb-1 rounded-full transition-all flex-shrink-0 ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-white/50 hover:bg-white/10 hover:text-white'}`}
+            title={lang === 'en' ? (isListening ? 'Stop recording' : 'Start dictation') : (isListening ? 'रिकॉर्डिंग रोकें' : 'बोलकर लिखें')}
+          >
+            <Mic size={18} />
+          </button>
           <button
             type="submit"
             disabled={!input.trim() || isTyping}

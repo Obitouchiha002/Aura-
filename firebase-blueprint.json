@@ -13,7 +13,9 @@
         "createdAt": { "type": "string", "format": "date-time" },
         "lastLoginAt": { "type": "string", "format": "date-time" },
         "dailyMessageCount": { "type": "number", "description": "Number of messages sent today" },
-        "lastMessageDate": { "type": "string", "description": "Date string of the last message sent (YYYY-MM-DD)" }
+        "lastMessageDate": { "type": "string", "description": "Date string of the last message sent (YYYY-MM-DD)" },
+        "referredBy": { "type": "string", "description": "UID of the user who referred this user" },
+        "invitesSent": { "type": "number", "description": "Number of invites sent by this user" }
       },
       "required": ["uid", "email", "role", "createdAt", "lastLoginAt"]
     },
