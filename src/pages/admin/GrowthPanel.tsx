@@ -8,7 +8,7 @@ export default function GrowthPanel() {
         <p className="text-sm text-white/70 mb-4 p-4 bg-black border border-white/10 rounded-xl font-mono">
           <span className="text-aura-red">AI Insight:</span> Users who interact with Thomas Shelby are 60% more likely to use the "Share App" feature.
         </p>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="p-4 bg-black rounded-xl border border-white/5">
             <Share2 className="text-aura-red mb-2" size={16} />
             <h4 className="text-xs uppercase tracking-widest text-white/40 mb-1">Total Link Shares</h4>
