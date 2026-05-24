@@ -275,7 +275,7 @@ export default function Simulator() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto relative z-10 scroll-smooth scrollbar-hide flex flex-col">
+      <div className="flex-1 overflow-y-auto relative z-10 scrollbar-hide flex flex-col">
         <AnimatePresence mode="wait">
           
           {/* START STATE */}

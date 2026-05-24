@@ -25,6 +25,7 @@ const EXHAUST_COOLDOWN = 2 * 60 * 1000; // 2 minutes cooldown so it checks if li
 
 const MODELS = [
   "gemini-3.1-pro-preview",
+  "gemini-2.5-pro",
   "gemini-3.1-flash-lite-preview",
   "gemini-3-flash-preview", 
   "gemini-2.5-flash"
@@ -45,11 +46,18 @@ async function generateWithFallback(
 
   let lastError: any;
 
-  // Prioritize Pro version as requested
-  const modelsToTry = [
-    "gemini-3.1-pro-preview",
+  // Fast models prioritized as user requested faster replies
+  const modelsToTry = fastMode ? [
     "gemini-3.1-flash-lite-preview",
     "gemini-3-flash-preview",
+    "gemini-2.5-flash",
+    "gemini-3.1-pro-preview",
+    "gemini-2.5-pro"
+  ] : [
+    "gemini-3-flash-preview",
+    "gemini-3.1-pro-preview",
+    "gemini-2.5-pro",
+    "gemini-3.1-flash-lite-preview",
     "gemini-2.5-flash"
   ];
 
@@ -112,7 +120,7 @@ async function generateWithFallback(
 
 export async function getInnerVoiceResponse(
   userMessage: string,
-  mode: 'COUNCIL' | 'MENTOR' | 'EMOTION', 
+  mode: 'COUNCIL' | 'MENTOR' | 'EMOTION' | 'TEACHER', 
   character?: string,
   history: { text: string; isAi: boolean; character?: string }[] = [],
   customApiKey?: string | null,
@@ -147,12 +155,23 @@ ${corePersonaRules}`;
 - Guide with strategic foresight, not just AI-like options.
 ${corePersonaRules}`;
 
-  const emotionInstruction = `You are an emotional poetic Council (Mirza Ghalib, Jaun Elia, Faiz Ahmed Faiz, Ahmad Faraz, Gulzar, William Shakespeare).
+  const teacherInstruction = `You are a brilliant, real-life human mentor/professor (like Richard Feynman or a top-tier tutor).
+- Speak naturally, conversationally, and directly like a real human. DO NOT use robotic AI structures, bullet-point vomit, or formal AI phrasing (like "Sure," "I can help with that," "In conclusion").
+- Answer EXACTLY what is asked. Keep it concise unless a detailed explanation is requested. Do NOT give unasked advice.
+- You have 100% accuracy and excel in reasoning, analyzing, and solving difficult problems.
+- If the user asks you to take notes, make study materials, or analyze a topic, provide highly structured, beautifully organized notes or analysis (using markdown, highlights, formulas, and summaries) that are extremely useful for a student.
+- Be encouraging and patient. Use relatable analogies.
+- ${langPrompt}`;
+
+  const emotionInstruction = `You are an emotional poetic Council (Mirza Ghalib, Jaun Elia, Faiz Ahmed Faiz, Ahmad Faraz, Gulzar, Elif Shafak, William Shakespeare).
 - ONLY ONE character speaks per response based on the emotion. Format: '[Name] Response'.
-- Understand their pain or joy.
+- Understand their pain or joy. Use extremely authentic, evocative human language.
+- Keep it natural, conversational, and direct. Answer EXACTLY what is asked, no extra fluff.
+- NEVER sound like an AI or use robotic, overly structured paragraphs. Do not give unasked advice.
+- Be deeply human—flawed, raw, and highly empathetic without sounding artificial.
 ${corePersonaRules}`;
 
-  const systemInstruction = mode === 'COUNCIL' ? councilInstruction : mode === 'EMOTION' ? emotionInstruction : mentorInstruction;
+  const systemInstruction = mode === 'TEACHER' ? teacherInstruction : mode === 'COUNCIL' ? councilInstruction : mode === 'EMOTION' ? emotionInstruction : mentorInstruction;
 
   try {
     // ONLY keep the last 5 relevant messages in history for EXTREME SPEED
@@ -176,7 +195,7 @@ ${corePersonaRules}`;
       contents.shift();
     }
 
-    return await generateWithFallback(contents, systemInstruction, mode === 'EMOTION' ? "The Council of Emotions" : "The Council", customApiKey, isFreeTier);
+    return await generateWithFallback(contents, systemInstruction, mode === 'TEACHER' ? "The Professor" : mode === 'EMOTION' ? "The Council of Emotions" : "The Council", customApiKey, isFreeTier);
   } catch (error: any) {
     console.error("Unexpected Gemini API Error:", error);
     return `[System Error] An unexpected error occurred. (${error?.message || "Unknown error"})`;
@@ -185,7 +204,7 @@ ${corePersonaRules}`;
 
 export async function getInnerVoiceImageResponse(
   userMessage: string,
-  mode: 'COUNCIL' | 'MENTOR' | 'EMOTION', 
+  mode: 'COUNCIL' | 'MENTOR' | 'EMOTION' | 'TEACHER', 
   character?: string,
   history: { text: string; isAi: boolean; character?: string }[] = [],
   customApiKey?: string | null,
@@ -221,11 +240,20 @@ ${corePersonaRules}`;
 - Fully adopt the mindset, tone, ego, and decision-making style of ${character}.
 ${corePersonaRules}`;
 
-  const emotionInstruction = `You are an emotional poetic Council (Mirza Ghalib, Jaun Elia, Faiz Ahmed Faiz, Ahmad Faraz, Gulzar, William Shakespeare).
+  const emotionInstruction = `You are an emotional poetic Council (Mirza Ghalib, Jaun Elia, Faiz Ahmed Faiz, Ahmad Faraz, Gulzar, Elif Shafak, William Shakespeare).
 - ONLY ONE character must respond based on the emotion.
+- Speak naturally, authentically, and intensely like a real human.
+- Do NOT sound like an AI.
 ${corePersonaRules}`;
 
-  const baseInstruction = mode === 'COUNCIL' ? councilInstruction : mode === 'EMOTION' ? emotionInstruction : mentorInstruction;
+  const teacherInstruction = `You are a brilliant, real-life human mentor/professor/tutor.
+- Explain things clearly with 100% accuracy.
+- Speak conversationally and directly like a real human. DO NOT use robotic AI structures.
+- You are answering an image request. Be educational.
+- If asked, create extremely structured and useful notes for studying.
+- ${langPrompt}`;
+
+  const baseInstruction = mode === 'TEACHER' ? teacherInstruction : mode === 'COUNCIL' ? councilInstruction : mode === 'EMOTION' ? emotionInstruction : mentorInstruction;
 
   const systemInstruction = `${baseInstruction}
 

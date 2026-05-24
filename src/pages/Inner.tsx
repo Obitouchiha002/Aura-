@@ -8,7 +8,7 @@ import { useLang } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { collection, doc, getDocs, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Send, User, Bot, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as SettingsIcon, RefreshCcw, Download, Image as ImageIcon, Users, Sparkles, Target, Gamepad2, Square, Mic } from 'lucide-react';
+import { Send, User, Bot, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as SettingsIcon, RefreshCcw, Download, Image as ImageIcon, Users, Sparkles, Target, Gamepad2, Square, Mic, GraduationCap } from 'lucide-react';
 import { Settings } from '../components/Settings';
 import Focus from './Focus';
 import Simulator from './Simulator';
@@ -25,7 +25,7 @@ const CHARACTERS: Record<'MENTOR' | 'EMOTION', string[]> = {
   ]
 };
 
-type Mode = 'COUNCIL' | 'MENTOR' | 'EMOTION';
+type Mode = 'COUNCIL' | 'MENTOR' | 'EMOTION' | 'TEACHER';
 
 interface ChatSession {
   id: string;
@@ -305,7 +305,7 @@ export default function Inner() {
     
     if (newChar) {
       setSelectedCharacter(newChar);
-    } else if (newMode !== 'COUNCIL') {
+    } else if (newMode !== 'COUNCIL' && newMode !== 'TEACHER') {
       setSelectedCharacter(CHARACTERS[newMode][0]);
     }
     
@@ -416,14 +416,14 @@ export default function Inner() {
           id: sessionId!,
           title: userMessage.length > 30 ? userMessage.substring(0, 30) + '...' : userMessage,
           mode,
-          character: mode === 'COUNCIL' ? 'The Council' : mode === 'EMOTION' ? 'The Poets' : selectedCharacter,
+          character: mode === 'COUNCIL' ? 'The Council' : mode === 'EMOTION' ? 'The Poets' : mode === 'TEACHER' ? 'The Teacher' : selectedCharacter,
           updatedAt: Date.now()
         }, ...prev];
       } else {
         return prev.map(s => s.id === sessionId ? { 
           ...s, 
           mode, 
-          character: mode === 'COUNCIL' ? 'The Council' : mode === 'EMOTION' ? 'The Poets' : selectedCharacter, 
+          character: mode === 'COUNCIL' ? 'The Council' : mode === 'EMOTION' ? 'The Poets' : mode === 'TEACHER' ? 'The Teacher' : selectedCharacter, 
           updatedAt: Date.now() 
         } : s).sort((a, b) => b.updatedAt - a.updatedAt);
       }
@@ -670,7 +670,7 @@ export default function Inner() {
       {/* Chat Area */}
       <div 
         ref={chatContainerRef}
-        className="flex-1 overflow-y-auto p-4 md:p-6 relative z-10 scroll-smooth scrollbar-hide overflow-x-hidden"
+        className="flex-1 overflow-y-auto p-4 md:p-6 relative z-10 scrollbar-hide overflow-x-hidden"
       >
         <AnimatePresence mode="wait">
           <motion.div
@@ -687,9 +687,9 @@ export default function Inner() {
                   <Bot size={32} className="text-aura-red" />
                 </div>
                 <div className="space-y-1">
-                  <h3 className="font-display text-xs tracking-[0.3em] uppercase">
-                    {mode === 'COUNCIL' ? 'The Council Awaits' : mode === 'EMOTION' ? 'The Poets Await' : `Consult ${selectedCharacter}`}
-                  </h3>
+                <h3 className="font-display text-xs tracking-[0.3em] uppercase">
+                  {mode === 'COUNCIL' ? 'The Council Awaits' : mode === 'EMOTION' ? 'The Poets Await' : mode === 'TEACHER' ? 'The Teacher is Ready' : `Consult ${selectedCharacter}`}
+                </h3>
                   <p className="text-[10px] tracking-widest uppercase">
                     {lang === 'en' ? 'Ask your question' : 'अपना प्रश्न पूछें'}
                   </p>
@@ -708,7 +708,7 @@ export default function Inner() {
                   <div className={`flex flex-col max-w-[85%] md:max-w-[70%] ${msg.isAi ? 'items-start' : 'items-end'}`}>
                     {msg.isAi && (
                       <span className="text-[9px] uppercase tracking-widest text-aura-red/60 mb-1 ml-2">
-                        {msg.character || (mode === 'EMOTION' ? 'The Poets' : 'The Council')}
+                        {msg.character || (mode === 'EMOTION' ? 'The Poets' : mode === 'TEACHER' ? 'The Teacher' : 'The Council')}
                       </span>
                     )}
                     <div
@@ -805,6 +805,8 @@ export default function Inner() {
                         ? (lang === 'en' ? 'Council is analyzing...' : 'काउंसिल विश्लेषण कर रही है...')
                         : mode === 'EMOTION'
                         ? (lang === 'en' ? 'Poets are listening...' : 'कवि सुन रहे हैं...')
+                        : mode === 'TEACHER'
+                        ? (lang === 'en' ? 'Teacher is thinking...' : 'शिक्षक सोच रहे हैं...')
                         : (lang === 'en' ? `${selectedCharacter} is thinking...` : `${selectedCharacter} सोच रहे हैं...`)}
                     </span>
                   </div>
@@ -817,10 +819,32 @@ export default function Inner() {
       </div>
 
       {/* Input Area */}
-      <div className="relative z-20 p-4 bg-black border-t border-white/5">
+      <div className="relative z-20 p-4 bg-black border-t border-white/5 flex flex-col gap-2">
+        {mode === 'TEACHER' && (
+          <div className="flex overflow-x-auto scrollbar-hide gap-2 px-2 pb-1 max-w-3xl mx-auto w-full">
+            <button 
+              onClick={() => { setInput(lang === 'en' ? 'Make detailed notes on this topic' : 'इस विषय पर विस्तृत नोट्स बनाएं'); document.getElementById('chat-input')?.focus(); }}
+              className="text-[10px] font-medium tracking-wider uppercase bg-white/5 hover:bg-white/10 text-white/70 px-3 py-1.5 rounded-full border border-white/10 shrink-0 transition-colors"
+            >
+              📝 {lang === 'en' ? 'Make Notes' : 'नोट्स बनाएं'}
+            </button>
+            <button 
+              onClick={() => { setInput(lang === 'en' ? 'Analyze this step-by-step' : 'इसको स्टेप-बाय-स्टेप समझाइए'); document.getElementById('chat-input')?.focus(); }}
+              className="text-[10px] font-medium tracking-wider uppercase bg-white/5 hover:bg-white/10 text-white/70 px-3 py-1.5 rounded-full border border-white/10 shrink-0 transition-colors"
+            >
+              🔍 {lang === 'en' ? 'Analyze' : 'विश्लेषण करें'}
+            </button>
+            <button 
+              onClick={() => { setInput(lang === 'en' ? 'Explain this like I am 5' : 'मुझे इसे बहुत सरल भाषा में समझाइए'); document.getElementById('chat-input')?.focus(); }}
+              className="text-[10px] font-medium tracking-wider uppercase bg-white/5 hover:bg-white/10 text-white/70 px-3 py-1.5 rounded-full border border-white/10 shrink-0 transition-colors"
+            >
+              🍼 {lang === 'en' ? 'Explain simply' : 'सरल भाषा'}
+            </button>
+          </div>
+        )}
         <form 
           onSubmit={handleSubmit}
-          className="max-w-3xl mx-auto flex items-end gap-2 bg-white/5 rounded-2xl border border-white/10 px-4 py-2 focus-within:border-aura-red/50 transition-all"
+          className="max-w-3xl mx-auto w-full flex items-end gap-2 bg-white/5 rounded-2xl border border-white/10 px-4 py-2 focus-within:border-aura-red/50 transition-all"
         >
           <div className="relative flex items-center justify-center mb-1">
             <button
@@ -867,6 +891,16 @@ export default function Inner() {
                         {lang === 'en' ? 'Escalate' : 'परिषद को सौंपें'}
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => { triggerHaptic(); switchChat('TEACHER'); setInputAction('CHAT'); setShowActionMenu(false); }}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium tracking-wider uppercase transition-all text-left ${mode === 'TEACHER' ? 'bg-aura-red/20 text-aura-red font-semibold' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
+                    >
+                      <GraduationCap size={14} className={`shrink-0 ${mode === 'TEACHER' ? 'text-aura-red' : ''}`} />
+                      <span className="whitespace-nowrap">
+                        {lang === 'en' ? 'Teacher Mode' : 'शिक्षक मोड'}
+                      </span>
+                    </button>
                     <div className="h-px bg-white/10 my-1" />
                     <button
                       type="button"
@@ -891,6 +925,7 @@ export default function Inner() {
           </div>
 
           <textarea
+            id="chat-input"
             value={input}
             onChange={(e) => {
               setInput(e.target.value);
@@ -911,6 +946,8 @@ export default function Inner() {
               ? (lang === 'en' ? "Message the Council..." : "परिषद को संदेश भेजें...")
               : mode === 'EMOTION'
               ? (lang === 'en' ? "Express your feelings..." : "अपनी भावनाएं व्यक्त करें...")
+              : mode === 'TEACHER'
+              ? (lang === 'en' ? "Ask the Teacher a question..." : "शिक्षक से प्रश्न पूछें...")
               : (lang === 'en' ? `Message ${selectedCharacter}...` : `${selectedCharacter} को संदेश भेजें...`)}
             className="flex-1 bg-transparent border-none py-2 text-sm text-white placeholder:text-white/20 focus:outline-none resize-none overflow-y-auto scrollbar-hide ml-1"
             style={{ minHeight: '40px', maxHeight: '150px' }}

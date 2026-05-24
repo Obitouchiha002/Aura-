@@ -8,6 +8,12 @@ interface TypewriterTextProps {
 
 export const TypewriterText: React.FC<TypewriterTextProps> = ({ text, animate = true, speed = 25 }) => {
   const [displayedText, setDisplayedText] = useState(animate ? '' : text);
+  const containerRef = useRef<HTMLSpanElement>(null);
+
+  // Target completing the typing dynamically, speed dictates frame delay
+  // For long text, take bigger steps to finish faster. Target ~0.5s (30-40 frames)
+  const targetFrames = speed < 20 ? 30 : 50; 
+  const step = animate ? Math.max(1, Math.ceil(text.length / targetFrames)) : text.length;
 
   useEffect(() => {
     if (!animate) {
@@ -16,26 +22,50 @@ export const TypewriterText: React.FC<TypewriterTextProps> = ({ text, animate = 
     }
 
     setDisplayedText('');
-    let i = 0;
+    let currentIndex = 0;
+    
+    // Fast interval for typing feel, use speed prop
+    const tickSpeed = Math.max(10, Math.min(speed, 25)); 
+    
     const interval = setInterval(() => {
-      setDisplayedText(text.slice(0, i + 1));
-      i++;
-      if (i >= text.length) {
+      currentIndex += step;
+      if (currentIndex >= text.length) {
+        setDisplayedText(text);
         clearInterval(interval);
+      } else {
+        setDisplayedText(text.slice(0, currentIndex));
       }
-      
-      // Auto-scroll logic if needed
-      const scrollableDiv = document.querySelector('.overflow-y-auto');
-      if (scrollableDiv) {
-        const isNearBottom = scrollableDiv.scrollHeight - scrollableDiv.scrollTop - scrollableDiv.clientHeight <= 150;
-        if (isNearBottom) {
-          scrollableDiv.scrollTop = scrollableDiv.scrollHeight;
-        }
-      }
-    }, speed);
+    }, tickSpeed);
 
     return () => clearInterval(interval);
-  }, [text, animate, speed]);
+  }, [text, animate, step]);
 
-  return <>{displayedText}</>;
+  // Handle smart auto-scroll only when user is already near the bottom
+  useEffect(() => {
+    if (!containerRef.current || !animate) return;
+
+    // Find the nearest ancestor container that is scrollable
+    let parent = containerRef.current.parentElement;
+    let scrollContainer: HTMLElement | null = null;
+    while (parent) {
+      const style = window.getComputedStyle(parent);
+      if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+        scrollContainer = parent;
+        break;
+      }
+      parent = parent.parentElement;
+    }
+
+    if (scrollContainer) {
+      const distanceToBottom = scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight;
+      // If we are close to the bottom (e.g., within 120px), auto-scroll to the bottom.
+      // If the user has scrolled up to read earlier messages, distanceToBottom will be larger,
+      // so we leave their scroll position completely untouched.
+      if (distanceToBottom <= 120) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      }
+    }
+  }, [displayedText, animate]);
+
+  return <span ref={containerRef}>{displayedText}</span>;
 };
