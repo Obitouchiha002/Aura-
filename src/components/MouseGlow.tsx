@@ -10,7 +10,7 @@ import { useSettings } from '../context/SettingsContext';
  * light with a trail rather than three stacked blobs.
  *
  * With no cursor — phones, tablets — there is nothing to follow, so it becomes
- * a slow night sky with the occasional meteor.
+ * a slow, quiet night sky.
  */
 
 function useHasCursor() {
@@ -42,21 +42,6 @@ function NightSky({ dim }: { dim: boolean }) {
     []
   );
 
-  // Few, slow, and widely staggered — a meteor should feel like a moment, not
-  // a weather effect.
-  const meteors = useMemo(
-    () => Array.from({ length: 4 }).map((_, i) => ({
-      id: i,
-      left: Math.random() * 70 + 15,
-      top: Math.random() * 30,
-      len: Math.random() * 70 + 80,
-      // Long cycle, short visible window — see the meteor-fall keyframes.
-      dur: Math.random() * 8 + 20,
-      delay: i * 6 + Math.random() * 6,
-    })),
-    []
-  );
-
   return (
     <div className="absolute inset-0 overflow-hidden" style={{ opacity: dim ? 0.45 : 1 }}>
       {stars.map(s => (
@@ -76,22 +61,6 @@ function NightSky({ dim }: { dim: boolean }) {
         />
       ))}
 
-      {meteors.map(m => (
-        <span
-          key={m.id}
-          className="absolute h-px origin-left"
-          style={{
-            left: `${m.left}%`,
-            top: `${m.top}%`,
-            width: m.len,
-            rotate: '38deg',
-            background: 'linear-gradient(90deg, transparent, var(--star))',
-            ['--m-dx' as any]: '-60vw',
-            ['--m-dy' as any]: '60vh',
-            animation: `meteor-fall ${m.dur}s linear ${m.delay}s infinite`,
-          }}
-        />
-      ))}
     </div>
   );
 }

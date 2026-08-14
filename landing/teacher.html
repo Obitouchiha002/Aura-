@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Teacher — Aura Shakti</title>
+<meta name="description" content="Send a page, get it explained properly — then ask to be tested on it and answer with a tap." />
+<link rel="stylesheet" href="assets/site.css" />
+<style>
+  :root,
+  :root:not([data-theme="dark"]),
+  :root[data-theme="light"],
+  :root[data-theme="dark"] {
+    --accent: var(--green);
+    --accent-soft: color-mix(in srgb, var(--green) 16%, transparent);
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap bar__in">
+    <a class="mark" href="index.html">Aura<i></i></a>
+    <nav id="nav"><a href="index.html">Home</a><a href="characters.html">Characters</a><a href="features.html">Features</a><a href="test.html">Reasoning test</a><a href="privacy.html">Privacy</a><a href="developer.html">Developer</a></nav>
+    <div class="bar__right">
+      <button class="toggle" id="theme" type="button" role="switch" aria-checked="false" aria-label="Switch theme">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+          <defs><mask id="cut"><rect x="0" y="0" width="24" height="24" fill="white" /><circle class="bite" r="8" cx="26" cy="0" fill="black" /></mask></defs>
+          <circle class="disc" cx="12" cy="12" r="5.5" fill="currentColor" mask="url(#cut)" />
+          <g class="rays" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="12" y1="1.6" x2="12" y2="4.2" /><line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(45 12 12)" />
+            <line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(90 12 12)" /><line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(135 12 12)" />
+            <line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(180 12 12)" /><line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(225 12 12)" />
+            <line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(270 12 12)" /><line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(315 12 12)" />
+          </g>
+        </svg>
+      </button>
+      <button class="burger" id="burger" type="button" aria-expanded="false" aria-controls="nav" aria-label="Menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="4" y1="8" x2="20" y2="8" /><line x1="4" y1="16" x2="20" y2="16" />
+        </svg>
+      </button>
+      <a class="btn btn--solid btn--sm" href="download.html">Get the app</a>
+    </div>
+  </div>
+</header>
+
+<nav class="railnav" aria-label="Sections">
+  <ul><li><a href="index.html">Home</a></li><li><a href="characters.html">Characters</a></li><li><a href="features.html">Features</a></li><li><a href="test.html">Reasoning test</a></li><li><a href="privacy.html">Privacy</a></li><li><a href="developer.html">Developer</a></li><li><a href="council.html">Council</a></li><li><a href="mentor.html">Mentor</a></li><li><a href="psychologist.html">Psychologist</a></li><li><a href="teacher.html" aria-current="page">Teacher</a></li><li><a href="poets.html">Poets</a></li><li><a href="download.html">Download</a></li><li><a href="faq.html">FAQ</a></li></ul>
+</nav>
+
+<main>
+  <section class="phead">
+    <div class="phead__glow"></div>
+    <div class="wrap">
+      <span class="label">A room in Aura Shakti</span>
+      <h1>The Teacher</h1>
+      <p>Send a page, get it explained properly — then ask to be tested on it and answer with a tap.</p>
+      <div class="cta-row" style="margin-top:2rem"><a class="btn btn--solid" href="download.html">Get the app</a><a class="btn btn--ghost" href="characters.html">See who is in it</a></div>
+    </div>
+  </section>
+  <section class="tight">
+    <div class="wrap">
+      <div class="head rise">
+        <span class="label">On the phone, and on a desktop</span>
+        <h2>The same room, either way.</h2>
+        <p>These are screenshots of The Teacher running, not mock-ups drawn to look like it.</p>
+      </div>
+      <div class="views rise">
+        <figure class="view view--desk">
+          <img src="assets/shots/teacher-desk.png" alt="The Teacher on a desktop browser" loading="lazy" />
+          <figcaption class="label">Desktop</figcaption>
+        </figure>
+        <figure class="view view--phone">
+          <img src="assets/shots/teacher-phone.png" alt="The Teacher on a phone" loading="lazy" />
+          <figcaption class="label">Phone</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+  <section class="tight">
+    <div class="wrap">
+      <div class="prose-grid">
+        <div class="prose rise">
+          <h3>Show it rather than describe it</h3>
+          <p>Attach a PDF or photograph the page with the camera in the composer. A question sheet, a diagram, a paragraph you have read four times — it is usually faster to send the thing than to type out what it says.</p>
+        </div>
+        <div class="prose rise">
+          <h3>Diagrams that are actually drawn</h3>
+          <p>Ask for a flowchart and you get a rendered one, not a paragraph describing a flowchart. Processes, structures, timelines and relationships come back as diagrams when a diagram is the honest way to answer.</p>
+        </div>
+        <div class="prose rise">
+          <h3>Quiz me, and tap to answer</h3>
+          <p>Ask to be quizzed and the questions come one at a time — the next only after you have answered. The options render as buttons, so answering is a tap rather than retyping a line already on screen.</p>
+        </div>
+        <div class="prose rise">
+          <h3>Keep what you learned</h3>
+          <p>Any conversation exports as Markdown, or prints to PDF with the headings, tables and code intact. A session summary turns a long thread into what you covered and what to do next.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="strip tight">
+    <div class="wrap">
+      <div class="head rise" style="margin-bottom:2rem">
+        <span class="label">Try asking</span>
+        <h2>Three ways in.</h2>
+      </div>
+      <ul class="asks rise"><li><span class="ask">&ldquo;Ye chapter samjhao, phir mujhse 5 sawaal poochiye.&rdquo;</span></li><li><span class="ask">&ldquo;Make a flowchart of how a bill becomes law.&rdquo;</span></li><li><span class="ask">&ldquo;Is photo mein jo question hai wo step by step solve karo.&rdquo;</span></li></ul>
+    </div>
+  </section>
+
+  <section class="tight">
+    <div class="wrap">
+      <div class="head rise" style="margin-bottom:1.75rem">
+        <span class="label">The other rooms</span>
+        <h2>Not the one you needed?</h2>
+      </div>
+      <div class="chips rise"><a class="chip" href="council.html" style="--tint:var(--red)"><i></i>The Council</a><a class="chip" href="mentor.html" style="--tint:var(--red)"><i></i>The Mentor</a><a class="chip" href="psychologist.html" style="--tint:var(--blue)"><i></i>The Psychologist</a><a class="chip" href="poets.html" style="--tint:var(--gold)"><i></i>The Poets</a></div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-cols"><div class="foot-col"><strong>The rooms</strong><a href="council.html">The Council</a><a href="mentor.html">The Mentor</a><a href="psychologist.html">The Psychologist</a><a href="teacher.html">The Teacher</a><a href="poets.html">The Poets</a></div><div class="foot-col"><strong>The app</strong><a href="features.html">What it does</a><a href="test.html">Reasoning test</a><a href="characters.html">Characters</a><a href="privacy.html">Privacy &amp; lock</a></div><div class="foot-col"><strong>Get it</strong><a href="download.html">Download</a><a href="faq.html">FAQ</a></div><div class="foot-col"><strong>The developer</strong><a href="developer.html">About Vansh</a><a href="https://vanshkashyap.lzworth.in">Portfolio</a><a href="https://techbyvansh.lzworth.in">Projects</a></div></div>
+    <div class="foot">
+      <span>Aura Shakti — built by <a href="https://vanshkashyap.lzworth.in">Vansh Kashyap</a>, LZ Worth</span>
+      <span><a href="download.html">Download for Android</a></span>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

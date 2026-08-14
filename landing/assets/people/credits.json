@@ -1,0 +1,42 @@
+{
+  "ghalib": {
+    "license": "Public domain",
+    "artist": "Muhammad Umair Mirza",
+    "file": "Mirza Ghalib (circa 1860-1869).jpg"
+  },
+  "faiz": {
+    "license": "CC BY-SA 3.0",
+    "artist": "BpldxbCrop by Titodutta",
+    "file": "Faiz Ahmed Faiz (cropped).jpg"
+  },
+  "jaunelia": {
+    "license": "CC BY-SA 4.0",
+    "artist": "ZarvanCyrus",
+    "file": "Jaun7.jpg"
+  },
+  "ahmadfaraz": {
+    "license": "CC BY-SA 3.0",
+    "artist": "Urdulife",
+    "file": "Ahmadfaraz1.jpg"
+  },
+  "shakespeare": {
+    "license": "Public domain",
+    "artist": "Attributed to John Taylor",
+    "file": "William Shakespeare by John Taylor, edited.jpg"
+  },
+  "machiavelli": {
+    "license": "Public domain",
+    "artist": "Santi di Tito",
+    "file": "Portrait of Niccolò Machiavelli by Santi di Tito.jpg"
+  },
+  "suntzu": {
+    "license": "Public domain",
+    "artist": "Unknown authorUnknown author",
+    "file": "吴司马孙武.jpg"
+  },
+  "chanakya": {
+    "license": "Public domain",
+    "artist": "Unknown authorUnknown author",
+    "file": "Chanakya artistic depiction.jpg"
+  }
+}

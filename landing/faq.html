@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FAQ — Aura Shakti</title>
+<meta name="description" content="Common questions about Aura Shakti: cost, languages, privacy, the reasoning test, API keys and the app lock." />
+<link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap bar__in">
+    <a class="mark" href="index.html">Aura<i></i></a>
+    <nav id="nav"><a href="index.html">Home</a><a href="characters.html">Characters</a><a href="features.html">Features</a><a href="test.html">Reasoning test</a><a href="privacy.html">Privacy</a><a href="developer.html">Developer</a></nav>
+    <div class="bar__right">
+      <button class="toggle" id="theme" type="button" role="switch" aria-checked="false" aria-label="Switch theme">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+          <defs><mask id="cut"><rect x="0" y="0" width="24" height="24" fill="white" /><circle class="bite" r="8" cx="26" cy="0" fill="black" /></mask></defs>
+          <circle class="disc" cx="12" cy="12" r="5.5" fill="currentColor" mask="url(#cut)" />
+          <g class="rays" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="12" y1="1.6" x2="12" y2="4.2" /><line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(45 12 12)" />
+            <line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(90 12 12)" /><line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(135 12 12)" />
+            <line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(180 12 12)" /><line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(225 12 12)" />
+            <line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(270 12 12)" /><line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(315 12 12)" />
+          </g>
+        </svg>
+      </button>
+      <button class="burger" id="burger" type="button" aria-expanded="false" aria-controls="nav" aria-label="Menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="4" y1="8" x2="20" y2="8" /><line x1="4" y1="16" x2="20" y2="16" />
+        </svg>
+      </button>
+      <a class="btn btn--solid btn--sm" href="download.html">Get the app</a>
+    </div>
+  </div>
+</header>
+
+<nav class="railnav" aria-label="Sections">
+  <ul><li><a href="index.html">Home</a></li><li><a href="characters.html">Characters</a></li><li><a href="features.html">Features</a></li><li><a href="test.html">Reasoning test</a></li><li><a href="privacy.html">Privacy</a></li><li><a href="developer.html">Developer</a></li><li><a href="council.html">Council</a></li><li><a href="mentor.html">Mentor</a></li><li><a href="psychologist.html">Psychologist</a></li><li><a href="teacher.html">Teacher</a></li><li><a href="poets.html">Poets</a></li><li><a href="download.html">Download</a></li><li><a href="faq.html" aria-current="page">FAQ</a></li></ul>
+</nav>
+
+<main>
+  <section class="phead">
+    <div class="phead__glow"></div>
+    <div class="wrap">
+      <span class="label">FAQ</span>
+      <h1>The questions people actually ask.</h1>
+      <p>Short answers, including to the ones with an inconvenient answer.</p>
+      
+    </div>
+  </section>
+  <section class="tight">
+    <div class="wrap" style="max-width:56rem">
+      <div class="faq rise"><details><summary>Is it free?</summary><p>Yes. There is a daily limit on the faster models; past it the app falls back to a slower one rather than stopping. You can also paste your own API key in Settings and use your own quota.</p></details><details><summary>Which languages does it understand?</summary><p>Hindi, Hinglish and English, and it answers in whichever you wrote in. The Poets room also handles Urdu written in Latin script.</p></details><details><summary>Do my conversations leave my phone?</summary><p>The ones you have in normal mode do — they go to a model to be answered, and they are saved to your account so your history survives reinstalling. Incognito threads are never written down, and mood check-ins never leave the device at all.</p></details><details><summary>Is the reasoning test a real IQ test?</summary><p>No, and it does not claim to be. It is a fixed bank of questions with arithmetic scoring, reported as a reasoning index. A clinical IQ requires a standardised test under supervised conditions.</p></details><details><summary>Can I use my own API key?</summary><p>Yes. Settings, then Custom API key. With one set, the app talks to Google directly from your browser on your quota and does not use the server endpoint.</p></details><details><summary>What happens if I forget my app lock?</summary><p>Signing out and back in clears the lock along with the local data it protects. There is deliberately no recovery code — a lock with a back door is not a lock.</p></details><details><summary>Why do some characters share a colour?</summary><p>The colour marks the room, not the person. Council and Mentor are both the house red; the Psychologist is blue, the Teacher green and the Poets gold.</p></details><details><summary>Is there an iPhone app?</summary><p>Not yet — Android only for now.</p></details></div>
+      <p class="note rise" style="margin-top:2rem">
+        Something not answered here? The developer's contact details are on the
+        <a href="developer.html" style="color:var(--accent)">developer page</a>.
+      </p>
+    </div>
+  </section>
+  <section class="strip tight">
+    <div class="wrap strip__in">
+      <div>
+        <h2>Ready when you are.</h2>
+        <p style="margin-top:.6rem;color:var(--ink-muted)">Free, and nothing to install if you use the web.</p>
+      </div>
+      <div class="cta-row">
+        <a class="btn btn--solid" href="download.html">Download for Android</a>
+        
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-cols"><div class="foot-col"><strong>The rooms</strong><a href="council.html">The Council</a><a href="mentor.html">The Mentor</a><a href="psychologist.html">The Psychologist</a><a href="teacher.html">The Teacher</a><a href="poets.html">The Poets</a></div><div class="foot-col"><strong>The app</strong><a href="features.html">What it does</a><a href="test.html">Reasoning test</a><a href="characters.html">Characters</a><a href="privacy.html">Privacy &amp; lock</a></div><div class="foot-col"><strong>Get it</strong><a href="download.html">Download</a><a href="faq.html">FAQ</a></div><div class="foot-col"><strong>The developer</strong><a href="developer.html">About Vansh</a><a href="https://vanshkashyap.lzworth.in">Portfolio</a><a href="https://techbyvansh.lzworth.in">Projects</a></div></div>
+    <div class="foot">
+      <span>Aura Shakti — built by <a href="https://vanshkashyap.lzworth.in">Vansh Kashyap</a>, LZ Worth</span>
+      <span><a href="download.html">Download for Android</a></span>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

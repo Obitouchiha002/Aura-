@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Adaptive foreground. Android masks this to a circle, squircle or squircle
+       with rounded corners depending on the launcher, and crops hard outside the
+       centre 66%. The mark is scaled to sit safely inside that zone. -->
+  <defs>
+    <linearGradient id="lid" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#F5F5F5" stop-opacity=".6"/>
+      <stop offset="50%"  stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#F5F5F5" stop-opacity=".6"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(512 512) scale(0.62) translate(-512 -512)">
+    <path d="M168 512C168 512 310 286 512 286C714 286 856 512 856 512C856 512 714 738 512 738C310 738 168 512 168 512Z"
+          fill="none" stroke="url(#lid)" stroke-width="38" stroke-linejoin="round"/>
+    <circle cx="512" cy="512" r="176" fill="#0A0A0A" stroke="#E5484D" stroke-width="34"/>
+    <circle cx="512" cy="512" r="56"  fill="#E5484D"/>
+    <g fill="#E5484D">
+    <circle cx="512" cy="394" r="31"/>
+    <circle cx="614" cy="571" r="31"/>
+    <circle cx="410" cy="571" r="31"/>
+    </g>
+  </g>
+</svg>

@@ -76,10 +76,14 @@ export const SpaceBackground: React.FC = () => {
           />
         ))}
 
-      {/* Subtle nebula-like glows */}
-      <div className="absolute inset-0 bg-gradient-to-b from-aura-red/5 to-transparent" />
-      <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-aura-red/10 blur-[110px] rounded-full opacity-30" />
-      <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-aura-red/10 blur-[110px] rounded-full opacity-30" />
+      {/* Subtle nebula-like glows.
+          Gated on --glow-strength, which the light theme sets to 0: a red
+          bloom reads as atmosphere against black and as a stain on white. */}
+      <div className="absolute inset-0 overflow-hidden" style={{ opacity: 'var(--glow-strength)' }}>
+        <div className="absolute inset-0 bg-gradient-to-b from-aura-red/5 to-transparent" />
+        <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-aura-red/10 blur-[110px] rounded-full opacity-30" />
+        <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-aura-red/10 blur-[110px] rounded-full opacity-30" />
+      </div>
     </div>
   );
 };

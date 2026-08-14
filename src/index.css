@@ -118,15 +118,18 @@
 .light-theme {
   color-scheme: light;
 
-  /* Cards are pure white and the page sits a step below them, so surfaces
-     read as raised sheets rather than one flat white field. */
-  --bg: #F3F5F7;
+  /* White page, white sheets. Separation comes from a hairline border rather
+     than from tinting the background grey — a grey page under white cards
+     reads as dulled paper, which is what made this theme feel washed out.
+     --surface-2 is the one recessed tone, used for fills that must sit *into*
+     the page: input wells, hover states, secondary chips. */
+  --bg: #FFFFFF;
   --surface: #FFFFFF;
-  --surface-2: #EEF1F5;
+  --surface-2: #F4F5F7;
   --elevated: #FFFFFF;
-  --border-color: #DDE2EA;
-  --border-strong: #C3CAD6;
-  --scrim: rgba(16, 24, 40, .40);
+  --border-color: #E7E9EE;
+  --border-strong: #CDD2DB;
+  --scrim: rgba(16, 24, 40, .32);
 
   --text-primary: #0F1114;   /* 18.5:1 on --bg */
   --text-body: #3C4149;      /*  9.7:1 */
@@ -146,18 +149,22 @@
   --color-mode-tint: var(--accent);
   --color-mode-wash: var(--accent-wash);
 
-  /* elevation — this is what gives the light theme its depth */
-  --elev-1: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .04);
-  --elev-2: 0 4px 12px rgba(16, 24, 40, .08), 0 2px 4px rgba(16, 24, 40, .04);
-  --elev-3: 0 16px 40px rgba(16, 24, 40, .14), 0 4px 10px rgba(16, 24, 40, .06);
+  /* Elevation is deliberately faint. On a white page the border already does
+     the separating, and heavier shadows are what made cards look like they
+     were floating over dirty grey. Only true overlays get real depth. */
+  --elev-1: 0 1px 2px rgba(16, 24, 40, .04);
+  --elev-2: 0 2px 8px rgba(16, 24, 40, .06), 0 1px 2px rgba(16, 24, 40, .03);
+  --elev-3: 0 16px 44px rgba(16, 24, 40, .13), 0 4px 12px rgba(16, 24, 40, .05);
 
-  --star: rgba(90, 90, 110, .45);
+  /* Drifting specks have to be fainter on white, where a dark dot reads
+     as dust on the screen rather than as a star. */
+  --star: rgba(90, 90, 110, .26);
   --tick: rgba(17, 17, 19, .35);
   --tick-dim: rgba(17, 17, 19, .10);
-  /* A red wash reads as atmosphere on black and as a dirty smudge on white,
-     so the light theme uses a faint neutral glow instead. */
-  --page-glow: rgba(15, 23, 42, .035);
-  --glow-strength: .28;
+  /* No ambient wash at all now that the page is white. Any tint at this size
+     shows up as a smudge rather than as atmosphere. */
+  --page-glow: transparent;
+  --glow-strength: 0;
 
   /* Same three layers, retuned: a warm halo instead of a red one, a soft
      grey vignette, and slightly less grain so it reads as paper, not noise. */

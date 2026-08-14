@@ -36,9 +36,12 @@ export const ThemeToggle: React.FC<{ className?: string }> = ({ className = '' }
           <mask id={maskId}>
             {/* white keeps, black cuts away */}
             <rect x="0" y="0" width="24" height="24" fill="white" />
+            {/* initial + animate both: an animated SVG attribute has no value
+                on the first paint, and the browser rejects cx="undefined". */}
             <motion.circle
               r="8"
               fill="black"
+              initial={{ cx: isDark ? 16 : 26, cy: isDark ? 7 : 0 }}
               animate={{ cx: isDark ? 16 : 26, cy: isDark ? 7 : 0 }}
               transition={spring}
             />
@@ -49,6 +52,7 @@ export const ThemeToggle: React.FC<{ className?: string }> = ({ className = '' }
           cx="12" cy="12"
           fill="currentColor"
           mask={`url(#${maskId})`}
+          initial={{ r: isDark ? 9 : 5.5 }}
           animate={{ r: isDark ? 9 : 5.5 }}
           transition={spring}
         />

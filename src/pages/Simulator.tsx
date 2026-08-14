@@ -341,7 +341,11 @@ export default function Simulator() {
                 </div>
               </div>
 
-              <p className="text-[18px] sm:text-[20px] text-text-primary leading-[1.45] mb-7 max-w-[46ch]">
+              {/* Centred in whatever space is left below the progress bar.
+                  Sitting flush to the top left the lower half of a desktop
+                  screen empty, which made a four-option question look lost. */}
+              <div className="flex-1 flex flex-col justify-center pb-6 min-h-0">
+              <p className="text-[19px] sm:text-[22px] text-text-primary leading-[1.45] mb-7">
                 {current.question}
               </p>
 
@@ -362,9 +366,10 @@ export default function Simulator() {
                     }`}>
                       {String.fromCharCode(65 + i)}
                     </span>
-                    <span className="text-[15px] leading-snug">{opt}</span>
+                    <span className="text-[15.5px] leading-snug">{opt}</span>
                   </button>
                 ))}
+              </div>
               </div>
             </motion.div>
           )}

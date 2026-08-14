@@ -8,18 +8,26 @@ interface TypewriterTextProps {
   animate?: boolean;
   speed?: number;
   markdown?: boolean;
+  /** Fired once the full text is on screen. */
+  onDone?: () => void;
 }
 
-export const TypewriterText: React.FC<TypewriterTextProps> = ({ text, animate = true, speed = 25, markdown = true }) => {
+export const TypewriterText: React.FC<TypewriterTextProps> = ({ text, animate = true, speed = 25, markdown = true, onDone }) => {
   const [displayedText, setDisplayedText] = useState(animate ? '' : text);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const targetFrames = speed < 20 ? 30 : 50; 
   const step = animate ? Math.max(1, Math.ceil(text.length / targetFrames)) : text.length;
 
+  // Held in a ref so a caller passing an inline arrow does not restart the
+  // animation on every render.
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+
   useEffect(() => {
     if (!animate) {
       setDisplayedText(text);
+      onDoneRef.current?.();
       return;
     }
 
@@ -33,6 +41,7 @@ export const TypewriterText: React.FC<TypewriterTextProps> = ({ text, animate = 
       if (currentIndex >= text.length) {
         setDisplayedText(text);
         clearInterval(interval);
+        onDoneRef.current?.();
       } else {
         setDisplayedText(text.slice(0, currentIndex));
       }

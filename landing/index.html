@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Aura Shakti</title>
+<meta name="description" content="Five rooms, one app: a council that argues, a mentor with an ego, a psychologist who listens, a teacher who quizzes you, and four poets." />
+<link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap bar__in">
+    <a class="mark" href="index.html">Aura<i></i></a>
+    <nav id="nav"><a href="index.html" aria-current="page">Home</a><a href="characters.html">Characters</a><a href="features.html">Features</a><a href="test.html">Reasoning test</a><a href="privacy.html">Privacy</a><a href="developer.html">Developer</a></nav>
+    <div class="bar__right">
+      <button class="toggle" id="theme" type="button" role="switch" aria-checked="false" aria-label="Switch theme">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+          <defs><mask id="cut"><rect x="0" y="0" width="24" height="24" fill="white" /><circle class="bite" r="8" cx="26" cy="0" fill="black" /></mask></defs>
+          <circle class="disc" cx="12" cy="12" r="5.5" fill="currentColor" mask="url(#cut)" />
+          <g class="rays" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="12" y1="1.6" x2="12" y2="4.2" /><line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(45 12 12)" />
+            <line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(90 12 12)" /><line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(135 12 12)" />
+            <line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(180 12 12)" /><line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(225 12 12)" />
+            <line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(270 12 12)" /><line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(315 12 12)" />
+          </g>
+        </svg>
+      </button>
+      <button class="burger" id="burger" type="button" aria-expanded="false" aria-controls="nav" aria-label="Menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="4" y1="8" x2="20" y2="8" /><line x1="4" y1="16" x2="20" y2="16" />
+        </svg>
+      </button>
+      <a class="btn btn--solid btn--sm" href="download.html">Get the app</a>
+    </div>
+  </div>
+</header>
+
+<nav class="railnav" aria-label="Sections">
+  <ul><li><a href="index.html" aria-current="page">Home</a></li><li><a href="characters.html">Characters</a></li><li><a href="features.html">Features</a></li><li><a href="test.html">Reasoning test</a></li><li><a href="privacy.html">Privacy</a></li><li><a href="developer.html">Developer</a></li><li><a href="council.html">Council</a></li><li><a href="mentor.html">Mentor</a></li><li><a href="psychologist.html">Psychologist</a></li><li><a href="teacher.html">Teacher</a></li><li><a href="poets.html">Poets</a></li><li><a href="download.html">Download</a></li><li><a href="faq.html">FAQ</a></li></ul>
+</nav>
+
+<main>
+  <section class="hero">
+    <div class="hero__glow"></div>
+    <div class="wrap hero__copy">
+      <h1>Not one assistant.<br />Five <em>rooms</em>.</h1>
+      <p>A council that argues with itself. A mentor with an ego. A psychologist who
+      actually listens. A teacher who quizzes you back. And four poets who answer in
+      verse. Each is its own room, with its own colour.</p>
+      <div class="cta-row">
+        <a class="btn btn--solid" href="download.html">Download for Android</a>
+        <a class="btn btn--ghost" href="download.html">Download for Android</a>
+      </div>
+      <p class="hero__note">Hindi, Hinglish or English &middot; free to use &middot; your mood log never leaves the phone</p>
+    </div>
+
+    <div class="stage" id="stage">
+      <div class="phone phone--l">
+        <img src="assets/shots/test.png" alt="The reasoning test showing a question with four options" loading="lazy" />
+        <span class="label phone__tag">Reasoning test</span>
+      </div>
+      <div class="phone phone--c">
+        <img src="assets/shots/council.png" alt="A Council conversation answering in Hinglish" />
+        <span class="label phone__tag">The Council</span>
+      </div>
+      <div class="phone phone--r">
+        <img src="assets/shots/quiz.png" alt="The Teacher asking a question with tappable options" loading="lazy" />
+        <span class="label phone__tag">Tap to answer</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="rooms" style="padding-block:0">
+    <div class="wrap head rise" style="padding-block:clamp(3.5rem,8vw,6rem) 0">
+      <span class="label">The five rooms</span>
+      <h2>Pick who you need today.</h2>
+      <p>Switching rooms changes the voice, the colour and what the app is good at. Nothing carries over unless you want it to.</p>
+    </div>
+    <div class="rooms" style="margin-top:clamp(2.5rem,5vw,4rem)">
+      <div class="room rise" data-tint="red" style="--tint:var(--red)">
+        <div class="room__in">
+          <div class="room__id">
+            <span class="room__dot"></span>
+            <div>
+              <h3 class="room__name">The Council</h3>
+              <span class="label room__what">Five minds, one question</span>
+            </div>
+          </div>
+          <div class="room__body">
+            <p>Five sharp, unsentimental minds sit with your problem. One of them answers at a time, so you get a position rather than a committee-flavoured average of everything.</p>
+            <span class="ask">&ldquo;I have two offers and three weeks. Tell me what I am avoiding.&rdquo;</span>
+            <a class="more" href="council.html">Inside The Council</a>
+          </div>
+        </div>
+      </div>
+      <div class="room rise" data-tint="red" style="--tint:var(--red)">
+        <div class="room__in">
+          <div class="room__id">
+            <span class="room__dot"></span>
+            <div>
+              <h3 class="room__name">The Mentor</h3>
+              <span class="label room__what">Advice, in character</span>
+            </div>
+          </div>
+          <div class="room__body">
+            <p>Choose who is sitting across from you and the advice arrives in their voice — conviction, ego and all. Useful precisely because it is not neutral.</p>
+            <span class="ask">&ldquo;Main daar raha hoon. Aap hote to kya karte?&rdquo;</span>
+            <a class="more" href="mentor.html">Inside The Mentor</a>
+          </div>
+        </div>
+      </div>
+      <div class="room rise" data-tint="blue" style="--tint:var(--blue)">
+        <div class="room__in">
+          <div class="room__id">
+            <span class="room__dot"></span>
+            <div>
+              <h3 class="room__name">The Psychologist</h3>
+              <span class="label room__what">Someone who listens</span>
+            </div>
+          </div>
+          <div class="room__body">
+            <p>Slower, warmer, and more interested in the question under your question. A one-tap mood check-in builds a picture over weeks — and that log never leaves your phone.</p>
+            <span class="ask">&ldquo;Sab theek hai, bas neend nahi aa rahi.&rdquo;</span>
+            <a class="more" href="psychologist.html">Inside The Psychologist</a>
+          </div>
+        </div>
+      </div>
+      <div class="room rise" data-tint="green" style="--tint:var(--green)">
+        <div class="room__in">
+          <div class="room__id">
+            <span class="room__dot"></span>
+            <div>
+              <h3 class="room__name">The Teacher</h3>
+              <span class="label room__what">Explains, then tests you</span>
+            </div>
+          </div>
+          <div class="room__body">
+            <p>Send a chapter photo or a PDF and get it explained properly — with diagrams when a diagram is the honest answer. Then ask to be quizzed, and answer with a tap.</p>
+            <span class="ask">&ldquo;Ye chapter samjhao, phir mujhse 5 sawaal poochiye.&rdquo;</span>
+            <a class="more" href="teacher.html">Inside The Teacher</a>
+          </div>
+        </div>
+      </div>
+      <div class="room rise" data-tint="gold" style="--tint:var(--gold)">
+        <div class="room__in">
+          <div class="room__id">
+            <span class="room__dot"></span>
+            <div>
+              <h3 class="room__name">The Poets</h3>
+              <span class="label room__what">Ghalib, Jaun, Faiz, Gulzar</span>
+            </div>
+          </div>
+          <div class="room__body">
+            <p>For the things that do not want solving. Four voices from the Urdu canon, and one of them replies — not with advice, with a couplet that sits next to the feeling.</p>
+            <span class="ask">&ldquo;Aaj kuch bharaa hua sa lag raha hai.&rdquo;</span>
+            <a class="more" href="poets.html">Inside The Poets</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="head rise">
+        <span class="label">Beyond the conversation</span>
+        <h2>Three things it does that a chat box does not.</h2>
+      </div>
+      <div class="cards rise">
+        <div class="card">
+          <span class="label">Measured, not guessed</span>
+          <h3>A reasoning test that holds still</h3>
+          <p>Forty-two questions with known answers and arithmetic scoring, so the same answers always give the same result.</p>
+          <a class="btn btn--ghost btn--sm" href="test.html">How it is scored</a>
+        </div>
+        <div class="card">
+          <span class="label">Twenty-five voices</span>
+          <h3>Choose who advises you</h3>
+          <p>From Shelby and Ayanokoji to Chanakya, Sun Tzu, Ghalib and Jaun Elia — each answers in their own register.</p>
+          <a class="btn btn--ghost btn--sm" href="characters.html">Meet them</a>
+        </div>
+        <div class="card">
+          <span class="label">Locked and local</span>
+          <h3>Private by construction</h3>
+          <p>PIN, pattern or fingerprint on the whole app, an incognito room that writes nothing down, and a mood log that never leaves the device.</p>
+          <a class="btn btn--ghost btn--sm" href="privacy.html">What is kept</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="strip tight">
+    <div class="wrap strip__in">
+      <div>
+        <h2>Start with whichever room you need.</h2>
+        <p style="margin-top:.6rem;color:var(--ink-muted)">Free, in Hindi, Hinglish or English. Nothing to install if you would rather use the web.</p>
+      </div>
+      <div class="cta-row">
+        <a class="btn btn--solid" href="download.html">Download for Android</a>
+        
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-cols"><div class="foot-col"><strong>The rooms</strong><a href="council.html">The Council</a><a href="mentor.html">The Mentor</a><a href="psychologist.html">The Psychologist</a><a href="teacher.html">The Teacher</a><a href="poets.html">The Poets</a></div><div class="foot-col"><strong>The app</strong><a href="features.html">What it does</a><a href="test.html">Reasoning test</a><a href="characters.html">Characters</a><a href="privacy.html">Privacy &amp; lock</a></div><div class="foot-col"><strong>Get it</strong><a href="download.html">Download</a><a href="faq.html">FAQ</a></div><div class="foot-col"><strong>The developer</strong><a href="developer.html">About Vansh</a><a href="https://vanshkashyap.lzworth.in">Portfolio</a><a href="https://techbyvansh.lzworth.in">Projects</a></div></div>
+    <div class="foot">
+      <span>Aura Shakti — built by <a href="https://vanshkashyap.lzworth.in">Vansh Kashyap</a>, LZ Worth</span>
+      <span><a href="download.html">Download for Android</a></span>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

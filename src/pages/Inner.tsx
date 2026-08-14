@@ -46,12 +46,23 @@ function HistoryDrawerComponent({ onClose, sessions, loadSession, currentSession
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const filteredSessions = sessions.filter((s: any) => {
-    const matchesQuery = (s.title?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          s.character?.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesFilter = selectedFilter === 'ALL' || s.mode === selectedFilter;
-    return matchesQuery && matchesFilter;
-  });
+  // Newest first, whatever room it happened in. Sorting here rather than where
+  // the array is written means the order holds however a session got updated.
+  const filteredSessions = sessions
+    .filter((s: any) => {
+      const q = searchQuery.toLowerCase();
+      const matchesQuery = !q
+        || s.title?.toLowerCase().includes(q)
+        || s.character?.toLowerCase().includes(q);
+      const matchesFilter = selectedFilter === 'ALL' || s.mode === selectedFilter;
+      return matchesQuery && matchesFilter;
+    })
+    .sort((a: any, b: any) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+  const MODE_LABEL: Record<string, string> = {
+    COUNCIL: 'Council', MENTOR: 'Mentor', PSYCHOLOGY: 'Psychologist',
+    TEACHER: 'Teacher', EMOTION: 'Poets',
+  };
 
   return (
     <div className="fixed inset-0 z-[100]">
@@ -107,8 +118,11 @@ function HistoryDrawerComponent({ onClose, sessions, loadSession, currentSession
           </div>
 
           {/* Fade on the right edge signals there is more to scroll to */}
+            {/* One scrollable row at every width. It used to switch to a plain
+                flex row above sm:, which had no overflow handling — so Teacher
+                and Poets were clipped against the fade instead of reachable. */}
             <div className="relative -mx-1">
-            <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 px-1 py-0.5">
+            <div className="flex items-center gap-1.5 px-1 py-0.5 overflow-x-auto scrollbar-hide snap-x">
               {[
                 { id: 'ALL', label: lang === 'en' ? 'All' : 'सभी' },
                 { id: 'COUNCIL', label: lang === 'en' ? 'Council' : 'परिषद' },
@@ -121,7 +135,7 @@ function HistoryDrawerComponent({ onClose, sessions, loadSession, currentSession
                   key={f.id}
                   onClick={() => setSelectedFilter(f.id as any)}
                   aria-pressed={selectedFilter === f.id}
-                  className={`min-h-[40px] px-3 py-1.5 rounded-full text-[12.5px] font-medium whitespace-nowrap transition-colors shrink-0 border ${
+                  className={`min-h-[40px] px-3.5 py-1.5 rounded-full text-[12.5px] font-medium whitespace-nowrap transition-colors shrink-0 snap-start border ${
                     selectedFilter === f.id
                       ? 'bg-aura-red text-on-accent border-transparent'
                       : 'bg-surface text-text-muted hover:text-text-primary border-border'
@@ -162,16 +176,12 @@ function HistoryDrawerComponent({ onClose, sessions, loadSession, currentSession
               )}
             </div>
           ) : (
-            ['COUNCIL', 'MENTOR', 'PSYCHOLOGY', 'TEACHER', 'EMOTION'].map(modeKey => {
-              const modeSessions = filteredSessions.filter((s: any) => s.mode === modeKey);
-              if (modeSessions.length === 0) return null;
-              const modeLabel = modeKey === 'EMOTION' ? 'Poets' : modeKey === 'PSYCHOLOGY' ? 'Psychologist' : modeKey.charAt(0) + modeKey.slice(1).toLowerCase();
-              return (
-                <div key={modeKey} data-mode={modeKey} className="space-y-1.5">
-                  <h3 className="text-[12px] text-text-faint font-medium pl-1 mb-2">{modeLabel}</h3>
-                  {modeSessions.map((session: any) => (
+            (
+              <div className="space-y-1.5">
+                  {filteredSessions.map((session: any) => (
                     <div
                       key={session.id}
+                      data-mode={session.mode}
                       role="button"
                       tabIndex={0}
                       onClick={() => loadSession(session)}
@@ -193,8 +203,9 @@ function HistoryDrawerComponent({ onClose, sessions, loadSession, currentSession
                         }`}>
                           {displayName(session.character || '').name}
                         </span>
-                        <span className="text-[11.5px] text-text-faint shrink-0">
-                          {new Date(session.updatedAt).toLocaleDateString()}
+                        <span className="text-[11.5px] text-text-faint shrink-0 flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-mode-tint" aria-hidden />
+                          {MODE_LABEL[session.mode] || ''} &middot; {new Date(session.updatedAt).toLocaleDateString()}
                         </span>
                       </div>
                       <p className="text-[12.5px] text-text-muted truncate">{session.title}</p>
@@ -210,9 +221,8 @@ function HistoryDrawerComponent({ onClose, sessions, loadSession, currentSession
                       </button>
                     </div>
                   ))}
-                </div>
-              );
-            })
+              </div>
+            )
           )}
         </div>
       </motion.div>
@@ -480,6 +490,7 @@ function CharacterPicker({ mode, lang, options, selected, onSelect, onClose }: {
 import { TypewriterText } from '../components/TypewriterText';
 import ReactMarkdown from 'react-markdown';
 import { markdownComponents } from '../components/markdownComponents';
+import { parseMcq } from '../utils/parseMcq';
 import { SessionSummarySheet } from '../components/SessionSummarySheet';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { MoodCheckIn, checkedInToday } from '../components/MoodCheckIn';
@@ -943,9 +954,15 @@ export default function Inner() {
     scrollToBottom();
   }, [messages, isTyping]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if ((!input.trim() && pending.length === 0) || isTyping) return;
+  /**
+   * `overrideText` lets a tap send an answer without it having to pass through
+   * the input box first — setting state and submitting would race, since the
+   * new value is not readable until the next render.
+   */
+  const handleSubmit = async (e?: React.FormEvent, overrideText?: string) => {
+    e?.preventDefault();
+    const draft = (overrideText ?? input).trim();
+    if ((!draft && pending.length === 0) || isTyping) return;
 
     haptic('impact');
 
@@ -962,7 +979,7 @@ export default function Inner() {
       setMessages(currentMessages);
     }
 
-    const userMessage = input.trim();
+    const userMessage = draft;
     const outgoing: Attachment[] = pending.map(({ name, mimeType, data }) => ({ name, mimeType, data }));
     const attachmentNames = pending.map(p => p.name);
     setPending([]);
@@ -1076,7 +1093,14 @@ export default function Inner() {
     // data-mode drives the per-mode tint tokens (see index.css)
     <div data-mode={mode} data-incognito={isIncognito || undefined} className="h-[100dvh] bg-bg flex flex-col relative overflow-hidden pt-0">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,var(--page-glow)_0%,transparent_70%)] pointer-events-none" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,var(--color-mode-wash)_0%,transparent_38%)] opacity-70 pointer-events-none" />
+      {/* The mode-colour bloom. Tied to --glow-strength, which the light theme
+          zeroes: a tinted cloud reads as depth on black and as a stain on
+          white, where the mode colour is carried by the header and bubbles
+          instead. */}
+      <div
+        className="absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,var(--color-mode-wash)_0%,transparent_38%)] pointer-events-none"
+        style={{ opacity: 'calc(0.7 * var(--glow-strength))' }}
+      />
 
       {/* Header / Mode Selection — chat only; Focus and Simulator carry their own */}
       {view === 'chat' && (
@@ -1459,9 +1483,17 @@ export default function Inner() {
             )}
 
             <AnimatePresence initial={false}>
-              {messages.map((msg) => {
+              {messages.map((msg, mi) => {
                 const isError = msg.isAi && msg.text.startsWith('[System Error]');
                 const isNotice = msg.isAi && msg.text.startsWith('[System]');
+                // Only the newest reply becomes tappable. Leaving old questions
+                // live would let a tap answer something three turns back.
+                const mcq =
+                  msg.isAi && !isError && !isNotice &&
+                  mi === messages.length - 1 &&
+                  msg.id !== streamingMsgId && !isTyping
+                    ? parseMcq(msg.text)
+                    : null;
                 return (
                 <motion.div
                   key={msg.id}
@@ -1499,10 +1531,16 @@ export default function Inner() {
                     >
                       {msg.isAi ? (
                         msg.id === streamingMsgId ? (
-                          <TypewriterText text={msg.text} animate={true} speed={25} markdown={true} />
+                          <TypewriterText
+                            text={msg.text}
+                            animate={true}
+                            speed={25}
+                            markdown={true}
+                            onDone={() => setStreamingMsgId(null)}
+                          />
                         ) : (
                           <div className="markdown-body">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{msg.text}</ReactMarkdown>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{mcq ? mcq.body : msg.text}</ReactMarkdown>
                           </div>
                         )
                       ) : (
@@ -1548,6 +1586,26 @@ export default function Inner() {
                         </div>
                       )}
                     </div>
+
+                    {/* A quiz answer should be one tap, not a line retyped.
+                        Sending the label with the text keeps the reply
+                        unambiguous when two options read similarly. */}
+                    {mcq && (
+                      <div className="grid gap-2 mt-2.5 w-full max-w-[420px]">
+                        {mcq.options.map(o => (
+                          <button
+                            key={o.label}
+                            onClick={() => { haptic('select'); handleSubmit(undefined, `${o.label}) ${o.text}`); }}
+                            className="min-h-[46px] text-left px-3.5 py-2.5 rounded-xl bg-surface border border-border shadow-soft hover:border-mode-tint hover:bg-surface-2 transition-all flex items-center gap-3 group/opt"
+                          >
+                            <span className="w-6 h-6 rounded-full bg-surface-2 border border-border text-text-muted group-hover/opt:bg-mode-tint group-hover/opt:text-on-accent group-hover/opt:border-transparent flex items-center justify-center text-[11px] font-bold shrink-0 transition-colors">
+                              {o.label}
+                            </span>
+                            <span className="text-[14px] leading-snug text-text-body">{o.text}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Actions sit under the bubble so they never crowd the
                         text. Your own messages get Copy too — you often want

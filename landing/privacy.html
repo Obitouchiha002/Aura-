@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy — Aura Shakti</title>
+<meta name="description" content="App lock with PIN, pattern and biometrics, an incognito room that writes nothing down, and a mood log that never leaves the device." />
+<link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap bar__in">
+    <a class="mark" href="index.html">Aura<i></i></a>
+    <nav id="nav"><a href="index.html">Home</a><a href="characters.html">Characters</a><a href="features.html">Features</a><a href="test.html">Reasoning test</a><a href="privacy.html" aria-current="page">Privacy</a><a href="developer.html">Developer</a></nav>
+    <div class="bar__right">
+      <button class="toggle" id="theme" type="button" role="switch" aria-checked="false" aria-label="Switch theme">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+          <defs><mask id="cut"><rect x="0" y="0" width="24" height="24" fill="white" /><circle class="bite" r="8" cx="26" cy="0" fill="black" /></mask></defs>
+          <circle class="disc" cx="12" cy="12" r="5.5" fill="currentColor" mask="url(#cut)" />
+          <g class="rays" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="12" y1="1.6" x2="12" y2="4.2" /><line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(45 12 12)" />
+            <line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(90 12 12)" /><line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(135 12 12)" />
+            <line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(180 12 12)" /><line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(225 12 12)" />
+            <line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(270 12 12)" /><line x1="12" y1="1.6" x2="12" y2="4.2" transform="rotate(315 12 12)" />
+          </g>
+        </svg>
+      </button>
+      <button class="burger" id="burger" type="button" aria-expanded="false" aria-controls="nav" aria-label="Menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="4" y1="8" x2="20" y2="8" /><line x1="4" y1="16" x2="20" y2="16" />
+        </svg>
+      </button>
+      <a class="btn btn--solid btn--sm" href="download.html">Get the app</a>
+    </div>
+  </div>
+</header>
+
+<nav class="railnav" aria-label="Sections">
+  <ul><li><a href="index.html">Home</a></li><li><a href="characters.html">Characters</a></li><li><a href="features.html">Features</a></li><li><a href="test.html">Reasoning test</a></li><li><a href="privacy.html" aria-current="page">Privacy</a></li><li><a href="developer.html">Developer</a></li><li><a href="council.html">Council</a></li><li><a href="mentor.html">Mentor</a></li><li><a href="psychologist.html">Psychologist</a></li><li><a href="teacher.html">Teacher</a></li><li><a href="poets.html">Poets</a></li><li><a href="download.html">Download</a></li><li><a href="faq.html">FAQ</a></li></ul>
+</nav>
+
+<main>
+  <section class="phead">
+    <div class="phead__glow"></div>
+    <div class="wrap">
+      <span class="label">Privacy</span>
+      <h1>Some of it should never leave the phone.</h1>
+      <p>A journal about your own head is not the same as a search query, and it is not treated the same way. Here is exactly what is kept, where, and what is not.</p>
+      
+    </div>
+  </section>
+  <section class="tight">
+    <div class="wrap">
+      <div class="locks rise">
+        <div class="lock">
+          <h3>Lock the whole app</h3>
+          <p>A four-digit PIN, a longer passcode, a pattern, or your fingerprint and face
+          through the device's own authenticator. Nothing is stored in readable form —
+          only a salted SHA-256 hash the app can check a guess against.</p>
+        </div>
+        <div class="lock">
+          <h3>It locks itself</h3>
+          <p>Choose how long it waits — immediately, or after a few minutes away. Come
+          back later and the lock screen is there before anything else renders.</p>
+        </div>
+        <div class="lock">
+          <h3>Incognito</h3>
+          <p>The interface turns grey and the app stops writing anything down. No history
+          entry, no summary, nothing synced. Close the chat and it is gone.</p>
+        </div>
+        <div class="lock">
+          <h3>Mood stays local</h3>
+          <p>Check-ins are written to the device and never uploaded. The chart is for you;
+          there is no copy of it on any server.</p>
+        </div>
+        <div class="lock">
+          <h3>The key is not in the page</h3>
+          <p>The model key lives in a server environment and is used by an endpoint the app
+          calls. It is never included in the JavaScript sent to your browser, so it cannot
+          be read out of the page.</p>
+        </div>
+        <div class="lock">
+          <h3>Your own key, if you prefer</h3>
+          <p>Paste your own Gemini key in Settings and the app talks to Google directly from
+          your browser on your quota, without going through the server at all.</p>
+        </div>
+      </div>
+
+      <div class="prose rise" style="margin-top:clamp(3rem,6vw,4.5rem);max-width:60ch">
+        <h3>What is stored, plainly</h3>
+        <p>Signing in with Google creates an account record and your conversations are
+        saved to it, so history follows you between devices. Incognito threads are
+        excluded. Mood check-ins and reasoning-test results are kept on the device only.
+        Deleting a conversation removes it from the account.</p>
+        <h3>What this is not</h3>
+        <p>Conversations go to a model to be answered, which means they leave the device
+        like any other AI app. The app lock protects the phone in your hand, not the
+        request in flight. If something must never be sent anywhere, do not type it into
+        an AI app — this one included.</p>
+      </div>
+    </div>
+  </section>
+  <section class="strip tight">
+    <div class="wrap strip__in">
+      <div>
+        <h2>Set the lock in under a minute.</h2>
+        <p style="margin-top:.6rem;color:var(--ink-muted)">Settings, then App lock — PIN, pattern or biometrics.</p>
+      </div>
+      <div class="cta-row">
+        <a class="btn btn--solid" href="download.html">Download for Android</a>
+        
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-cols"><div class="foot-col"><strong>The rooms</strong><a href="council.html">The Council</a><a href="mentor.html">The Mentor</a><a href="psychologist.html">The Psychologist</a><a href="teacher.html">The Teacher</a><a href="poets.html">The Poets</a></div><div class="foot-col"><strong>The app</strong><a href="features.html">What it does</a><a href="test.html">Reasoning test</a><a href="characters.html">Characters</a><a href="privacy.html">Privacy &amp; lock</a></div><div class="foot-col"><strong>Get it</strong><a href="download.html">Download</a><a href="faq.html">FAQ</a></div><div class="foot-col"><strong>The developer</strong><a href="developer.html">About Vansh</a><a href="https://vanshkashyap.lzworth.in">Portfolio</a><a href="https://techbyvansh.lzworth.in">Projects</a></div></div>
+    <div class="foot">
+      <span>Aura Shakti — built by <a href="https://vanshkashyap.lzworth.in">Vansh Kashyap</a>, LZ Worth</span>
+      <span><a href="download.html">Download for Android</a></span>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>
