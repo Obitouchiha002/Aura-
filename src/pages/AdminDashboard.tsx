@@ -8,6 +8,7 @@ import OverviewPanel from './admin/OverviewPanel';
 import UsersPanel from './admin/UsersPanel';
 import SessionsPanel from './admin/SessionsPanel';
 import SettingsPanel from './admin/SettingsPanel';
+import CharactersPanel from './admin/CharactersPanel';
 import FeedbackPanel from './admin/FeedbackPanel';
 import GrowthPanel from './admin/GrowthPanel';
 
@@ -17,6 +18,7 @@ const TABS = [
   { id: 'sessions', label: 'Chat Sessions', icon: MessageSquare },
   { id: 'feedback', label: 'User Feedback', icon: MessageSquareHeart },
   { id: 'growth', label: 'Growth', icon: TrendingUp },
+  { id: 'characters', label: 'Characters', icon: Users },
   { id: 'app_settings', label: 'App Settings', icon: Settings2 },
 ];
 
@@ -31,6 +33,7 @@ export const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => 
       case 'sessions': return <SessionsPanel />;
       case 'feedback': return <FeedbackPanel />;
       case 'growth': return <GrowthPanel />;
+      case 'characters': return <CharactersPanel />;
       case 'app_settings': return <SettingsPanel />;
       default: return <OverviewPanel onNavigate={setActiveTab} />;
     }
@@ -42,39 +45,39 @@ export const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   };
 
   return (
-    <div className="flex h-[100dvh] bg-[#0A0A0A] text-white font-sans overflow-hidden">
+    <div className="flex h-[100dvh] bg-bg text-text-primary font-sans overflow-hidden">
       {/* Mobile Top Bar */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-[#050505] border-b border-white/5 p-4 flex items-center justify-between">
+      <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-bg border-b border-border p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+          <button onClick={onBack} className="p-2 hover:bg-surface-2 rounded-xl transition-colors">
             <ArrowLeft size={18} />
           </button>
           <div>
             <h1 className="text-xl font-serif italic text-aura-red tracking-wide drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]">AURA</h1>
           </div>
         </div>
-        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-surface-2 rounded-xl transition-colors">
           {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
       </div>
 
       {/* Sidebar Overlay */}
       {isSidebarOpen && (
-        <div 
-          className="md:hidden fixed inset-0 bg-black/60 z-40 backdrop-blur-sm"
+        <div
+          className="md:hidden fixed inset-0 bg-scrim z-40 backdrop-blur-sm"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 w-64 bg-[#050505] border-r border-white/5 flex flex-col h-full flex-shrink-0 z-50 shadow-[4px_0_24px_rgba(0,0,0,0.8)] transition-transform duration-300 pt-16 md:pt-0`}>
-        <div className="hidden md:flex p-6 items-center gap-3 border-b border-white/5">
-          <button onClick={onBack} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+      <div className={`fixed inset-y-0 left-0 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 w-64 bg-bg border-r border-border flex flex-col h-full flex-shrink-0 z-50 shadow-[4px_0_24px_rgba(0,0,0,0.25)] md:shadow-none transition-transform duration-300 pt-16 md:pt-0`}>
+        <div className="hidden md:flex p-6 items-center gap-3 border-b border-border">
+          <button onClick={onBack} className="p-2 hover:bg-surface-2 rounded-xl transition-colors">
             <ArrowLeft size={18} />
           </button>
           <div className="flex-1">
             <h1 className="text-xl font-serif italic text-aura-red tracking-wide drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]">AURA</h1>
-            <p className="text-[9px] uppercase tracking-widest text-white/40">Command Center</p>
+            <p className="text-[9px] uppercase tracking-widest text-text-faint">Command Center</p>
           </div>
         </div>
 
@@ -88,8 +91,8 @@ export const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => 
                 onClick={() => handleTabChange(tab.id)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 relative group ${
                   isActive 
-                    ? 'text-white bg-aura-red/10 border border-aura-red/20 shadow-[inset_0_0_15px_rgba(239,68,68,0.1)]' 
-                    : 'text-white/50 hover:bg-white/5 hover:text-white border border-transparent'
+                    ? 'text-text-primary bg-aura-red/10 border border-aura-red/20 shadow-[inset_0_0_15px_rgba(239,68,68,0.1)]' 
+                    : 'text-text-muted hover:bg-surface hover:text-text-primary border border-transparent'
                 }`}
               >
                 {isActive && (
@@ -98,7 +101,7 @@ export const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => 
                     className="absolute left-0 top-0 bottom-0 w-1 bg-aura-red rounded-l-xl shadow-[0_0_10px_rgba(239,68,68,0.8)]"
                   />
                 )}
-                <Icon size={18} className={isActive ? 'text-aura-red' : 'group-hover:text-white/80'} />
+                <Icon size={18} className={isActive ? 'text-aura-red' : 'group-hover:text-text-body'} />
                 <span className="text-sm font-medium tracking-wide">{tab.label}</span>
               </button>
             );
@@ -107,7 +110,7 @@ export const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => 
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 relative overflow-y-auto bg-[#0A0A0A] pt-16 md:pt-0">
+      <div className="flex-1 relative overflow-y-auto bg-bg pt-16 md:pt-0">
         {/* Cinematic gradient overlay */}
         <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-b from-aura-red/5 to-transparent pointer-events-none" />
         

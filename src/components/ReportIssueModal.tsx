@@ -34,26 +34,37 @@ export const ReportIssueModal: React.FC<ReportIssueModalProps> = ({ isOpen, onCl
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="absolute inset-0 bg-scrim backdrop-blur-sm"
+          />
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative"
+            className="relative bg-bg border border-border rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
           >
-            <div className="flex justify-between items-center p-4 border-b border-white/10">
-              <h2 className="text-lg font-medium text-white">Report an Issue</h2>
-              <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
+            <div className="flex justify-between items-center p-4 border-b border-border">
+              <h2 className="text-lg font-medium text-text-primary">Report an Issue</h2>
+              <button
+                onClick={onClose}
+                aria-label="Close"
+                className="p-1.5 rounded-full text-text-muted hover:text-text-primary hover:bg-surface-2 transition-colors"
+              >
                 <X size={20} />
               </button>
             </div>
             <form onSubmit={handleSubmit} className="p-4 space-y-4">
               <div>
-                <label className="block text-xs text-white/50 uppercase tracking-wider mb-2">Describe your problem</label>
+                <label className="block text-xs text-text-muted uppercase tracking-wider mb-2">Describe your problem</label>
                 <textarea
                   value={issue}
                   onChange={(e) => setIssue(e.target.value)}
-                  className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-aura-red transition-colors resize-none h-32"
+                  className="w-full bg-surface border border-border rounded-xl p-3 text-text-primary text-sm placeholder:text-text-faint focus:outline-none focus:border-aura-red transition-colors resize-none h-32"
                   placeholder="What went wrong? Please provide details..."
                   required
                 />
@@ -61,12 +72,12 @@ export const ReportIssueModal: React.FC<ReportIssueModalProps> = ({ isOpen, onCl
               <button
                 type="submit"
                 disabled={!issue.trim()}
-                className="w-full flex items-center justify-center gap-2 bg-aura-red text-black font-bold py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] transition-transform"
+                className="w-full flex items-center justify-center gap-2 bg-aura-red text-on-accent font-bold py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] transition-transform"
               >
                 <Send size={16} />
                 Send to Developer
               </button>
-              <p className="text-center text-[10px] text-white/30">
+              <p className="text-center text-[10px] text-text-faint">
                 Developer: Vansh Kashyap
               </p>
             </form>

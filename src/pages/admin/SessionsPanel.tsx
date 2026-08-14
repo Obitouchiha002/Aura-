@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { MessageSquare, Flame, Clock, Hash } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
 
 export default function SessionsPanel() {
   const [sessions, setSessions] = useState<any[]>([]);
@@ -29,41 +29,45 @@ export default function SessionsPanel() {
     return `${m}m ${s}s`;
   };
 
-  if(loading) return <div className="animate-pulse h-64 bg-white/5 rounded-2xl"></div>;
+  if(loading) return <div className="animate-pulse h-64 bg-surface rounded-2xl"></div>;
 
   return (
     <div className="space-y-6">
-      <div className="bg-[#0f0f0f] border border-white/5 rounded-2xl overflow-hidden">
-        <div className="p-6 border-b border-white/10 flex items-center gap-3 bg-white/5">
+      <div className="bg-elevated border border-border rounded-2xl overflow-hidden">
+        <div className="p-6 border-b border-border flex items-center gap-3 bg-surface">
           <MessageSquare className="text-aura-red" size={20} />
           <h2 className="text-xl font-medium">Chat Sessions History</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="bg-[#0f0f0f] text-white/40 text-[10px] uppercase tracking-widest border-b border-white/5">
+            <thead className="bg-elevated text-text-faint text-[10px] uppercase tracking-widest border-b border-border">
+              {/* Session docs only carry uid/email/times/duration — the old
+                  "Session Mode" and "Messages" columns were always empty. */}
               <tr>
-                <th className="px-6 py-4 font-normal">Session Mode</th>
                 <th className="px-6 py-4 font-normal">Email</th>
                 <th className="px-6 py-4 font-normal">Start Time</th>
+                <th className="px-6 py-4 font-normal">Last Seen</th>
                 <th className="px-6 py-4 font-normal">Duration</th>
-                <th className="px-6 py-4 font-normal">Messages</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/10 text-sm">
-              {sessions.map(session => (
-                <tr key={session.id} className="hover:bg-white/5 transition-colors">
-                  <td className="px-6 py-4 font-medium uppercase tracking-widest text-[10px] text-white/70 bg-white/5">
-                    {session.mode || 'CHAT'}
+            <tbody className="divide-y divide-border text-sm">
+              {sessions.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-10 text-center text-text-faint">
+                    No sessions recorded yet.
                   </td>
-                  <td className="px-6 py-4 text-white/60">{session.email}</td>
-                  <td className="px-6 py-4 text-white/60">
+                </tr>
+              ) : sessions.map(session => (
+                <tr key={session.id} className="hover:bg-surface transition-colors">
+                  <td className="px-6 py-4 text-text-body whitespace-nowrap">{session.email || '—'}</td>
+                  <td className="px-6 py-4 text-text-muted whitespace-nowrap">
                     {session.startTime?.toDate ? session.startTime.toDate().toLocaleString() : 'N/A'}
                   </td>
-                  <td className="px-6 py-4 text-white/60">
-                    {formatDuration(session.durationSeconds || 0)}
+                  <td className="px-6 py-4 text-text-muted whitespace-nowrap">
+                    {session.endTime?.toDate ? session.endTime.toDate().toLocaleString() : 'N/A'}
                   </td>
-                  <td className="px-6 py-4 font-mono text-aura-red">
-                    {session.messages?.length || 0}
+                  <td className="px-6 py-4 text-text-muted font-mono whitespace-nowrap">
+                    {formatDuration(session.durationSeconds || 0)}
                   </td>
                 </tr>
               ))}

@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { markdownComponents } from './markdownComponents';
 
 interface TypewriterTextProps {
   text: string;
   animate?: boolean;
   speed?: number;
+  markdown?: boolean;
 }
 
-export const TypewriterText: React.FC<TypewriterTextProps> = ({ text, animate = true, speed = 25 }) => {
+export const TypewriterText: React.FC<TypewriterTextProps> = ({ text, animate = true, speed = 25, markdown = true }) => {
   const [displayedText, setDisplayedText] = useState(animate ? '' : text);
-  const containerRef = useRef<HTMLSpanElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Target completing the typing dynamically, speed dictates frame delay
-  // For long text, take bigger steps to finish faster. Target ~0.5s (30-40 frames)
   const targetFrames = speed < 20 ? 30 : 50; 
   const step = animate ? Math.max(1, Math.ceil(text.length / targetFrames)) : text.length;
 
@@ -24,7 +26,6 @@ export const TypewriterText: React.FC<TypewriterTextProps> = ({ text, animate = 
     setDisplayedText('');
     let currentIndex = 0;
     
-    // Fast interval for typing feel, use speed prop
     const tickSpeed = Math.max(10, Math.min(speed, 25)); 
     
     const interval = setInterval(() => {
@@ -40,13 +41,10 @@ export const TypewriterText: React.FC<TypewriterTextProps> = ({ text, animate = 
     return () => clearInterval(interval);
   }, [text, animate, step]);
 
-  // Handle smart auto-scroll only when user is already near the bottom
   useEffect(() => {
     if (!containerRef.current || !animate) return;
-
-    // Find the nearest ancestor container that is scrollable
     let parent = containerRef.current.parentElement;
-    let scrollContainer: HTMLElement | null = null;
+    let scrollContainer = null;
     while (parent) {
       const style = window.getComputedStyle(parent);
       if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
@@ -55,17 +53,23 @@ export const TypewriterText: React.FC<TypewriterTextProps> = ({ text, animate = 
       }
       parent = parent.parentElement;
     }
-
     if (scrollContainer) {
       const distanceToBottom = scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight;
-      // If we are close to the bottom (e.g., within 120px), auto-scroll to the bottom.
-      // If the user has scrolled up to read earlier messages, distanceToBottom will be larger,
-      // so we leave their scroll position completely untouched.
       if (distanceToBottom <= 120) {
         scrollContainer.scrollTop = scrollContainer.scrollHeight;
       }
     }
   }, [displayedText, animate]);
+
+  if (markdown) {
+    return (
+      <div ref={containerRef} className="markdown-body">
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+          {displayedText}
+        </ReactMarkdown>
+      </div>
+    );
+  }
 
   return <span ref={containerRef}>{displayedText}</span>;
 };

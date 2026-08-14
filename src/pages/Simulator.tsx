@@ -1,602 +1,496 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getSimulatorNextScenario, evaluateSimulatorAction, getSimulatorReport } from '../services/geminiService';
 import { useSettings } from '../context/SettingsContext';
 import { useLang } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Send, Bot, RefreshCcw, Trash2, Settings as SettingsIcon, Activity, X, Brain, ArrowLeft, Mic } from 'lucide-react';
+import {
+  ArrowLeft, Brain, RefreshCcw, Trash2, Settings as SettingsIcon,
+  Check, X, Clock, TrendingUp, Info,
+} from 'lucide-react';
+import {
+  buildTest, scoreTest, DOMAIN_LABEL, TIME_LIMIT, QUESTIONS_PER_TEST,
+  type TestItem, type Answer, type Report,
+} from '../utils/iqTest';
 
-type SimState = 'START' | 'SCENARIO' | 'EVALUATING' | 'RESULT' | 'BREAK';
+/**
+ * Reasoning test.
+ *
+ * The old version asked the model to invent an "IQ" after a few free-text
+ * scenarios, so the number moved every time you asked and measured nothing.
+ * This runs a fixed bank of timed multiple-choice items and scores them
+ * locally — see utils/iqTest.ts.
+ */
 
-import { TypewriterText } from '../components/TypewriterText';
-import { useMicrophone } from '../hooks/useMicrophone';
+type Stage = 'START' | 'RUNNING' | 'RESULT';
+
+interface SavedRun {
+  items: TestItem[];
+  answers: Answer[];
+  index: number;
+  startedAt: number;
+}
+
+const HISTORY_KEY = 'aura_iq_history';
+
+interface PastResult { at: number; index: number; accuracy: number; correct: number; total: number; }
+
+function readHistory(): PastResult[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function pushHistory(r: PastResult) {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify([r, ...readHistory()].slice(0, 20)));
+  } catch {}
+}
 
 export default function Simulator() {
   const { lang } = useLang();
-  const { hapticFeedback, userApiKey, language } = useSettings();
-  const { checkAndIncrementMessageLimit, user } = useAuth();
-  
-  const [input, setInput] = useState('');
-  const { isListening, toggleListening } = useMicrophone(language, (text) => setInput(text));
+  const { haptic } = useSettings();
+  const { user } = useAuth();
 
-  const [simState, setSimState] = useState<SimState>('START');
-  const [level, setLevel] = useState(1);
-  const [scenarioText, setScenarioText] = useState('');
-  const [evaluationText, setEvaluationText] = useState('');
-  const [history, setHistory] = useState<{ role: string; text: string }[]>([]);
-  const [loadingText, setLoadingText] = useState('');
+  const [stage, setStage] = useState<Stage>('START');
+  const [run, setRun] = useState<SavedRun | null>(null);
+  const [report, setReport] = useState<Report | null>(null);
+  const [picked, setPicked] = useState<number | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [showMissed, setShowMissed] = useState(false);
+  const [history, setHistory] = useState<PastResult[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
-  const [showReport, setShowReport] = useState(false);
-  const [reportData, setReportData] = useState<any>(null);
-  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const questionStart = useRef<number>(Date.now());
+  // The countdown fires from an interval closure, so it needs the live run
+  // rather than the one captured when the interval was created.
+  const runRef = useRef<SavedRun | null>(null);
+  useEffect(() => { runRef.current = run; }, [run]);
 
-  const triggerHaptic = () => {
-    if (hapticFeedback && navigator.vibrate) {
-      navigator.vibrate(50);
-    }
-  };
+  const current = run ? run.items[run.index] : null;
 
-  // Load state
+  useEffect(() => { setHistory(readHistory()); }, []);
+
+  /* Resume an unfinished sitting */
   useEffect(() => {
-    if (!user) {
-      setSimState('START');
-      setLevel(1);
-      setScenarioText('');
-      setEvaluationText('');
-      setHistory([]);
-      return;
-    }
-    const loadState = async () => {
+    if (!user) { setLoaded(true); return; }
+    (async () => {
       try {
-        const docRef = doc(db, 'users', user.uid, 'simulatorState', 'current');
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const parsed = docSnap.data();
-          setSimState(parsed.simState || 'START');
-          setLevel(parsed.level || 1);
-          setScenarioText(parsed.scenarioText || '');
-          setEvaluationText(parsed.evaluationText || '');
-          setHistory(parsed.history || []);
+        const snap = await getDoc(doc(db, 'users', user.uid, 'iqTest', 'current'));
+        const d = snap.exists() ? snap.data() as any : null;
+        if (Array.isArray(d?.items) && d.items.length) {
+          const restored = { items: d.items, answers: d.answers || [], index: d.index || 0, startedAt: d.startedAt || Date.now() };
+          runRef.current = restored;
+          setRun(restored);
         }
       } catch (e) {
-        console.error("Failed to load simulator state", e);
+        console.error('Could not load the saved test', e);
+      } finally {
+        setLoaded(true);
       }
-    };
-    loadState();
+    })();
   }, [user]);
 
-  // Save state
-  useEffect(() => {
+  const persist = (next: SavedRun | null) => {
     if (!user) return;
-    try {
-      setDoc(doc(db, 'users', user.uid, 'simulatorState', 'current'), {
-        simState, level, scenarioText, evaluationText, history
-      }, { merge: true }).catch(console.error);
-    } catch (e) {}
-  }, [simState, level, scenarioText, evaluationText, history, user]);
+    const ref = doc(db, 'users', user.uid, 'iqTest', 'current');
+    if (next) setDoc(ref, next as any).catch(console.error);
+    else deleteDoc(ref).catch(console.error);
+  };
 
-  const clearSimulator = () => {
-    stop();
-    triggerHaptic();
-    setSimState('START');
-    setLevel(1);
-    setScenarioText('');
-    setEvaluationText('');
-    setHistory([]);
-    setInput('');
-    if (user) {
-      deleteDoc(doc(db, 'users', user.uid, 'simulatorState', 'current')).catch(console.error);
+  /**
+   * Records one answer and moves on.
+   *
+   * Everything here runs outside the state updater on purpose: an updater must
+   * be pure, and React's StrictMode double-invokes it. With the side effects
+   * inside, one finished test wrote two history entries.
+   */
+  const submit = (choice: number | null) => {
+    const prev = runRef.current;
+    if (!prev) return;
+    const item = prev.items[prev.index];
+    if (!item) return;
+
+    const answer: Answer = {
+      itemId: item.id,
+      chosen: choice,
+      correct: choice !== null && choice === item.correctIndex,
+      seconds: Math.max(1, Math.round((Date.now() - questionStart.current) / 1000)),
+    };
+    haptic(answer.correct ? 'success' : 'tap');
+
+    const answers = [...prev.answers, answer];
+    const nextIndex = prev.index + 1;
+    const done = nextIndex >= prev.items.length;
+    const next: SavedRun = { ...prev, answers, index: done ? prev.index : nextIndex };
+
+    runRef.current = next;
+    setRun(next);
+    setPicked(null);
+
+    if (done) {
+      const r = scoreTest(prev.items, answers);
+      setReport(r);
+      setStage('RESULT');
+      pushHistory({ at: Date.now(), index: r.index, accuracy: r.accuracy, correct: r.correct, total: r.total });
+      setHistory(readHistory());
+      persist(null);
+    } else {
+      persist(next);
     }
   };
 
-  const handleStart = async () => {
-    stop();
-    triggerHaptic();
-    
-    const { allowed, isFreeTier, justReachedLimit } = await checkAndIncrementMessageLimit();
-    if (!allowed) return;
+  /* Per-question countdown */
+  useEffect(() => {
+    if (stage !== 'RUNNING' || !current) return;
+    setSecondsLeft(TIME_LIMIT[current.difficulty]);
+    questionStart.current = Date.now();
 
-    let currentHistory = [
-      { role: 'user', text: 'Generate Scenario Level 1' }
-    ];
+    const t = setInterval(() => {
+      setSecondsLeft(s => {
+        if (s <= 1) {
+          clearInterval(t);
+          submit(null);            // out of time counts as unanswered
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [stage, run?.index, current?.id]);
 
-    if (justReachedLimit) {
-      const limitMsg = lang === 'en' 
-        ? "[System] Daily premium limit reached. Automatically switching to the free version." 
-        : "[System] आपकी दैनिक प्रीमियम सीमा समाप्त हो गई है। स्वचालित रूप से मुफ्त संस्करण पर स्विच किया जा रहा है।";
-      currentHistory = [{ role: 'model', text: limitMsg }, ...currentHistory];
-    }
-
-    setSimState('EVALUATING');
-    setLoadingText(lang === 'en' ? 'Generating Scenario...' : 'Scenario Generate ho raha hai...');
-    
-    const res = await getSimulatorNextScenario(1, [], userApiKey, language, isFreeTier);
-    setScenarioText(res);
-    setHistory([
-      ...currentHistory,
-      { role: 'model', text: res }
-    ]);
-    setSimState('SCENARIO');
+  const startFresh = () => {
+    haptic('impact');
+    const next: SavedRun = { items: buildTest(), answers: [], index: 0, startedAt: Date.now() };
+    runRef.current = next;
+    setRun(next);
+    setReport(null);
+    setPicked(null);
+    setShowMissed(false);
+    setStage('RUNNING');
+    persist(next);
   };
 
-  const handleSubmitAction = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const userAction = input.trim();
-    if (!userAction) return;
-
-    stop();
-    triggerHaptic();
-    
-    const { allowed, isFreeTier, justReachedLimit } = await checkAndIncrementMessageLimit();
-    if (!allowed) return;
-
-    let currentHistory = history;
-    if (justReachedLimit) {
-      const limitMsg = lang === 'en' 
-        ? "[System] Daily premium limit reached. Automatically switching to the free version." 
-        : "[System] आपकी दैनिक प्रीमियम सीमा समाप्त हो गई है। स्वचालित रूप से मुफ्त संस्करण पर स्विच किया जा रहा है।";
-      currentHistory = [...currentHistory, { role: 'model', text: limitMsg }];
-    }
-
-    setSimState('EVALUATING');
-    setLoadingText(lang === 'en' ? 'Calculating your result...' : 'Result calculate ho raha hai...');
-    
-    const res = await evaluateSimulatorAction(userAction, currentHistory, userApiKey, language, isFreeTier);
-
-    setEvaluationText(res);
-    setHistory([
-      ...currentHistory,
-      { role: 'user', text: `My action: ${userAction}` },
-      { role: 'model', text: res }
-    ]);
-    setSimState('RESULT');
-    setInput('');
+  const resume = () => {
+    haptic('impact');
+    setPicked(null);
+    setStage('RUNNING');
   };
 
-  const handleContinue = async () => {
-    stop();
-    triggerHaptic();
-    
-    const { allowed, isFreeTier, justReachedLimit } = await checkAndIncrementMessageLimit();
-    if (!allowed) return;
-
-    let currentHistory = history;
-    if (justReachedLimit) {
-      const limitMsg = lang === 'en' 
-        ? "[System] Daily premium limit reached. Automatically switching to the free version." 
-        : "[System] आपकी दैनिक प्रीमियम सीमा समाप्त हो गई है। स्वचालित रूप से मुफ्त संस्करण पर स्विच किया जा रहा है।";
-      currentHistory = [...currentHistory, { role: 'model', text: limitMsg }];
-    }
-
-    const nextLevel = level + 1;
-    setLevel(nextLevel);
-    setSimState('EVALUATING');
-    setLoadingText(lang === 'en' ? 'Generating Next Scenario...' : 'Next Scenario Generate ho raha hai...');
-    
-    const res = await getSimulatorNextScenario(nextLevel, currentHistory, userApiKey, language, isFreeTier);
-    setScenarioText(res);
-    setHistory([
-      ...currentHistory,
-      { role: 'user', text: `Generate Scenario Level ${nextLevel}` },
-      { role: 'model', text: res }
-    ]);
-    setSimState('SCENARIO');
+  const choose = (i: number) => {
+    if (picked !== null) return;
+    setPicked(i);
+    // A beat so the choice registers before the next question slides in.
+    setTimeout(() => submit(i), 260);
   };
 
-  const handleBreak = () => {
-    stop();
-    triggerHaptic();
-    setSimState('BREAK');
+  const discard = () => {
+    haptic('select');
+    runRef.current = null;
+    setRun(null);
+    setReport(null);
+    setStage('START');
+    persist(null);
   };
 
-  const handleResume = () => {
-    triggerHaptic();
-    handleContinue();
-  };
+  const best = useMemo(() => history.reduce((m, h) => Math.max(m, h.index), 0), [history]);
 
-  const handleGenerateReport = async () => {
-    triggerHaptic();
-    
-    const { allowed, isFreeTier, justReachedLimit } = await checkAndIncrementMessageLimit();
-    if (!allowed) return;
-
-    let currentHistory = history;
-    if (justReachedLimit) {
-      const limitMsg = lang === 'en' 
-        ? "[System] Daily premium limit reached. Automatically switching to the free version." 
-        : "[System] आपकी दैनिक प्रीमियम सीमा समाप्त हो गई है। स्वचालित रूप से मुफ्त संस्करण पर स्विच किया जा रहा है।";
-      currentHistory = [...currentHistory, { role: 'model', text: limitMsg }];
-      setHistory(currentHistory);
-    }
-
-    setShowReport(true);
-    if (reportData) return;
-
-    setIsGeneratingReport(true);
-    try {
-      const data = await getSimulatorReport(currentHistory, userApiKey, language);
-      setReportData(data);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsGeneratingReport(false);
-    }
-  };
+  const progress = run ? (run.index / run.items.length) * 100 : 0;
+  const timeLimit = current ? TIME_LIMIT[current.difficulty] : 1;
+  const timeFrac = current ? secondsLeft / timeLimit : 1;
+  const hasUnfinished = !!(loaded && run && run.index > 0 && run.index < run.items.length);
 
   return (
-    <div className="flex-1 flex flex-col relative overflow-hidden bg-[#0A0A0A]">
-      {/* Header */}
-      <div className="w-full flex justify-between items-center max-w-3xl mx-auto px-4 py-3 relative z-20 border-b border-white/5">
-        <div className="flex items-center gap-2 flex-1">
-          <button
-            onClick={() => { triggerHaptic(); window.location.hash = 'chat'; }}
-            className="p-2 text-white/60 hover:text-white transition-colors rounded-full hover:bg-white/10 bg-white/5 border border-white/10"
-            title={lang === 'en' ? 'Back to Chat' : 'चैट पर वापस जाएं'}
-          >
-            <ArrowLeft size={18} />
-          </button>
-          {history.length > 0 && (
+    <div className="flex-1 flex flex-col relative overflow-hidden bg-bg app-container">
+      <div className="w-full flex justify-between items-center max-w-3xl mx-auto px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] relative z-20 border-b border-border">
+        <button
+          onClick={() => { haptic('select'); window.location.hash = 'chat'; }}
+          className="w-10 h-10 flex items-center justify-center text-text-muted hover:text-text-primary transition-colors rounded-xl hover:bg-surface-2 bg-surface border border-border shadow-soft"
+          title={lang === 'en' ? 'Back to chat' : 'चैट पर वापस'}
+        >
+          <ArrowLeft size={18} />
+        </button>
+
+        <span className="px-4 py-2 rounded-full text-[12px] tracking-[0.06em] bg-aura-red text-on-accent font-semibold whitespace-nowrap">
+          {lang === 'en' ? 'Reasoning Test' : 'तर्क परीक्षा'}
+        </span>
+
+        <div className="flex items-center gap-1">
+          {(run || report) && (
             <button
-              onClick={handleGenerateReport}
-              className="p-2 text-aura-red hover:text-white transition-colors rounded-full hover:bg-white/10 flex items-center gap-2"
-              title={lang === 'en' ? 'IQ Report' : 'IQ रिपोर्ट'}
+              onClick={discard}
+              className="w-10 h-10 flex items-center justify-center text-text-faint hover:text-aura-red transition-colors rounded-xl hover:bg-accent-wash"
+              title={lang === 'en' ? 'Discard' : 'हटाएं'}
             >
-              <Activity size={18} />
-              <span className="text-[10px] uppercase tracking-widest hidden md:inline font-mono">Report</span>
-            </button>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-1 p-1 bg-white/5 rounded-full border border-white/10">
-          <span className="px-4 py-2 rounded-full text-[10px] md:text-xs tracking-[0.2em] uppercase bg-aura-red text-black font-bold shadow-[0_0_15px_rgba(239,68,68,0.3)] font-mono">
-            Shadow Mind
-          </span>
-        </div>
-        
-        <div className="flex items-center justify-end gap-2 flex-1">
-          {history.length > 0 && (
-            <button
-              onClick={clearSimulator}
-              className="p-2 text-white/40 hover:text-aura-red transition-colors rounded-full hover:bg-white/10"
-              title={lang === 'en' ? 'Restart Simulator' : 'सिम्युलेटर रीस्टार्ट करें'}
-            >
-              <Trash2 size={18} />
+              <Trash2 size={17} />
             </button>
           )}
           <button
-            onClick={() => { triggerHaptic(); window.location.hash = 'settings'; }}
-            className="p-2 text-white/60 hover:text-white transition-colors rounded-full hover:bg-white/10 bg-white/5 border border-white/10"
+            onClick={() => { haptic('select'); window.location.hash = 'settings'; }}
+            className="w-10 h-10 flex items-center justify-center text-text-muted hover:text-text-primary transition-colors rounded-xl hover:bg-surface-2 bg-surface border border-border shadow-soft"
           >
-            <SettingsIcon size={18} />
+            <SettingsIcon size={17} />
           </button>
         </div>
       </div>
 
-      {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto relative z-10 scrollbar-hide flex flex-col">
         <AnimatePresence mode="wait">
-          
-          {/* START STATE */}
-          {simState === 'START' && (
-            <motion.div 
+
+          {stage === 'START' && (
+            <motion.div
               key="start"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 1.05 }}
-              className="flex-1 flex flex-col items-center justify-center text-center space-y-8 p-6"
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="flex-1 flex flex-col items-center justify-center text-center gap-6 p-6 max-w-md mx-auto w-full"
             >
-              <div className="w-24 h-24 rounded-full border border-aura-red/50 flex items-center justify-center bg-aura-red/10 shadow-[0_0_40px_rgba(239,68,68,0.2)] relative">
-                <div className="absolute inset-0 rounded-full border border-aura-red/30 animate-ping" style={{ animationDuration: '3s' }} />
-                <Brain size={48} className="text-aura-red" />
-              </div>
-              <div className="space-y-4 max-w-md px-4">
-                <h3 className="font-display text-lg md:text-xl tracking-[0.3em] uppercase text-white">
-                  System Initialization
-                </h3>
-                <p className="text-xs text-white/50 tracking-wider leading-relaxed font-mono">
-                  {lang === 'en' 
-                    ? 'A psychological and strategic simulation designed to test your reasoning, emotional control, and practical legal knowledge.' 
-                    : 'आपकी तर्क क्षमता, मनोवैज्ञानिक नियंत्रण और व्यावहारिक कानूनी ज्ञान का परीक्षण करने के लिए एक सिमुलेशन।'}
+              <span className="w-16 h-16 rounded-2xl bg-surface border border-border shadow-soft flex items-center justify-center">
+                <Brain size={28} className="text-aura-red" strokeWidth={1.6} />
+              </span>
+
+              <div className="space-y-2">
+                <h2 className="text-[26px] font-display font-medium tracking-[-0.015em] text-text-primary">
+                  {lang === 'en' ? 'Reasoning Test' : 'तर्क परीक्षा'}
+                </h2>
+                <p className="text-[14px] text-text-muted leading-relaxed max-w-[34ch] mx-auto">
+                  {lang === 'en'
+                    ? `${QUESTIONS_PER_TEST} questions across five kinds of thinking. Timed. Scored the same way every time.`
+                    : `पाँच तरह की सोच पर ${QUESTIONS_PER_TEST} सवाल। समय सीमित। हर बार एक ही तरीके से जाँच।`}
                 </p>
               </div>
-              <button
-                onClick={handleStart}
-                className="px-8 py-4 bg-aura-red text-black font-bold text-xs tracking-[0.2em] uppercase rounded-none hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(239,68,68,0.4)] border border-aura-red"
-              >
-                {lang === 'en' ? 'Initialize Simulation' : 'सिमुलेशन शुरू करें'}
-              </button>
-            </motion.div>
-          )}
 
-          {/* EVALUATING STATE */}
-          {simState === 'EVALUATING' && (
-            <motion.div 
-              key="evaluating"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex-1 flex flex-col items-center justify-center space-y-8 p-6"
-            >
-              <div className="relative w-32 h-32 flex items-center justify-center">
-                <motion.div 
-                  animate={{ rotate: 360 }} 
-                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }} 
-                  className="absolute inset-0 rounded-full border-t-2 border-aura-red border-r-2 border-transparent" 
-                />
-                <motion.div 
-                  animate={{ rotate: -360 }} 
-                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }} 
-                  className="absolute inset-4 rounded-full border-b-2 border-white/50 border-l-2 border-transparent" 
-                />
-                <Brain className="text-aura-red animate-pulse" size={32} />
+              {history.length > 0 && (
+                <div className="w-full flex gap-2">
+                  {[
+                    { label: lang === 'en' ? 'Last' : 'पिछला', value: history[0].index },
+                    { label: lang === 'en' ? 'Best' : 'सर्वश्रेष्ठ', value: best },
+                    { label: lang === 'en' ? 'Taken' : 'बार', value: history.length },
+                  ].map(s => (
+                    <div key={s.label} className="flex-1 p-3 rounded-2xl bg-surface border border-border shadow-soft">
+                      <p className="text-[11.5px] text-text-faint">{s.label}</p>
+                      <p className="text-[19px] font-semibold text-text-primary">{s.value}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="w-full space-y-2.5">
+                {hasUnfinished && (
+                  <button
+                    onClick={resume}
+                    className="w-full min-h-[52px] rounded-2xl bg-aura-red text-on-accent font-semibold text-[15px] hover:brightness-110 transition-all"
+                  >
+                    {lang === 'en'
+                      ? `Resume — question ${run!.index + 1} of ${run!.items.length}`
+                      : `जारी रखें — सवाल ${run!.index + 1}/${run!.items.length}`}
+                  </button>
+                )}
+                <button
+                  onClick={startFresh}
+                  className={`w-full min-h-[52px] rounded-2xl font-semibold text-[15px] transition-all ${
+                    hasUnfinished
+                      ? 'bg-surface border border-border shadow-soft text-text-primary hover:bg-surface-2'
+                      : 'bg-aura-red text-on-accent hover:brightness-110'
+                  }`}
+                >
+                  {lang === 'en' ? 'Start a new test' : 'नई परीक्षा शुरू करें'}
+                </button>
               </div>
-              <p className="text-aura-red uppercase tracking-[0.3em] text-xs font-bold animate-pulse font-mono text-center">
-                {loadingText}
+
+              <p className="flex items-start gap-2 text-[12px] text-text-faint leading-relaxed text-left">
+                <Info size={14} className="shrink-0 mt-0.5" />
+                {lang === 'en'
+                  ? 'A self-administered reasoning test, not a clinical IQ assessment. Read the number as a snapshot of these questions.'
+                  : 'यह स्वयं दी जाने वाली तर्क परीक्षा है, क्लीनिकल IQ जाँच नहीं। अंक को इन्हीं सवालों का नतीजा समझिए।'}
               </p>
             </motion.div>
           )}
 
-          {/* SCENARIO STATE */}
-          {simState === 'SCENARIO' && (
-            <motion.div 
-              key="scenario"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="flex-1 flex flex-col p-4 md:p-8 max-w-3xl mx-auto w-full"
+          {stage === 'RUNNING' && current && (
+            <motion.div
+              key={`q-${run!.index}`}
+              initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }}
+              transition={{ duration: 0.2 }}
+              className="flex-1 flex flex-col p-4 md:p-6 max-w-3xl mx-auto w-full"
             >
-              <div className="flex justify-between items-center mb-8 border-b border-white/10 pb-4">
-                <span className="text-aura-red font-bold uppercase tracking-widest text-xs font-mono">
-                  Level {level}
-                </span>
-                <div className="flex items-center gap-4">
-                  <span className="text-white/30 uppercase tracking-widest text-[10px] font-mono">
-                    Awaiting Input
+              <div className="mb-6">
+                <div className="flex justify-between items-center mb-2.5 gap-3">
+                  <span className="text-[12px] font-medium text-text-muted truncate">
+                    {lang === 'en'
+                      ? `Question ${run!.index + 1} of ${run!.items.length}`
+                      : `सवाल ${run!.index + 1}/${run!.items.length}`}
+                    <span className="text-text-faint"> · {DOMAIN_LABEL[current.domain]}</span>
+                  </span>
+                  <span className={`flex items-center gap-1.5 text-[12px] font-mono tabular-nums shrink-0 ${
+                    timeFrac < 0.25 ? 'text-aura-red' : 'text-text-muted'
+                  }`}>
+                    <Clock size={13} />
+                    0:{String(secondsLeft).padStart(2, '0')}
                   </span>
                 </div>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto mb-8 text-white/90 leading-relaxed text-sm md:text-base whitespace-pre-wrap font-mono scrollbar-hide">
-                <TypewriterText text={scenarioText} animate={true} speed={20} />
-              </div>
-              
-              <div className="bg-black p-4 rounded-none border border-white/20 focus-within:border-aura-red/50 transition-all shadow-[0_0_15px_rgba(0,0,0,0.5)]">
-                <textarea
-                  value={input}
-                  onChange={(e) => {
-                    setInput(e.target.value);
-                    e.target.style.height = 'auto';
-                    e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSubmitAction(e);
-                    }
-                  }}
-                  rows={2}
-                  placeholder={lang === 'en' ? "What is your exact next move?" : "आपका अगला कदम क्या होगा?"}
-                  className="w-full bg-transparent border-none py-2 text-sm text-white placeholder:text-white/20 focus:outline-none resize-none overflow-y-auto scrollbar-hide font-mono"
-                  style={{ minHeight: '60px', maxHeight: '150px' }}
-                />
-                <div className="flex justify-between items-center mt-4">
-                  <button 
-                    onClick={toggleListening}
-                    className={`p-2 rounded-full transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-white/50 hover:bg-white/10 hover:text-white'}`}
-                    title={lang === 'en' ? (isListening ? 'Stop recording' : 'Start dictation') : (isListening ? 'रिकॉर्डिंग रोकें' : 'बोलकर लिखें')}
-                  >
-                    <Mic size={20} />
-                  </button>
-                  <button 
-                    onClick={handleSubmitAction}
-                    disabled={!input.trim()}
-                    className="bg-aura-red text-black px-6 py-2 rounded-none font-bold text-xs uppercase tracking-widest hover:scale-105 transition-transform disabled:opacity-30 disabled:hover:scale-100"
-                  >
-                    Execute
-                  </button>
+
+                <div className="h-1 bg-surface-2 rounded-full overflow-hidden">
+                  <div className="h-full bg-aura-red rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+                </div>
+                <div className="h-[3px] mt-1.5 bg-surface-2 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-1000 ease-linear ${timeFrac < 0.25 ? 'bg-aura-red' : 'bg-border-strong'}`}
+                    style={{ width: `${timeFrac * 100}%` }}
+                  />
                 </div>
               </div>
-            </motion.div>
-          )}
 
-          {/* RESULT STATE */}
-          {simState === 'RESULT' && (
-            <motion.div 
-              key="result"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="flex-1 flex flex-col p-4 md:p-8 max-w-3xl mx-auto w-full"
-            >
-              <div className="flex justify-between items-center mb-6 border-b border-white/10 pb-4">
-                <h2 className="text-aura-red font-bold uppercase tracking-widest text-sm font-mono">
-                  Evaluation Result
-                </h2>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto mb-8 text-white/90 leading-relaxed text-sm md:text-base whitespace-pre-wrap font-mono scrollbar-hide">
-                <TypewriterText text={evaluationText} animate={true} speed={20} />
-              </div>
-              
-              <div className="flex flex-col sm:flex-row gap-4 mt-auto">
-                <button 
-                  onClick={handleContinue} 
-                  className="flex-1 bg-aura-red text-black py-4 rounded-none font-bold text-xs uppercase tracking-widest hover:scale-105 transition-transform shadow-[0_0_15px_rgba(239,68,68,0.3)]"
-                >
-                  Continue to Level {level + 1}
-                </button>
-                <button 
-                  onClick={handleBreak} 
-                  className="flex-1 bg-transparent text-white/70 py-4 rounded-none font-bold text-xs uppercase tracking-widest hover:bg-white/5 transition-colors border border-white/20"
-                >
-                  Take a Break
-                </button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* BREAK STATE */}
-          {simState === 'BREAK' && (
-            <motion.div 
-              key="break"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 1.05 }}
-              className="flex-1 flex flex-col items-center justify-center p-6 text-center"
-            >
-              <h2 className="text-2xl md:text-3xl font-display text-white mb-6 tracking-widest">
-                {lang === 'en' ? "I will wait for you." : "Main tumhara intezaar karunga."}
-              </h2>
-              <p className="text-white/50 text-xs md:text-sm mb-12 font-mono uppercase tracking-widest">
-                {lang === 'en' ? "Take your time. The shadows will be here when you return." : "Aaram karo. Jab taiyaar ho, wapas aana."}
+              <p className="text-[18px] sm:text-[20px] text-text-primary leading-[1.45] mb-7 max-w-[46ch]">
+                {current.question}
               </p>
-              <button 
-                onClick={handleResume} 
-                className="bg-aura-red text-black px-10 py-4 rounded-none font-bold text-xs uppercase tracking-[0.2em] hover:scale-105 transition-transform shadow-[0_0_20px_rgba(239,68,68,0.4)]"
-              >
-                Resume Training
-              </button>
+
+              <div className="grid gap-2.5">
+                {current.shuffled.map((opt, i) => (
+                  <button
+                    key={i}
+                    onClick={() => choose(i)}
+                    disabled={picked !== null}
+                    className={`min-h-[56px] text-left px-4 py-3 rounded-2xl border flex items-center gap-3.5 transition-all ${
+                      picked === i
+                        ? 'bg-accent-wash border-aura-red text-text-primary'
+                        : 'bg-surface border-border hover:border-border-strong shadow-soft text-text-body'
+                    } ${picked !== null && picked !== i ? 'opacity-50' : ''}`}
+                  >
+                    <span className={`w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0 border ${
+                      picked === i ? 'bg-aura-red text-on-accent border-transparent' : 'bg-surface-2 text-text-muted border-border'
+                    }`}>
+                      {String.fromCharCode(65 + i)}
+                    </span>
+                    <span className="text-[15px] leading-snug">{opt}</span>
+                  </button>
+                ))}
+              </div>
             </motion.div>
           )}
 
-        </AnimatePresence>
-      </div>
-
-      {/* IQ Report Modal */}
-      <AnimatePresence>
-        {showReport && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
-          >
+          {stage === 'RESULT' && report && (
             <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-[#0A0A0A] border border-white/10 rounded-none p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto scrollbar-hide relative shadow-[0_0_50px_rgba(239,68,68,0.1)]"
+              key="result"
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+              className="flex-1 flex flex-col p-4 md:p-6 max-w-3xl mx-auto w-full gap-6"
             >
-              <button
-                onClick={() => setShowReport(false)}
-                className="absolute top-4 right-4 p-2 text-white/50 hover:text-white transition-colors rounded-full hover:bg-white/10"
-              >
-                <X size={20} />
-              </button>
+              <div className="flex flex-col items-center text-center p-6 rounded-3xl bg-surface border border-border shadow-pop">
+                <p className="text-[12px] font-medium text-text-muted mb-1">
+                  {lang === 'en' ? 'Reasoning Index' : 'तर्क सूचकांक'}
+                </p>
+                <p className="text-[56px] leading-none font-display font-semibold text-aura-red mb-1.5">{report.index}</p>
+                <p className="text-[14px] text-text-primary font-medium">{report.band}</p>
+                <p className="text-[12.5px] text-text-faint mt-2">
+                  {report.correct}/{report.total} {lang === 'en' ? 'correct' : 'सही'} · {report.accuracy}%
+                  {' · '}{lang === 'en' ? 'median' : 'औसत'} {report.medianSeconds}s
+                </p>
 
-              <div className="flex flex-col items-center text-center space-y-6">
-                <div className="w-16 h-16 rounded-full border border-aura-red/50 flex items-center justify-center bg-aura-red/10 shadow-[0_0_30px_rgba(239,68,68,0.2)]">
-                  <Brain size={32} className="text-aura-red" />
-                </div>
-                
-                <div className="space-y-2">
-                  <h2 className="text-xl md:text-2xl font-display tracking-[0.2em] uppercase text-white">
-                    Practical IQ Report
-                  </h2>
-                  <p className="text-[10px] text-white/50 tracking-wider font-mono uppercase">
-                    Based on your simulation decisions
+                {history.length > 1 && (
+                  <p className="flex items-center gap-1.5 text-[12.5px] text-text-muted mt-3">
+                    <TrendingUp size={14} />
+                    {(() => {
+                      const diff = report.index - history[1].index;
+                      if (diff === 0) return lang === 'en' ? 'Same as last time' : 'पिछली बार जैसा';
+                      return lang === 'en'
+                        ? `${diff > 0 ? '+' : ''}${diff} vs last time`
+                        : `पिछली बार से ${diff > 0 ? '+' : ''}${diff}`;
+                    })()}
                   </p>
-                </div>
-
-                {isGeneratingReport ? (
-                  <div className="py-12 flex flex-col items-center justify-center space-y-4">
-                    <div className="flex gap-2">
-                      <span className="w-2 h-2 bg-aura-red rounded-full animate-bounce [animation-delay:-0.3s]" />
-                      <span className="w-2 h-2 bg-aura-red rounded-full animate-bounce [animation-delay:-0.15s]" />
-                      <span className="w-2 h-2 bg-aura-red rounded-full animate-bounce" />
-                    </div>
-                    <p className="text-[10px] text-white/40 uppercase tracking-widest font-mono">Analyzing your mind...</p>
-                  </div>
-                ) : reportData ? (
-                  <div className="w-full space-y-8 text-left font-mono">
-                    {/* Score */}
-                    <div className="flex flex-col items-center justify-center p-6 bg-white/5 rounded-none border border-white/10">
-                      <span className="text-5xl font-display text-aura-red mb-2">{reportData.practicalIQ}</span>
-                      <span className="text-xs uppercase tracking-widest text-white/70 text-center">{reportData.title}</span>
-                    </div>
-
-                    {/* Strengths & Weaknesses */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-3">
-                        <h4 className="text-[10px] uppercase tracking-widest text-green-400 border-b border-green-400/20 pb-2">Strengths</h4>
-                        <ul className="space-y-2">
-                          {Array.isArray(reportData.strengths) ? reportData.strengths.map((s: string, i: number) => (
-                            <li key={i} className="text-[10px] md:text-xs text-white/70 flex items-start gap-2 leading-relaxed">
-                              <span className="text-green-400 mt-0.5">+</span> {s}
-                            </li>
-                          )) : (
-                            <li className="text-[10px] md:text-xs text-white/70 flex items-start gap-2 leading-relaxed">
-                              <span className="text-green-400 mt-0.5">+</span> {reportData.strengths}
-                            </li>
-                          )}
-                        </ul>
-                      </div>
-                      <div className="space-y-3">
-                        <h4 className="text-[10px] uppercase tracking-widest text-red-400 border-b border-red-400/20 pb-2">Weaknesses</h4>
-                        <ul className="space-y-2">
-                          {Array.isArray(reportData.weaknesses) ? reportData.weaknesses.map((w: string, i: number) => (
-                            <li key={i} className="text-[10px] md:text-xs text-white/70 flex items-start gap-2 leading-relaxed">
-                              <span className="text-red-400 mt-0.5">-</span> {w}
-                            </li>
-                          )) : (
-                            <li className="text-[10px] md:text-xs text-white/70 flex items-start gap-2 leading-relaxed">
-                              <span className="text-red-400 mt-0.5">-</span> {reportData.weaknesses}
-                            </li>
-                          )}
-                        </ul>
-                      </div>
-                    </div>
-
-                    {/* Comparisons */}
-                    <div className="space-y-4">
-                      <h4 className="text-[10px] uppercase tracking-widest text-white/50 text-center border-b border-white/10 pb-2">Where You Stand</h4>
-                      <div className="space-y-2 max-h-[30vh] overflow-y-auto pr-2 scrollbar-hide">
-                        {Array.isArray(reportData.comparisons) ? reportData.comparisons.map((comp: any, i: number) => (
-                          <div 
-                            key={i} 
-                            className={`flex items-center justify-between p-3 rounded-none border ${
-                              comp?.name === 'You' || comp?.name === 'User' || comp?.name === 'user' 
-                                ? 'bg-aura-red/10 border-aura-red/50 shadow-[0_0_10px_rgba(239,68,68,0.2)]' 
-                                : 'bg-white/5 border-white/5'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className={`text-xs font-bold uppercase tracking-wider ${comp?.name === 'You' || comp?.name === 'User' || comp?.name === 'user' ? 'text-aura-red' : 'text-white/90'}`}>
-                                {comp?.name || 'Unknown'}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-4">
-                              <span className="text-[9px] uppercase tracking-widest text-white/40 hidden sm:inline">{comp?.status || ''}</span>
-                              <span className="text-xs font-bold text-white/70 w-8 text-right">{comp?.iq || 0}</span>
-                            </div>
-                          </div>
-                        )) : null}
-                      </div>
-                    </div>
-                    
-                    <button
-                      onClick={() => {
-                        setReportData(null);
-                        handleGenerateReport();
-                      }}
-                      className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-none text-[10px] uppercase tracking-widest text-white/70 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <RefreshCcw size={14} />
-                      Recalculate
-                    </button>
-                  </div>
-                ) : (
-                  <div className="py-8 text-center text-white/50 text-xs font-mono uppercase tracking-widest">
-                    Failed to generate report.
-                  </div>
                 )}
               </div>
+
+              <div>
+                <h3 className="text-[13px] font-medium text-text-muted mb-3">
+                  {lang === 'en' ? 'By type of thinking' : 'सोच के प्रकार से'}
+                </h3>
+                <div className="space-y-3">
+                  {report.domains.map(d => (
+                    <div key={d.domain}>
+                      <div className="flex justify-between text-[13px] mb-1.5">
+                        <span className="text-text-body">{DOMAIN_LABEL[d.domain]}</span>
+                        <span className="text-text-faint font-mono tabular-nums">{d.correct}/{d.total}</span>
+                      </div>
+                      <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
+                        <div className="h-full bg-aura-red rounded-full transition-all duration-700" style={{ width: `${d.percent}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {report.strongest && report.weakest && report.strongest !== report.weakest && (
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="p-3.5 rounded-2xl bg-surface border border-border shadow-soft">
+                    <p className="text-[11.5px] text-text-faint mb-1">{lang === 'en' ? 'Strongest' : 'सबसे मज़बूत'}</p>
+                    <p className="text-[14px] text-text-primary font-medium">{DOMAIN_LABEL[report.strongest]}</p>
+                  </div>
+                  <div className="p-3.5 rounded-2xl bg-surface border border-border shadow-soft">
+                    <p className="text-[11.5px] text-text-faint mb-1">{lang === 'en' ? 'Weakest' : 'सबसे कमज़ोर'}</p>
+                    <p className="text-[14px] text-text-primary font-medium">{DOMAIN_LABEL[report.weakest]}</p>
+                  </div>
+                </div>
+              )}
+
+              {report.missed.length > 0 && (
+                <div>
+                  <button
+                    onClick={() => setShowMissed(v => !v)}
+                    className="w-full min-h-[48px] px-4 rounded-2xl bg-surface border border-border shadow-soft text-[14px] font-medium text-text-primary hover:bg-surface-2 transition-colors flex items-center justify-between"
+                  >
+                    {lang === 'en' ? `Review ${report.missed.length} missed` : `${report.missed.length} गलत देखें`}
+                    <span className="text-text-faint text-[15px]">{showMissed ? '−' : '+'}</span>
+                  </button>
+
+                  <AnimatePresence>
+                    {showMissed && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="space-y-3 pt-3">
+                          {report.missed.map(({ item, chosen }) => (
+                            <div key={item.id} className="p-4 rounded-2xl bg-surface border border-border">
+                              <p className="text-[10.5px] text-text-faint mb-2">{DOMAIN_LABEL[item.domain]}</p>
+                              <p className="text-[14px] text-text-primary mb-3 leading-snug">{item.question}</p>
+                              <p className="flex items-start gap-2 text-[13px] text-danger mb-1.5">
+                                <X size={14} className="shrink-0 mt-0.5" />
+                                {chosen ?? (lang === 'en' ? 'No answer — ran out of time' : 'जवाब नहीं — समय खत्म')}
+                              </p>
+                              <p className="flex items-start gap-2 text-[13px] text-success mb-2.5">
+                                <Check size={14} className="shrink-0 mt-0.5" />
+                                {item.options[item.answer]}
+                              </p>
+                              <p className="text-[12.5px] text-text-muted leading-relaxed pl-[22px]">{item.explanation}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+
+              <button
+                onClick={startFresh}
+                className="w-full min-h-[52px] rounded-2xl bg-aura-red text-on-accent font-semibold text-[15px] hover:brightness-110 transition-all flex items-center justify-center gap-2 mt-1"
+              >
+                <RefreshCcw size={16} />
+                {lang === 'en' ? 'Take it again — new questions' : 'फिर से — नए सवाल'}
+              </button>
+
+              <p className="flex items-start gap-2 text-[12px] text-text-faint leading-relaxed pb-4">
+                <Info size={14} className="shrink-0 mt-0.5" />
+                {lang === 'en'
+                  ? 'Scored from your actual answers, weighted by question difficulty. Not a clinical IQ assessment.'
+                  : 'आपके जवाबों से, सवाल की कठिनाई के हिसाब से निकाला गया। यह क्लीनिकल IQ जाँच नहीं है।'}
+              </p>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

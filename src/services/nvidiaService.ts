@@ -1,7 +1,7 @@
 export async function generateImage(prompt: string, apiKey: string): Promise<string> {
   const seed = Math.floor(Math.random() * 1000000);
   const encodedPrompt = encodeURIComponent(prompt);
-  // Using Pollinations AI for fast, robust, and free image generation. Using the flux model for superior text and anatomy generation.
+  // Using Pollinations AI as perchance isn't easily accessible without a browser via their API, falling back to Pollinations AI
   const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${seed}&model=flux`;
 
   try {

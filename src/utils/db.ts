@@ -23,7 +23,3 @@ export async function getAsset(key: string): Promise<any> {
   return db.get(STORE_NAME, key);
 }
 
-export async function deleteAsset(key: string) {
-  const db = await getDB();
-  await db.delete(STORE_NAME, key);
-}

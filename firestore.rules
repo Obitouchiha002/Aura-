@@ -149,5 +149,9 @@ service cloud.firestore {
       allow update: if isAdmin() && isValidFeedback(request.resource.data);
       allow delete: if isAdmin();
     }
+    match /custom_characters/{charId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
   }
 }

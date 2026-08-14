@@ -1,52 +1,31 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+import dotenv from "dotenv";
+
+// .env.local first so it wins, matching how Vite resolves the same files.
+// In production Vercel injects the environment directly and neither exists.
+dotenv.config({ path: ".env.local" });
+dotenv.config();
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  // Attached documents travel as base64 inside the JSON body, so the default
+  // 100kb cap is far too small. 6mb matches the ceiling Vercel allows.
+  app.use(express.json({ limit: "6mb" }));
 
   // API routes FIRST
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
   });
 
-  app.post("/api/generate-image", async (req, res) => {
-    try {
-      const { prompt, apiKey } = req.body;
-
-      if (!prompt || !apiKey) {
-        return res.status(400).json({ error: "Missing prompt or apiKey" });
-      }
-
-      const url = "https://ai.api.nvidia.com/v1/genai/stabilityai/stable-diffusion-3-medium";
-
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Accept": "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: prompt,
-          aspect_ratio: "1:1"
-        })
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        return res.status(response.status).json({ error: `NVIDIA API Error: ${response.status} - ${errText}` });
-      }
-
-      const data = await response.json();
-      res.json(data);
-    } catch (error: any) {
-      console.error("Error generating image:", error);
-      res.status(500).json({ error: error.message || "Internal server error" });
-    }
+  // The same model proxy Vercel serves from api/generate.ts, mounted here so
+  // local development exercises exactly the production path.
+  app.post("/api/generate", async (req, res) => {
+    const { default: handler } = await import("./api/generate.ts");
+    await handler(req as any, res as any);
   });
 
   // Vite middleware for development

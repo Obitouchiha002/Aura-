@@ -2,14 +2,28 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Aura shakti</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Aura Shakti</title>
+    <meta name="description" content="Aura Shakti — council, mentors, focus and simulation for a sharper mind." />
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#EF4444" />
+    <meta name="theme-color" content="#0A0A0A" />
     <link rel="icon" type="image/png" href="/logo.png" />
     <link rel="apple-touch-icon" href="/logo.png" />
     <script>
       window.process = window.process || { env: {} };
+
+      // Apply the saved theme before first paint, so light-theme users never
+      // see a flash of the dark palette on load.
+      (function () {
+        try {
+          var saved = localStorage.getItem('aura_settings');
+          if (saved && JSON.parse(saved).theme === 'light') {
+            document.documentElement.classList.add('light-theme');
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', '#F7F7F8');
+          }
+        } catch (e) {}
+      })();
     </script>
   </head>
   <body>

@@ -1,0 +1,13 @@
+@import "tailwindcss";
+@theme {
+  --color-black: var(--bg-color);
+  --color-white: var(--text-color);
+}
+:root {
+  --bg-color: #000000;
+  --text-color: #ffffff;
+}
+.light-theme {
+  --bg-color: #ffffff;
+  --text-color: #000000;
+}

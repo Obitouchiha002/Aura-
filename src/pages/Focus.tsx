@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLang } from '../context/LanguageContext';
 import { useSettings } from '../context/SettingsContext';
@@ -7,7 +7,7 @@ import { globalAudio } from '../utils/audio';
 
 export default function Focus() {
   const { lang } = useLang();
-  const { hapticFeedback } = useSettings();
+  const { haptic } = useSettings();
   const [isActive, setIsActive] = useState(false);
   const [mode, setMode] = useState<'work' | 'breathe'>('work');
   const [workDuration, setWorkDuration] = useState(25 * 60);
@@ -16,11 +16,7 @@ export default function Focus() {
   const [isTimePickerOpen, setIsTimePickerOpen] = useState(false);
   const [pickerTime, setPickerTime] = useState({ h: 0, m: 25, s: 0 });
 
-  const triggerHaptic = () => {
-    if (hapticFeedback && navigator.vibrate) {
-      navigator.vibrate(50);
-    }
-  };
+  const triggerHaptic = () => haptic('select');
 
   useEffect(() => {
     let interval: any = null;
@@ -31,12 +27,12 @@ export default function Focus() {
     } else if (timeLeft === 0 && isActive) {
       setIsActive(false);
       globalAudio.beep();
-      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      haptic('warning');
     }
     return () => clearInterval(interval);
   }, [isActive, timeLeft]);
 
-  const toggleTimer = () => { triggerHaptic(); setIsActive(!isActive); };
+  const toggleTimer = () => { haptic('impact'); setIsActive(!isActive); };
   
   const resetTimer = () => {
     triggerHaptic();
@@ -97,7 +93,8 @@ export default function Focus() {
   const progress = 1 - timeLeft / totalDuration;
   const dashoffset = 301.59 - (301.59 * progress);
 
-  // Generate watch ticks
+  // Generate watch ticks. The stroke comes from CSS vars so the dial stays
+  // visible when the app flips to the light theme.
   const ticks = Array.from({ length: 60 }).map((_, i) => {
     const isHour = i % 5 === 0;
     return (
@@ -105,7 +102,7 @@ export default function Focus() {
         key={i}
         x1="50" y1="2" x2="50" y2={isHour ? "6" : "4"}
         transform={`rotate(${i * 6} 50 50)`}
-        stroke={isHour ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.1)"}
+        stroke={isHour ? 'var(--tick)' : 'var(--tick-dim)'}
         strokeWidth={isHour ? "1" : "0.5"}
       />
     );
@@ -114,23 +111,23 @@ export default function Focus() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center pb-6 px-4 overflow-hidden relative">
       {/* Back Button */}
-      <div className="absolute top-4 left-4 z-20">
+      <div className="absolute left-4 top-[max(1rem,env(safe-area-inset-top))] z-20">
         <button
           onClick={() => { triggerHaptic(); window.location.hash = 'chat'; }}
-          className="p-2 text-white/60 hover:text-white transition-colors rounded-full hover:bg-white/10 bg-white/5 border border-white/10"
+          className="w-11 h-11 flex items-center justify-center text-text-muted hover:text-text-primary transition-colors rounded-xl hover:bg-surface-2 bg-surface border border-border shadow-soft"
           title={lang === 'en' ? 'Back to Chat' : 'चैट पर वापस जाएं'}
         >
           <ArrowLeft size={18} />
         </button>
       </div>
 
-      {/* Background breathing effect if in breathe mode */}
+      {/* Background breathing effect if in breathe mode.
+          Driven by CSS rather than a JS animation: this is a very large blurred
+          circle, and scaling a blurred layer makes the browser re-blur it every
+          frame. `will-change` gets it rasterised once so the scale is a plain
+          compositor transform on a finished texture. */}
       {mode === 'breathe' && isActive && (
-        <motion.div
-          animate={{ scale: [1, 1.5, 1], opacity: [0.05, 0.2, 0.05] }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60vw] h-[60vw] rounded-full bg-aura-red blur-[100px] pointer-events-none"
-        />
+        <div className="absolute top-1/2 left-1/2 w-[60vw] h-[60vw] rounded-full bg-aura-red blur-[100px] pointer-events-none breathe-glow" />
       )}
 
       <motion.div
@@ -139,10 +136,10 @@ export default function Focus() {
         className="z-10 flex-1 flex flex-col items-center justify-center w-full max-w-xl mx-auto"
       >
         <div className="text-center mb-6 md:mb-8">
-          <h1 className="font-display text-3xl md:text-5xl tracking-[0.2em] uppercase mb-2 text-center leading-tight">
+          <h1 className="font-display text-[34px] md:text-5xl font-medium tracking-[-0.025em] mb-2.5 text-center leading-tight text-text-primary">
             {lang === 'en' ? 'Absolute Focus' : 'परम ध्यान'}
           </h1>
-          <p className="text-white/50 tracking-[0.15em] uppercase text-[10px] md:text-xs text-center max-w-sm mx-auto leading-relaxed">
+          <p className="text-text-muted text-[13px] md:text-[14px] text-center max-w-sm mx-auto leading-relaxed">
             {lang === 'en' 
               ? 'Eliminate distractions. Channel your inner power.' 
               : 'सभी बाधाओं को मिटा दें। अपनी आंतरिक शक्ति को केंद्रित करें।'}
@@ -152,16 +149,22 @@ export default function Focus() {
         <div className="flex gap-4 mb-6 md:mb-8">
           <button
             onClick={() => handleModeChange('work')}
-            className={`px-6 py-2 rounded-full text-[10px] md:text-xs tracking-widest uppercase transition-all ${
-              mode === 'work' ? 'bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'border border-white/20 text-white/50 hover:text-white'
+            aria-pressed={mode === 'work'}
+            className={`min-h-[44px] px-6 rounded-full text-[13px] font-medium tracking-[0.01em] transition-all border shadow-soft ${
+              mode === 'work'
+                ? 'bg-text-primary text-bg border-transparent font-semibold'
+                : 'border-border text-text-muted hover:text-text-primary hover:border-border-strong'
             }`}
           >
             {lang === 'en' ? 'Deep Work' : 'गहन कार्य'}
           </button>
           <button
             onClick={() => handleModeChange('breathe')}
-            className={`px-6 py-2 rounded-full text-[10px] md:text-xs tracking-widest uppercase transition-all ${
-              mode === 'breathe' ? 'bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'border border-white/20 text-white/50 hover:text-white'
+            aria-pressed={mode === 'breathe'}
+            className={`min-h-[44px] px-6 rounded-full text-[13px] font-medium tracking-[0.01em] transition-all border shadow-soft ${
+              mode === 'breathe'
+                ? 'bg-text-primary text-bg border-transparent font-semibold'
+                : 'border-border text-text-muted hover:text-text-primary hover:border-border-strong'
             }`}
           >
             {lang === 'en' ? 'Breathe' : 'श्वास'}
@@ -175,13 +178,13 @@ export default function Focus() {
             <>
               <button 
                 onClick={() => adjustTime(-60)}
-                className="absolute -left-12 md:-left-16 w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100 z-20"
+                className="absolute -left-12 md:-left-16 w-11 h-11 rounded-full border border-border flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-2 transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100 z-20"
               >
                 <Minus size={16} />
               </button>
               <button 
                 onClick={() => adjustTime(60)}
-                className="absolute -right-12 md:-right-16 w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100 z-20"
+                className="absolute -right-12 md:-right-16 w-11 h-11 rounded-full border border-border flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-2 transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100 z-20"
               >
                 <Plus size={16} />
               </button>
@@ -192,33 +195,33 @@ export default function Focus() {
             onClick={openTimePicker}
             className={`absolute inset-0 w-full h-full cursor-pointer transition-transform duration-500 ${!isActive ? 'hover:scale-105' : ''}`}
           >
-            <svg className="w-full h-full drop-shadow-[0_0_15px_rgba(239,68,68,0.2)]" viewBox="0 0 100 100">
+            <svg className="w-full h-full" viewBox="0 0 100 100">
               {/* Watch Ticks */}
               {ticks}
-              
+
               {/* Background Track */}
-              <circle cx="50" cy="50" r="48" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-              
+              <circle cx="50" cy="50" r="48" fill="none" stroke="var(--tick-dim)" strokeWidth="1" />
+
               {/* Progress Circle */}
               <motion.circle
                 cx="50"
                 cy="50"
                 r="48"
                 fill="none"
-                stroke="#EF4444"
+                stroke="var(--accent)"
                 strokeWidth="1.5"
                 strokeDasharray="301.59"
                 strokeDashoffset={dashoffset}
                 strokeLinecap="round"
                 className="origin-center -rotate-90 transition-all duration-1000 ease-linear"
               />
-              
+
               {/* Pulsing dot at the end of progress */}
               <motion.circle
                 cx="50"
                 cy="2"
                 r="1.5"
-                fill="#FFF"
+                fill="var(--text-primary)"
                 className="origin-center transition-all duration-1000 ease-linear"
                 style={{ rotate: `${(progress) * 360}deg` }}
               />
@@ -226,11 +229,11 @@ export default function Focus() {
           </div>
           
           <div className="flex flex-col items-center justify-center pointer-events-none">
-            <div className="font-mono text-4xl md:text-6xl tracking-tighter font-light text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
+            <div className="font-mono text-4xl md:text-6xl tracking-tighter font-light text-text-primary tabular-nums">
               {formatTime(timeLeft)}
             </div>
             {!isActive && (
-              <div className="text-[9px] uppercase tracking-[0.3em] text-white/30 mt-2 absolute bottom-16">
+              <div className="text-[11px] tracking-[0.08em] text-text-faint mt-2 absolute bottom-16">
                 {lang === 'en' ? 'Tap to Set Custom Time' : 'कस्टम समय सेट करने के लिए टैप करें'}
               </div>
             )}
@@ -240,13 +243,15 @@ export default function Focus() {
         <div className="flex gap-6">
           <button
             onClick={toggleTimer}
-            className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-aura-red text-black flex items-center justify-center hover:scale-105 transition-transform shadow-[0_0_20px_rgba(239,68,68,0.4)]"
+            aria-label={isActive ? (lang === 'en' ? 'Pause timer' : 'रोकें') : (lang === 'en' ? 'Start timer' : 'शुरू करें')}
+            className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-aura-red text-on-accent flex items-center justify-center hover:scale-105 transition-transform shadow-[0_8px_30px_var(--accent-wash)]"
           >
             {isActive ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
           </button>
           <button
             onClick={resetTimer}
-            className="w-14 h-14 md:w-16 md:h-16 rounded-full border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors text-white/50 hover:text-white"
+            aria-label={lang === 'en' ? 'Reset timer' : 'रीसेट करें'}
+            className="w-14 h-14 md:w-16 md:h-16 rounded-full border border-border flex items-center justify-center hover:bg-surface-2 transition-colors text-text-muted hover:text-text-primary"
           >
             <RotateCcw size={20} />
           </button>
@@ -256,69 +261,72 @@ export default function Focus() {
       {/* Time Picker Modal */}
       <AnimatePresence>
         {isTimePickerOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-scrim backdrop-blur-sm"
+            onClick={() => setIsTimePickerOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="w-full max-w-sm bg-[#0a0a0a] border border-white/10 rounded-3xl p-8 shadow-2xl"
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm bg-elevated border border-border rounded-3xl p-8 shadow-float"
             >
-              <h2 className="text-xl font-display tracking-[0.2em] uppercase text-center mb-8">Set Focus Time</h2>
+              <h2 className="text-xl font-display tracking-[-0.01em] text-center mb-8 text-text-primary">
+                {lang === 'en' ? 'Set Focus Time' : 'समय निर्धारित करें'}
+              </h2>
               
               {/* Visual Watch Face in Picker */}
-              <div className="relative w-48 h-48 mx-auto mb-8 flex items-center justify-center border border-white/5 rounded-full bg-white/5">
+              <div className="relative w-48 h-48 mx-auto mb-8 flex items-center justify-center border border-border rounded-full bg-surface">
                 <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100">
                   {ticks}
                 </svg>
-                <div className="z-10 font-mono text-2xl font-light text-white/80">
+                <div className="z-10 font-mono text-2xl font-light text-text-body">
                   {pickerTime.h.toString().padStart(2, '0')}:{pickerTime.m.toString().padStart(2, '0')}
                 </div>
               </div>
 
               <div className="flex justify-center items-center gap-4 mb-10">
-                <div className="flex flex-col items-center gap-2">
-                  <span className="text-[10px] uppercase tracking-widest text-white/30">Hours</span>
-                  <input 
-                    type="number" min="0" max="23" 
-                    value={pickerTime.h} 
-                    onChange={(e) => setPickerTime(p => ({ ...p, h: parseInt(e.target.value) || 0 }))}
-                    className="w-16 h-16 bg-white/5 border border-white/10 rounded-2xl text-center text-2xl font-mono focus:border-aura-red outline-none transition-colors"
-                  />
-                </div>
-                <span className="text-2xl text-white/20 mt-6">:</span>
-                <div className="flex flex-col items-center gap-2">
-                  <span className="text-[10px] uppercase tracking-widest text-white/30">Mins</span>
-                  <input 
-                    type="number" min="0" max="59" 
-                    value={pickerTime.m} 
-                    onChange={(e) => setPickerTime(p => ({ ...p, m: parseInt(e.target.value) || 0 }))}
-                    className="w-16 h-16 bg-white/5 border border-white/10 rounded-2xl text-center text-2xl font-mono focus:border-aura-red outline-none transition-colors"
-                  />
-                </div>
-                <span className="text-2xl text-white/20 mt-6">:</span>
-                <div className="flex flex-col items-center gap-2">
-                  <span className="text-[10px] uppercase tracking-widest text-white/30">Secs</span>
-                  <input 
-                    type="number" min="0" max="59" 
-                    value={pickerTime.s} 
-                    onChange={(e) => setPickerTime(p => ({ ...p, s: parseInt(e.target.value) || 0 }))}
-                    className="w-16 h-16 bg-white/5 border border-white/10 rounded-2xl text-center text-2xl font-mono focus:border-aura-red outline-none transition-colors"
-                  />
-                </div>
+                {([
+                  { key: 'h', label: lang === 'en' ? 'Hours' : 'घंटे', max: 23 },
+                  { key: 'm', label: lang === 'en' ? 'Mins' : 'मिनट', max: 59 },
+                  { key: 's', label: lang === 'en' ? 'Secs' : 'सेकंड', max: 59 },
+                ] as const).map((field, i) => (
+                  <React.Fragment key={field.key}>
+                    {i > 0 && <span className="text-2xl text-text-faint mt-6">:</span>}
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="text-[10px] uppercase tracking-widest text-text-faint">{field.label}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max={field.max}
+                        inputMode="numeric"
+                        value={pickerTime[field.key]}
+                        onChange={(e) => {
+                          // Clamp here — the min/max attributes alone don't stop
+                          // someone typing 99 into the hours box.
+                          const next = Math.max(0, Math.min(field.max, parseInt(e.target.value, 10) || 0));
+                          setPickerTime(p => ({ ...p, [field.key]: next }));
+                        }}
+                        className="w-16 h-16 bg-surface border border-border rounded-2xl text-center text-2xl font-mono text-text-primary focus:border-aura-red outline-none transition-colors"
+                      />
+                    </div>
+                  </React.Fragment>
+                ))}
               </div>
 
               <div className="flex gap-4">
-                <button 
+                <button
                   onClick={() => setIsTimePickerOpen(false)}
-                  className="flex-1 py-4 rounded-2xl border border-white/10 text-white/50 uppercase tracking-widest text-xs hover:bg-white/5 transition-colors"
+                  className="flex-1 py-4 rounded-2xl border border-border text-text-muted uppercase tracking-widest text-xs hover:bg-surface transition-colors"
                 >
-                  Cancel
+                  {lang === 'en' ? 'Cancel' : 'रद्द करें'}
                 </button>
-                <button 
+                <button
                   onClick={savePickerTime}
-                  className="flex-1 py-4 rounded-2xl bg-aura-red text-black font-bold uppercase tracking-widest text-xs hover:scale-105 transition-transform"
+                  className="flex-1 py-4 rounded-2xl bg-aura-red text-on-accent font-bold uppercase tracking-widest text-xs hover:scale-105 transition-transform"
                 >
-                  Set Time
+                  {lang === 'en' ? 'Set Time' : 'सेट करें'}
                 </button>
               </div>
             </motion.div>

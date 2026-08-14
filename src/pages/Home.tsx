@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import { ArrowRight } from 'lucide-react';
 import { Typewriter } from '../components/Typewriter';
 import { ReportIssueModal } from '../components/ReportIssueModal';
 
@@ -62,50 +63,108 @@ export const Home: React.FC<HomeProps> = ({ onEnter }) => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Reveal the attribution and the ENTER button as the quote finishes typing
+  const typingDuration = quote ? (quote.quote.length + 2) * 0.05 : 0;
+
   return (
-    <div className="h-screen flex flex-col items-center justify-center p-6 bg-black text-white relative">
+    <div className="min-h-[100dvh] flex flex-col items-center justify-center px-6 py-16 bg-bg text-text-primary relative overflow-hidden">
+      {/* Atmosphere: a lit centre, a film grain so the field has a surface,
+          and a vignette to pull the eye inward. All three retune per theme. */}
+      <div aria-hidden className="absolute inset-0 pointer-events-none">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.85 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 2.2, ease: 'easeOut' }}
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[130vmax] h-[130vmax] rounded-full"
+          style={{ background: 'radial-gradient(circle, var(--halo) 0%, transparent 58%)' }}
+        />
+        <div className="absolute inset-0 grain" />
+        <div
+          className="absolute inset-0"
+          style={{ background: 'radial-gradient(ellipse at center, transparent 30%, var(--vignette) 100%)' }}
+        />
+      </div>
+
+      {/* Wordmark anchors the screen as a product, not just a quote card */}
+      <motion.div
+        initial={{ opacity: 0, y: -6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8 }}
+        className="absolute top-[max(1.75rem,env(safe-area-inset-top))] left-0 right-0 flex justify-center z-10"
+      >
+        <span className="flex items-baseline gap-[3px] select-none">
+          <span className="font-display font-bold text-[15px] tracking-[0.28em] uppercase text-text-muted">
+            Aura
+          </span>
+          <span className="w-[4px] h-[4px] rounded-full bg-aura-red translate-y-[-1px]" />
+        </span>
+      </motion.div>
+
       {quote && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center space-y-6 max-w-md">
-          <Typewriter 
-            text={`"${quote.quote}"`} 
-            speed={50} 
-            className="text-xl italic font-serif leading-relaxed pl-1" 
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="relative z-10 text-center max-w-2xl w-full"
+        >
+          {/* A thin rule instead of a quote glyph — the swashy italic mark was
+              softening a screen that should read as weight, not romance. */}
+          <motion.span
+            aria-hidden
+            initial={{ opacity: 0, scaleX: 0 }}
+            animate={{ opacity: 1, scaleX: 1 }}
+            transition={{ duration: 0.9, ease: 'easeOut' }}
+            className="block w-12 h-[2px] mx-auto mb-8 bg-aura-red origin-center"
           />
-          <motion.p 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            transition={{ delay: (quote.quote.length * 0.05) + 0.5 }}
-            className="text-sm text-aura-red uppercase tracking-widest"
+
+          {/* Upright, heavy, tight. Italic Playfair reads editorial-soft; the
+              same face set upright at 600 reads authoritative. */}
+          <Typewriter
+            text={quote.quote}
+            speed={50}
+            className="font-serif font-semibold text-[30px] sm:text-[40px] md:text-[50px] leading-[1.14] tracking-[-0.025em] text-text-primary text-balance"
+          />
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: typingDuration + 0.2, duration: 0.6 }}
+            className="flex items-center justify-center mt-10"
           >
-            {quote.character}
-          </motion.p>
-          <motion.button 
-            initial={{ opacity: 0, y: 10 }}
+            <p className="text-[12px] sm:text-[13px] text-text-muted uppercase tracking-[0.2em] font-display font-medium whitespace-nowrap">
+              {quote.character}
+            </p>
+          </motion.div>
+
+          <motion.button
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: (quote.quote.length * 0.05) + 1 }}
+            transition={{ delay: typingDuration + 0.45, duration: 0.6, ease: 'easeOut' }}
             onClick={onEnter}
-            className="px-8 py-3 bg-aura-red text-black font-bold rounded-full hover:scale-105 transition-transform"
+            className="group mt-11 inline-flex items-center justify-center gap-2.5 h-[52px] px-9 rounded-full text-on-accent font-semibold text-[15px] tracking-[0.06em] bg-gradient-to-b from-accent to-accent-dim shadow-float hover:-translate-y-0.5 active:translate-y-0 transition-transform"
           >
-            ENTER
+            Enter
+            <ArrowRight size={17} className="transition-transform duration-300 group-hover:translate-x-1" />
           </motion.button>
         </motion.div>
       )}
 
-      {showExitToast && (
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }} 
-          animate={{ opacity: 1, y: 0 }} 
-          exit={{ opacity: 0, y: 20 }}
-          className="absolute bottom-10 bg-white/10 text-white px-4 py-2 rounded-full text-xs backdrop-blur-md"
-        >
-          Press back again to exit
-        </motion.div>
-      )}
+      <AnimatePresence>
+        {showExitToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-16 left-1/2 -translate-x-1/2 bg-surface-2 border border-border text-text-primary px-4 py-2 rounded-full text-xs backdrop-blur-md shadow-lg z-30"
+          >
+            Press back again to exit
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <div className="absolute bottom-4 left-0 right-0 flex justify-center z-20">
-        <button 
+      <div className="absolute bottom-4 left-0 right-0 flex justify-center z-20 px-4">
+        <button
           onClick={() => setShowReportModal(true)}
-          className="text-[10px] text-white/30 hover:text-white/60 transition-colors flex items-center gap-1"
+          className="text-[10px] text-text-faint hover:text-text-muted transition-colors"
         >
           Developer: Vansh Kashyap | Report Issue
         </button>

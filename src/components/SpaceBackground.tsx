@@ -1,49 +1,85 @@
-import React, { useMemo } from 'react';
-import { motion } from 'motion/react';
+import React, { useMemo, useSyncExternalStore } from 'react';
+
+/**
+ * The drifting starfield behind the chat.
+ *
+ * Deliberately plain DOM with CSS keyframes rather than animated components:
+ * this sits behind every chat screen and never stops, so it has to cost almost
+ * nothing. CSS transforms and opacity are driven by the compositor, so the
+ * field keeps moving smoothly even while the main thread is busy rendering a
+ * long reply — and it costs no JavaScript per frame.
+ *
+ * Star count drops on small screens, and the field is dropped entirely for
+ * anyone who has asked their system to reduce motion.
+ */
+
+/** Reads a media query and re-renders only when it actually flips. */
+function useMediaQuery(query: string): boolean {
+  const subscribe = useMemo(
+    () => (cb: () => void) => {
+      const mq = window.matchMedia(query);
+      mq.addEventListener('change', cb);
+      return () => mq.removeEventListener('change', cb);
+    },
+    [query],
+  );
+
+  return useSyncExternalStore(
+    subscribe,
+    () => window.matchMedia(query).matches,
+    () => false,
+  );
+}
 
 export const SpaceBackground: React.FC = () => {
-  // Generate random stars
-  const stars = useMemo(() => {
-    return Array.from({ length: 80 }).map((_, i) => ({
-      id: i,
-      size: Math.random() * 2 + 0.5,
-      left: `${Math.random() * 100}%`,
-      duration: Math.random() * 15 + 10,
-      delay: Math.random() * 20,
-      opacity: Math.random() * 0.4 + 0.1,
-      speed: Math.random() * 0.5 + 0.5, // Parallax effect
-    }));
-  }, []);
+  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const isNarrow = useMediaQuery('(max-width: 640px)');
+
+  const count = isNarrow ? 34 : 70;
+
+  const stars = useMemo(
+    () =>
+      Array.from({ length: count }).map((_, i) => {
+        const speed = Math.random() * 0.5 + 0.5; // parallax
+        return {
+          id: i,
+          size: Math.random() * 2 + 0.5,
+          left: `${Math.random() * 100}%`,
+          duration: (Math.random() * 15 + 10) / speed,
+          // A negative delay drops each star in mid-flight, so the field looks
+          // settled on the first frame instead of rising all at once.
+          delay: -Math.random() * 20,
+          opacity: Math.random() * 0.4 + 0.1,
+        };
+      }),
+    [count],
+  );
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-[-1] overflow-hidden bg-[#050505]">
-      {stars.map((star) => (
-        <motion.div
-          key={star.id}
-          initial={{ y: '110vh', opacity: 0 }}
-          animate={{ 
-            y: '-10vh',
-            opacity: [0, star.opacity, star.opacity, 0]
-          }}
-          transition={{
-            duration: star.duration / star.speed,
-            repeat: Infinity,
-            delay: -star.delay, // Negative delay to start at random positions
-            ease: "linear"
-          }}
-          className="absolute rounded-full bg-white/80 shadow-[0_0_4px_rgba(255,255,255,0.5)]"
-          style={{
-            width: star.size,
-            height: star.size,
-            left: star.left,
-          }}
-        />
-      ))}
-      
+    <div className="fixed inset-0 pointer-events-none z-[-1] overflow-hidden bg-bg">
+      {!reduceMotion &&
+        stars.map(star => (
+          <span
+            key={star.id}
+            className="star-drift absolute rounded-full"
+            style={{
+              width: star.size,
+              height: star.size,
+              left: star.left,
+              // --star flips to a dark speck in the light theme, where white
+              // specks on a white page are simply invisible.
+              backgroundColor: 'var(--star)',
+              animationDuration: `${star.duration}s`,
+              animationDelay: `${star.delay}s`,
+              ['--star-opacity' as string]: star.opacity,
+            }}
+          />
+        ))}
+
       {/* Subtle nebula-like glows */}
-      <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-aura-red/5 to-transparent pointer-events-none" />
-      <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-aura-red/10 blur-[150px] rounded-full opacity-30" />
-      <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-aura-red/10 blur-[150px] rounded-full opacity-30" />
+      <div className="absolute inset-0 bg-gradient-to-b from-aura-red/5 to-transparent" />
+      <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-aura-red/10 blur-[110px] rounded-full opacity-30" />
+      <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-aura-red/10 blur-[110px] rounded-full opacity-30" />
     </div>
   );
 };

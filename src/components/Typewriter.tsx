@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'motion/react';
 
 interface TypewriterProps {
   text: string;
@@ -46,11 +45,12 @@ export const Typewriter: React.FC<TypewriterProps> = ({ text, speed = 40, delay 
   return (
     <div className={className}>
       {displayedText}
+      {/* CSS, not a JS animation: a caret that blinks forever should not cost
+          a render loop. */}
       {!isDone && (
-        <motion.span
-          animate={{ opacity: [1, 0, 1] }}
-          transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+        <span
           className="inline-block w-[2px] h-[1em] bg-aura-red ml-1 align-middle"
+          style={{ animation: 'blink 0.8s linear infinite' }}
         />
       )}
     </div>
