@@ -3,13 +3,16 @@ import {
   type LockConfig, type LockMethod,
   readConfig, writeConfig, createConfig, verifySecret,
   markActive, shouldLock,
-  registerBiometric, verifyBiometric, hasBiometricSensor, isBiometricPossible,
+  registerBiometric, verifyBiometric, checkBiometricStatus, isBiometricPossible,
+  type BiometricStatus,
 } from '../utils/appLock';
 
 interface AppLockContextType {
   config: LockConfig | null;
   isLocked: boolean;
   biometricAvailable: boolean;
+  /** Carries why, so Settings can say the true thing when it is false. */
+  biometricStatus: BiometricStatus | null;
 
   enable: (method: LockMethod, secret: string, autoLockMinutes: number) => Promise<void>;
   disable: () => void;
@@ -30,11 +33,15 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const c = readConfig();
     return c ? shouldLock(c) : false;
   });
-  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricStatus, setBiometricStatus] = useState<BiometricStatus | null>(null);
+  const biometricAvailable = biometricStatus?.available === true;
 
   useEffect(() => {
-    if (!isBiometricPossible()) return;
-    hasBiometricSensor().then(setBiometricAvailable);
+    if (!isBiometricPossible()) {
+      setBiometricStatus({ available: false, reason: 'unsupported' });
+      return;
+    }
+    checkBiometricStatus().then(setBiometricStatus);
   }, []);
 
   // Re-lock when the app comes back from the background.
@@ -128,7 +135,7 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   return (
     <AppLockContext.Provider value={{
-      config, isLocked, biometricAvailable,
+      config, isLocked, biometricAvailable, biometricStatus,
       enable, disable, unlock, unlockWithBiometric, lockNow,
       setAutoLockMinutes, enableBiometric, disableBiometric,
     }}>

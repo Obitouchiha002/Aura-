@@ -114,7 +114,7 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
   const [copied, setCopied] = useState(false);
   const [showLockSetup, setShowLockSetup] = useState(false);
   const {
-    config: lock, biometricAvailable,
+    config: lock, biometricAvailable, biometricStatus,
     disable: disableLock, setAutoLockMinutes,
     enableBiometric, disableBiometric, lockNow,
   } = useAppLock();
@@ -425,9 +425,21 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
                 label="Biometric unlock"
                 hint={
                   bioError ? bioError
-                  : !biometricAvailable ? 'No fingerprint or face is set up on this device'
+                  : !biometricAvailable
+                    // Say which of these it is. "Not set up on this device" was
+                    // shown even to people whose sensor was fine and whose app
+                    // was simply too old to have the plugin.
+                    ? biometricStatus?.available === false
+                      ? {
+                          'needs-newer-app': 'App ka naya version chahiye',
+                          'not-enrolled': 'Phone mein fingerprint ya screen lock set karein',
+                          'unsupported': 'Is device par available nahi',
+                        }[biometricStatus.reason]
+                      : 'Checking…'
                   : lock.biometric ? 'Face or fingerprint, with your code as backup'
-                  : 'Use your face or fingerprint'
+                  : biometricStatus?.available && biometricStatus.via === 'device-credential'
+                    ? 'Phone ka PIN ya pattern istemal hoga'
+                    : 'Use your face or fingerprint'
                 }
               >
                 <Toggle

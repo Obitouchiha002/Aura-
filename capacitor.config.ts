@@ -49,15 +49,20 @@ const config: CapacitorConfig = {
     },
 
     /**
-     * Without this Android pans the whole window up when the keyboard opens —
-     * which put the composer at the top of the screen and left a blank band
-     * where the conversation had been. Resizing the webview instead keeps the
-     * layout intact and the composer above the keys.
+     * The webview is resized by Android alone, through
+     * windowSoftInputMode="adjustResize" in the manifest. Nothing here should
+     * resize anything as well.
+     *
+     * `resize` is an iOS-only option and never did anything on Android.
+     * `resizeOnFullScreen` is a workaround for apps that draw under the status
+     * bar, which this one does not — StatusBar has overlaysWebView: false. On a
+     * normal window it sets the webview's height a second time on top of the
+     * resize Android has already done, and the webview collapses to a sliver:
+     * the composer stranded at the top of the screen and the system's white
+     * window showing underneath it. That is exactly the reported bug. One
+     * resize, done by the OS.
      */
-    Keyboard: {
-      resize: 'native',
-      resizeOnFullScreen: true,
-    },
+    Keyboard: {},
 
     FirebaseAuthentication: {
       skipNativeAuth: false,

@@ -6,10 +6,16 @@
  * patterns modelled on the iOS taxonomy: a light tick for selection, a firmer
  * one for a committed action, and multi-pulse patterns for outcomes.
  *
+ * Inside the Android shell none of this reached the phone. `navigator.vibrate`
+ * needs the VIBRATE permission, the app never declared it, and the call fails
+ * silently — so haptics worked in a browser and did nothing in the APK. The
+ * shell now goes through the OS haptics API instead, which is both permitted
+ * and better tuned than a raw vibration pattern.
+ *
  * Support note: `navigator.vibrate` is Android/Chrome only. iOS Safari does not
- * expose the Taptic Engine to web pages at all, so on an iPhone these calls are
- * silently no-ops — there is no web API that can reach it. `isHapticsSupported`
- * exists so the UI can say so instead of pretending the setting works.
+ * expose the Taptic Engine to web pages at all, so on an iPhone the web path is
+ * a no-op — there is no web API that can reach it. `isHapticsSupported` exists
+ * so the UI can say so instead of pretending the setting works.
  */
 
 export type Haptic =
@@ -39,8 +45,33 @@ const IS_ALERT: Record<Haptic, boolean> = {
   error: true,
 };
 
+function isNativeShell(): boolean {
+  return typeof window !== 'undefined'
+    && !!(window as any).Capacitor?.isNativePlatform?.();
+}
+
 export function isHapticsSupported(): boolean {
+  if (isNativeShell()) return true;
   return typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
+}
+
+/**
+ * The OS equivalent of each pattern.
+ *
+ * The native API deals in named feedback rather than millisecond timings, and
+ * the names map cleanly onto the taxonomy above — so the shell gets the
+ * platform's own tuned haptics rather than an approximation of them.
+ */
+async function fireNative(kind: Haptic): Promise<void> {
+  const { Haptics, ImpactStyle, NotificationType } = await import('@capacitor/haptics');
+  switch (kind) {
+    case 'tap':     return Haptics.impact({ style: ImpactStyle.Light });
+    case 'select':  return Haptics.selectionChanged();
+    case 'impact':  return Haptics.impact({ style: ImpactStyle.Medium });
+    case 'success': return Haptics.notification({ type: NotificationType.Success });
+    case 'warning': return Haptics.notification({ type: NotificationType.Warning });
+    case 'error':   return Haptics.notification({ type: NotificationType.Error });
+  }
 }
 
 let lastFiredAt = 0;
@@ -64,6 +95,13 @@ export function fireHaptic(kind: Haptic, { taps, alerts, throttleMs = 0 }: Hapti
   const now = Date.now();
   if (throttleMs > 0 && now - lastFiredAt < throttleMs) return;
   lastFiredAt = now;
+
+  if (isNativeShell()) {
+    // Deliberately not awaited: a haptic is feedback, and nothing should wait
+    // on it. A shell built before the plugin existed simply rejects.
+    fireNative(kind).catch(() => {});
+    return;
+  }
 
   try {
     navigator.vibrate(PATTERNS[kind]);

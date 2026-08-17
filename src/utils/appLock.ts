@@ -170,21 +170,50 @@ export function isBiometricPossible(): boolean {
     && window.isSecureContext;
 }
 
+/**
+ * Why biometric unlock can or cannot be offered here.
+ *
+ * A plain boolean was not enough: an app built before the biometric plugin
+ * existed reported exactly the same "false" as a phone with no fingerprint
+ * enrolled, and the settings screen told the owner of a perfectly good sensor
+ * that they had not set one up. The reason is carried so the UI can say the
+ * true thing.
+ */
+export type BiometricStatus =
+  | { available: true; via: 'biometric' | 'device-credential' }
+  | { available: false; reason: 'needs-newer-app' | 'not-enrolled' | 'unsupported' };
+
+export async function checkBiometricStatus(): Promise<BiometricStatus> {
+  if (isNativeShell()) {
+    let result: any;
+    try {
+      result = await (await nativeBiometry()).checkBiometry();
+    } catch {
+      // The plugin is not in this build of the shell. Nothing the phone can
+      // do about it — the app itself has to be updated.
+      return { available: false, reason: 'needs-newer-app' };
+    }
+    if (result?.isAvailable) return { available: true, via: 'biometric' };
+    // The prompt is asked for with allowDeviceCredential, so a screen lock is
+    // enough even with no finger or face enrolled.
+    if (result?.deviceIsSecure) return { available: true, via: 'device-credential' };
+    return { available: false, reason: 'not-enrolled' };
+  }
+
+  if (!isBiometricPossible()) return { available: false, reason: 'unsupported' };
+  try {
+    const ok = await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    return ok
+      ? { available: true, via: 'biometric' }
+      : { available: false, reason: 'not-enrolled' };
+  } catch {
+    return { available: false, reason: 'unsupported' };
+  }
+}
+
 /** Is there actually a fingerprint/face sensor wired up on this device? */
 export async function hasBiometricSensor(): Promise<boolean> {
-  if (isNativeShell()) {
-    try {
-      return (await (await nativeBiometry()).checkBiometry()).isAvailable;
-    } catch {
-      return false;
-    }
-  }
-  if (!isBiometricPossible()) return false;
-  try {
-    return await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-  } catch {
-    return false;
-  }
+  return (await checkBiometricStatus()).available;
 }
 
 /**
