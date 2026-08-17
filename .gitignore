@@ -20,3 +20,6 @@ android/keystore/
 *.keystore
 !~/.android/debug.keystore
 android/keystore.properties
+
+# Live-update bundles — regenerate with scripts/release-bundle.mjs
+landing/download/updates/*.zip
