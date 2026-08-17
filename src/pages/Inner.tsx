@@ -404,10 +404,12 @@ function initials(value: string): string {
 }
 
 /** Everything that used to crowd the mobile top bar, in one sheet. */
-function AppMenu({ lang, onClose, items }: {
+function AppMenu({ lang, onClose, items, handoff }: {
   lang: string;
   onClose: () => void;
   items: { icon: React.ComponentType<any>; label: string; hint?: string; onClick: () => void; danger?: boolean; active?: boolean; disabled?: boolean }[];
+  /** Rooms this conversation can be taken to, if it has started. */
+  handoff?: { rooms: Mode[]; onPick: (m: Mode) => void };
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -433,6 +435,43 @@ function AppMenu({ lang, onClose, items }: {
         <div className="sm:hidden pt-1 pb-3 flex justify-center">
           <span className="w-10 h-1 rounded-full bg-border-strong" />
         </div>
+
+        {/* Five identical rows saying "Takes this whole conversation" filled
+            half the sheet and told you nothing five times. The rooms are a set
+            you pick from, so they are drawn as one — each in its own colour,
+            in a single row. */}
+        {handoff && handoff.rooms.length > 0 && (
+          <div className="px-1.5 pb-2 mb-1.5 border-b border-border">
+            <p className="text-[11px] uppercase tracking-[0.1em] font-mono text-text-faint px-1.5 pb-2">
+              {lang === 'en' ? 'Take this to' : 'यह बातचीत ले जाएँ'}
+            </p>
+            <div className="flex gap-1.5">
+              {handoff.rooms.map(m => (
+                <button
+                  key={m}
+                  type="button"
+                  role="menuitem"
+                  data-mode={m}
+                  /* Close first. The sheet's scrim covers the whole screen, so
+                     leaving it up after a pick left the conversation visible but
+                     untouchable. */
+                  onClick={() => { onClose(); handoff.onPick(m); }}
+                  className="flex-1 min-w-0 flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-xl border border-border bg-surface hover:bg-mode-wash hover:border-mode-tint/60 transition-colors"
+                >
+                  <span className="w-7 h-7 rounded-full bg-mode-wash border border-mode-tint/40 flex items-center justify-center">
+                    <span className="w-2 h-2 rounded-full bg-mode-tint" />
+                  </span>
+                  <span className="text-[10.5px] font-medium text-text-body leading-tight truncate w-full text-center">
+                    {lang === 'en'
+                      ? (m === 'EMOTION' ? 'Poets' : m === 'PSYCHOLOGY' ? 'Psych' : m === 'COUNCIL' ? 'Council' : m === 'TEACHER' ? 'Teacher' : 'Mentor')
+                      : (m === 'EMOTION' ? 'कवि' : m === 'PSYCHOLOGY' ? 'मनो' : m === 'COUNCIL' ? 'परिषद' : m === 'TEACHER' ? 'शिक्षक' : 'गुरु')}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {items.map(item => (
           <button
             key={item.label}
@@ -1498,24 +1537,14 @@ export default function Inner() {
       <AnimatePresence>
         {isMenuOpen && (
           <AppMenu
+            handoff={messages.length > 0 && !isIncognito ? {
+              rooms: (['COUNCIL', 'MENTOR', 'PSYCHOLOGY', 'TEACHER', 'EMOTION'] as const)
+                .filter(m => m !== mode) as Mode[],
+              onPick: (m) => moveToRoom(m),
+            } : undefined}
             lang={lang}
             onClose={() => setIsMenuOpen(false)}
             items={[
-              // Any room can pick the thread up. The one you are in is left
-              // out; the rest read as "ask someone else about this", which is
-              // what a handoff actually is.
-              ...(messages.length > 0 && !isIncognito
-                ? (['COUNCIL', 'MENTOR', 'PSYCHOLOGY', 'TEACHER', 'EMOTION'] as const)
-                    .filter(m => m !== mode)
-                    .map(m => ({
-                      icon: Users,
-                      label: lang === 'en'
-                        ? `Ask ${m === 'EMOTION' ? 'the Poets' : m === 'PSYCHOLOGY' ? 'the Psychologist' : m === 'COUNCIL' ? 'the Council' : m === 'TEACHER' ? 'the Teacher' : 'a Mentor'}`
-                        : `${ROOM_NAME[m]} से पूछें`,
-                      hint: lang === 'en' ? 'Takes this whole conversation' : 'पूरी बातचीत साथ जाएगी',
-                      onClick: () => moveToRoom(m),
-                    }))
-                : []),
               {
                 icon: History,
                 label: lang === 'en' ? 'Chat history' : 'चैट हिस्ट्री',
