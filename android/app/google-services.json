@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "380086421878",
+    "project_id": "techbyvansh-33439",
+    "storage_bucket": "techbyvansh-33439.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:380086421878:android:5829835b7c24cf77f3d257",
+        "android_client_info": {
+          "package_name": "in.lzworth.aurashakti"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "380086421878-csef32b2fg3o169a2trprackvbjphhol.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "in.lzworth.aurashakti",
+            "certificate_hash": "ddbf09964354de21d0505a3d63527eb8db037145"
+          }
+        },
+        {
+          "client_id": "380086421878-g22dskmfpmnmh7cojicqj5ng854t2d39.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "in.lzworth.aurashakti",
+            "certificate_hash": "4cfd70cfc04871cfb55b3075e7204b0203684ece"
+          }
+        },
+        {
+          "client_id": "380086421878-io5163kc0t6h86pqv6ojb9dgk063u8qg.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCjhzptSrrK0XzSkf0DeFcZAjoz6f99ooY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "380086421878-8vuip8p1ad8p1iq6rtf8cu73tp35d190.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
