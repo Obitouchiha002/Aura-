@@ -122,12 +122,17 @@ export default function Focus() {
       </div>
 
       {/* Background breathing effect if in breathe mode.
-          Driven by CSS rather than a JS animation: this is a very large blurred
-          circle, and scaling a blurred layer makes the browser re-blur it every
-          frame. `will-change` gets it rasterised once so the scale is a plain
-          compositor transform on a finished texture. */}
+          Painted as a radial gradient rather than a blurred circle. It used to
+          be bg-aura-red with blur(100px), and `will-change` was supposed to get
+          that rasterised once — but a WebView re-blurs it as the scale climbs
+          anyway, and re-blurring 60vw of surface every frame was the single
+          most expensive thing on this screen. A gradient is the same soft bloom
+          with nothing to re-blur, so the scale is a plain compositor transform. */}
       {mode === 'breathe' && isActive && (
-        <div className="absolute top-1/2 left-1/2 w-[60vw] h-[60vw] rounded-full bg-aura-red blur-[100px] pointer-events-none breathe-glow" />
+        <div
+          className="absolute top-1/2 left-1/2 w-[60vw] h-[60vw] rounded-full pointer-events-none breathe-glow"
+          style={{ background: 'radial-gradient(circle, var(--accent) 0%, transparent 62%)' }}
+        />
       )}
 
       <motion.div

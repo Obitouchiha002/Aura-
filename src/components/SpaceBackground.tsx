@@ -1,4 +1,5 @@
 import React, { useMemo, useSyncExternalStore } from 'react';
+import { Starfield } from './Starfield';
 
 /**
  * The drifting starfield behind the chat.
@@ -9,8 +10,8 @@ import React, { useMemo, useSyncExternalStore } from 'react';
  * field keeps moving smoothly even while the main thread is busy rendering a
  * long reply — and it costs no JavaScript per frame.
  *
- * Star count drops on small screens, and the field is dropped entirely for
- * anyone who has asked their system to reduce motion.
+ * The field is dropped entirely for anyone who has asked their system to
+ * reduce motion.
  */
 
 /** Reads a media query and re-renders only when it actually flips. */
@@ -33,56 +34,28 @@ function useMediaQuery(query: string): boolean {
 
 export const SpaceBackground: React.FC = () => {
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
-  const isNarrow = useMediaQuery('(max-width: 640px)');
-
-  const count = isNarrow ? 34 : 70;
-
-  const stars = useMemo(
-    () =>
-      Array.from({ length: count }).map((_, i) => {
-        const speed = Math.random() * 0.5 + 0.5; // parallax
-        return {
-          id: i,
-          size: Math.random() * 2 + 0.5,
-          left: `${Math.random() * 100}%`,
-          duration: (Math.random() * 15 + 10) / speed,
-          // A negative delay drops each star in mid-flight, so the field looks
-          // settled on the first frame instead of rising all at once.
-          delay: -Math.random() * 20,
-          opacity: Math.random() * 0.4 + 0.1,
-        };
-      }),
-    [count],
-  );
 
   return (
     <div className="fixed inset-0 pointer-events-none z-[-1] overflow-hidden bg-bg">
-      {!reduceMotion &&
-        stars.map(star => (
-          <span
-            key={star.id}
-            className="star-drift absolute rounded-full"
-            style={{
-              width: star.size,
-              height: star.size,
-              left: star.left,
-              // --star flips to a dark speck in the light theme, where white
-              // specks on a white page are simply invisible.
-              backgroundColor: 'var(--star)',
-              animationDuration: `${star.duration}s`,
-              animationDelay: `${star.delay}s`,
-              ['--star-opacity' as string]: star.opacity,
-            }}
-          />
-        ))}
+      {!reduceMotion && <Starfield />}
 
       {/* Subtle nebula-like glows.
           Gated on --glow-strength, which the light theme sets to 0: a red
-          bloom reads as atmosphere against black and as a stain on white. */}
+          bloom reads as atmosphere against black and as a stain on white.
+
+          Painted as gradients rather than blurred shapes. A blur(110px) over
+          a quarter of the screen is a convolution the Android WebView pays
+          for in full, and a radial gradient is the same soft bloom for free. */}
       <div className="absolute inset-0 overflow-hidden" style={{ opacity: 'var(--glow-strength)' }}>
         <div className="absolute inset-0 bg-gradient-to-b from-aura-red/5 to-transparent" />
-        <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-aura-red/10 blur-[110px] rounded-full opacity-30" />
-        <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-aura-red/10 blur-[110px] rounded-full opacity-30" />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(60% 42% at 8% 6%, rgba(229,72,77,.10) 0%, transparent 70%),' +
+              'radial-gradient(60% 42% at 92% 94%, rgba(229,72,77,.10) 0%, transparent 70%)',
+          }}
+        />
       </div>
     </div>
   );

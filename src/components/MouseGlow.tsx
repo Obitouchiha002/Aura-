@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, useSpring, useMotionValue } from 'motion/react';
 import { useSettings } from '../context/SettingsContext';
+import { Starfield } from './Starfield';
 
 /**
  * Ambient backdrop for the quote screen.
@@ -25,44 +26,6 @@ function useHasCursor() {
     return () => mq.removeEventListener('change', apply);
   }, []);
   return hasCursor;
-}
-
-function NightSky({ dim }: { dim: boolean }) {
-  const stars = useMemo(
-    () => Array.from({ length: 46 }).map((_, i) => ({
-      id: i,
-      left: Math.random() * 100,
-      top: Math.random() * 100,
-      size: Math.random() * 1.6 + 0.9,
-      min: Math.random() * 0.15 + 0.06,
-      max: Math.random() * 0.4 + 0.35,
-      dur: Math.random() * 5 + 4,
-      delay: Math.random() * 6,
-    })),
-    []
-  );
-
-  return (
-    <div className="absolute inset-0 overflow-hidden" style={{ opacity: dim ? 0.45 : 1 }}>
-      {stars.map(s => (
-        <span
-          key={s.id}
-          className="absolute rounded-full"
-          style={{
-            left: `${s.left}%`,
-            top: `${s.top}%`,
-            width: s.size,
-            height: s.size,
-            background: 'var(--star)',
-            ['--s-min' as any]: s.min,
-            ['--s-max' as any]: s.max,
-            animation: `star-twinkle ${s.dur}s ease-in-out ${s.delay}s infinite`,
-          }}
-        />
-      ))}
-
-    </div>
-  );
 }
 
 export const MouseGlow: React.FC = () => {
@@ -92,7 +55,7 @@ export const MouseGlow: React.FC = () => {
   if (!hasCursor) {
     return (
       <div className="fixed inset-0 pointer-events-none z-[1] overflow-hidden">
-        <NightSky dim={isLight} />
+        <Starfield dim={isLight} />
       </div>
     );
   }

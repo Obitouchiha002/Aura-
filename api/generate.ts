@@ -16,7 +16,9 @@
  * outage.
  */
 
-type Req = { method?: string; body?: any };
+import { applyCors } from './_cors';
+
+type Req = { method?: string; body?: any; headers?: Record<string, any> };
 type Res = {
   status: (code: number) => Res;
   json: (body: any) => void;
@@ -38,6 +40,10 @@ const GEMINI_ENDPOINT = (model: string) =>
 const SITE_ORIGIN = process.env.SITE_ORIGIN || 'https://aurashakti.vercel.app/';
 
 export default async function handler(req: Req, res: Res) {
+  // Must run before anything else: the shell's preflight arrives as OPTIONS,
+  // and answering it with 405 is what broke every chat inside the APK.
+  if (applyCors(req, res)) return;
+
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
     return;

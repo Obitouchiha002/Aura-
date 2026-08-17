@@ -251,25 +251,24 @@
   50%      { transform: translate3d(-50%, -50%, 0) scale(1.5); opacity: .2; }
 }
 
-/* The chat starfield. Runs on the compositor: only transform and opacity
-   change, so a busy main thread never stutters the drift. */
-.star-drift {
-  top: 0;
+/* The starfield. One element per depth, not one per star — Starfield.tsx has
+   the reasoning, and it is the difference between a smooth app and a
+   stuttering one on Android. Only transform and opacity change, so the drift
+   stays on the compositor and a busy main thread never breaks it. */
+.star-layer {
   will-change: transform, opacity;
-  animation-name: star-drift;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
+  animation-name: star-layer-drift, star-layer-breathe;
+  animation-timing-function: linear, ease-in-out;
+  animation-iteration-count: infinite, infinite;
 }
-@keyframes star-drift {
-  0%        { transform: translate3d(0, 110vh, 0); opacity: 0; }
-  10%, 90%  { opacity: var(--star-opacity); }
-  100%      { transform: translate3d(0, -10vh, 0); opacity: 0; }
+@keyframes star-layer-drift {
+  /* Exactly one tile. The background repeats at that interval, so the last
+     frame is identical to the first and the loop shows no seam. */
+  to { transform: translate3d(0, calc(-1 * var(--layer-travel)), 0); }
 }
-
-/* Quiet night sky, for devices with no cursor to follow. */
-@keyframes star-twinkle {
-  0%, 100% { opacity: var(--s-min); }
-  50%      { opacity: var(--s-max); }
+@keyframes star-layer-breathe {
+  0%, 100% { opacity: calc(var(--layer-opacity) * 0.72); }
+  50%      { opacity: var(--layer-opacity); }
 }
 /* CSS cannot pause between iterations, so the streak crosses in the first
    ~12% of the timeline and the rest of the cycle is spent parked off-screen.
@@ -628,4 +627,24 @@ html, body {
     transition-duration: .001ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ── inside the Android shell ─────────────────────────────────────────────
+   An Android WebView is not the browser it looks like. backdrop-filter in
+   particular is composited far more expensively there than in Chrome on a
+   desktop, and the chat header carries one over a list that scrolls — so the
+   GPU re-blurs a strip of moving content on every single frame. On a budget
+   phone that alone is most of a frame budget.
+
+   These rules only apply when the page is running inside the shell. On the
+   web the effects stay exactly as designed. */
+.native-shell [class*="backdrop-blur"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Without its blur the header is 85% opaque, so text scrolling underneath
+   shows through as a ghost. Solid is both cheaper and cleaner. */
+.native-shell .chat-header {
+  background-color: var(--bg);
 }

@@ -93,6 +93,16 @@
       try { window.Capacitor && window.Capacitor.Plugins
         && window.Capacitor.Plugins.SplashScreen
         && window.Capacitor.Plugins.SplashScreen.hide(); } catch (e) {}
+
+      // Mark the Android shell before first paint. The stylesheet uses this to
+      // drop effects a WebView renders far more expensively than a desktop
+      // browser does — see the .native-shell block in index.css.
+      try {
+        if (window.Capacitor && window.Capacitor.isNativePlatform
+            && window.Capacitor.isNativePlatform()) {
+          document.documentElement.classList.add('native-shell');
+        }
+      } catch (e) {}
     </script>
 
     <div id="root"></div>

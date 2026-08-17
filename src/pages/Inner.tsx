@@ -1364,7 +1364,7 @@ export default function Inner() {
       {/* Header / Mode Selection — chat only; Focus and Simulator carry their own */}
       {view === 'chat' && (
         // pt clears the notch / dynamic island when installed as a PWA
-        <div className="relative z-20 px-4 sm:px-6 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] border-b border-border bg-bg/85 backdrop-blur-xl shadow-soft">
+        <div className="chat-header relative z-20 px-4 sm:px-6 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] border-b border-border bg-bg/85 backdrop-blur-xl shadow-soft">
           {/* Three zones only: wordmark, mode switcher, one menu. Everything
               else moved into the menu sheet — seven icon buttons plus tabs in
               one bar was the main thing making this screen feel busy. */}
@@ -1713,9 +1713,13 @@ export default function Inner() {
         <AnimatePresence mode="wait">
           <motion.div
             key={mode + (currentSessionId || 'new')}
-            initial={{ opacity: 0, x: mode === 'COUNCIL' || mode === 'EMOTION' ? -20 : 20, filter: 'blur(4px)' }}
-            animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, x: mode === 'COUNCIL' || mode === 'EMOTION' ? 20 : -20, filter: 'blur(4px)' }}
+            /* Opacity and transform only. Animating filter: blur() forces the
+               whole chat body to be re-rasterised on every frame of the
+               transition, which is what made changing rooms feel heavy on a
+               phone — and at 300ms the blur was barely perceptible anyway. */
+            initial={{ opacity: 0, x: mode === 'COUNCIL' || mode === 'EMOTION' ? -20 : 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: mode === 'COUNCIL' || mode === 'EMOTION' ? 20 : -20 }}
             transition={{ duration: 0.3, ease: "easeOut" }}
             className="w-full max-w-3xl mx-auto min-h-full flex flex-col space-y-4"
           >

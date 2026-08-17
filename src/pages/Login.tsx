@@ -43,7 +43,13 @@ export const Login: React.FC = () => {
     <div className="min-h-[100dvh] bg-bg text-text-primary flex flex-col items-center justify-center p-6 relative overflow-hidden">
       {/* Ambient background */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,var(--accent-wash)_0%,transparent_65%)] pointer-events-none" />
-      <div className="absolute -top-40 -right-32 w-[28rem] h-[28rem] rounded-full bg-aura-red/10 blur-[140px] pointer-events-none" />
+      {/* A gradient, not a blurred disc. blur(140px) over 28rem is a large
+          convolution the WebView runs before the first screen of the app is
+          even on glass. */}
+      <div
+        className="absolute -top-40 -right-32 w-[28rem] h-[28rem] rounded-full pointer-events-none"
+        style={{ background: 'radial-gradient(circle, rgba(229,72,77,.10) 0%, transparent 66%)' }}
+      />
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}

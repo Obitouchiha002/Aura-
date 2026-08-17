@@ -19,7 +19,9 @@
  * answer — an app that cannot read a manifest simply keeps what it has.
  */
 
-type Req = { method?: string; body?: any };
+import { applyCors } from './_cors';
+
+type Req = { method?: string; body?: any; headers?: Record<string, any> };
 type Res = {
   status: (code: number) => Res;
   json: (body: any) => void;
@@ -27,6 +29,10 @@ type Res = {
 };
 
 export default async function handler(req: Req, res: Res) {
+  // The updater plugin is native and never preflights, but the manifest is
+  // also useful from a browser while debugging a release.
+  if (applyCors(req, res)) return;
+
   res.setHeader('Cache-Control', 'no-store');
 
   const version = process.env.BUNDLE_VERSION;
