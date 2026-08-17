@@ -117,7 +117,7 @@ import {
 import {
   getFirestore, collection, doc, getDocs, setDoc, deleteDoc,
 } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js';
-import { FIREBASE_CONFIG, COLLECTION, slugFor } from './assets/portraits.js';
+import { FIREBASE_CONFIG, COLLECTION, DATABASE_ID, slugFor } from './assets/portraits.js';
 
 /* Who may write. The database rules enforce the same list — this is only so
    the page says no politely instead of failing on the first upload. */
@@ -145,7 +145,7 @@ const CHARACTERS = [
 
 const app = initializeApp(FIREBASE_CONFIG);
 const auth = getAuth(app);
-const store = getFirestore(app);
+const store = getFirestore(app, DATABASE_ID);   // named database, see portraits.js
 
 const $ = id => document.getElementById(id);
 

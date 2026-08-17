@@ -27,8 +27,16 @@ export const FIREBASE_CONFIG = {
 
 export const COLLECTION = 'site_portraits';
 
+/**
+ * This project has no default Firestore database — every one of them is named.
+ * The app writes to this one, so the site reads from the same place; calling
+ * getFirestore() without it would silently point at a database that does not
+ * exist.
+ */
+export const DATABASE_ID = 'ai-studio-474c5037-75f1-4be8-904d-3a28fbde4973';
+
 export function db() {
-  return getFirestore(initializeApp(FIREBASE_CONFIG));
+  return getFirestore(initializeApp(FIREBASE_CONFIG), DATABASE_ID);
 }
 
 /** Slug used as the document id — must match the admin page. */
