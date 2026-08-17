@@ -1074,49 +1074,80 @@ PAGES["developer.html"] = shell(
 )
 
 # ── download ────────────────────────────────────────────────────────────────
+APK = dict(
+    file="download/AuraShakti-1.0.apk",
+    version="1.0",
+    size="8.3 MB",
+    min_android="8.0",
+    sha256="66cef971e4530d4e3d5a7e18efa919b384cd26008af9d11afddc50f1176f88d8",
+)
+
 PAGES["download.html"] = shell(
     "download.html",
     "Download — Aura Shakti",
-    "Install Aura Shakti on Android, or open it in any browser with nothing to install.",
-    phead("Get it", "Two ways in.",
-          "Install it, sign in with Google, and your conversations are yours across "
-          "reinstalls.")
-    + """  <section class="tight">
+    "Install Aura Shakti on Android: five rooms, a reasoning test, and a lock on the whole thing.",
+    phead("Get it", "Install it on your phone.",
+          "One file, straight from here. Android will ask once whether to allow "
+          "an install from your browser — that prompt is there because this is "
+          "not coming from the Play Store, and it is the same permission you "
+          "would grant any direct download.")
+    + f"""  <section class="tight">
     <div class="wrap">
-      <div class="cards rise">
-        <div class="card">
-          <span class="label">Android</span>
-          <h3>Install the app</h3>
-          <p>The build is finished and in testing — biometric unlock, the camera in the
-          composer, and all five rooms. The download goes up here the moment sign-in is
-          working on the device.</p>
-          <a class="btn btn--solid" href="#notify" data-download>Tell me when it is ready</a>
-          <p class="note">Android 8.0 and above.</p>
+      <div class="release rise">
+        <div class="release__head">
+          <div class="release__mark" aria-hidden="true">
+            <img src="assets/icon.png" alt="" width="72" height="72" />
+          </div>
+          <div class="release__id">
+            <h2>Aura Shakti</h2>
+            <span class="label">Android &middot; version {APK['version']}</span>
+          </div>
+          <a class="btn btn--solid" id="get" href="{APK['file']}" download>Download APK</a>
         </div>
-        <div class="card">
-          <span class="label">What you need</span>
-          <h3>Before you install</h3>
-          <p>Android 8.0 or newer, a Google account to sign in with, and about 40 MB
-          free. Everything else — the five rooms, the reasoning test, the app lock —
-          is in the build.</p>
-          <a class="btn btn--ghost" href="faq.html">Read the FAQ</a>
-          <p class="note">No Play Store account required.</p>
-        </div>
+
+        <dl class="spec">
+          <div><dt>Version</dt><dd>{APK['version']}</dd></div>
+          <div><dt>Size</dt><dd>{APK['size']}</dd></div>
+          <div><dt>Requires</dt><dd>Android {APK['min_android']} or newer</dd></div>
+          <div><dt>Permissions</dt><dd>Camera, storage &mdash; both only when you use them</dd></div>
+        </dl>
+
+        <p class="release__hash">
+          <span class="label">SHA-256</span>
+          <code>{APK['sha256']}</code>
+        </p>
       </div>
 
-      <div class="prose rise" style="margin-top:clamp(3rem,6vw,4.5rem);max-width:60ch">
-        <h3>Installing the APK</h3>
-        <p>Tap the download, open the file, and allow your browser to install apps when
-        Android asks. That prompt appears because the app is not coming from the Play
-        Store — it is the same permission you would grant to any direct download.</p>
-        <h3>What is different on Android</h3>
-        <p>Fingerprint and face unlock use the phone's own authenticator, the camera opens
-        natively in the composer, and haptics are real taps rather than the browser's
-        approximation.</p>
+      <div class="grid rise" style="margin-top:clamp(2.5rem,5vw,3.5rem)">
+        <div class="cell"><h3>What is inside</h3><p>All five rooms, the reasoning test, notes and PDF export, incognito, and the app lock. Nothing held back for a paid tier.</p></div>
+        <div class="cell"><h3>Signing in</h3><p>Google sign-in, using your phone's own account picker. Your conversations follow the account, so a reinstall loses nothing.</p></div>
+        <div class="cell"><h3>Updating</h3><p>Come back here and install the newer file over the top. Your chats stay where they are.</p></div>
+      </div>
+
+      <div class="prose rise" style="margin-top:clamp(2.5rem,5vw,3.5rem);max-width:60ch">
+        <h3>If Android blocks the install</h3>
+        <p>Open the downloaded file, and when the prompt appears allow your browser to
+        install apps. On most phones that is Settings &rarr; Apps &rarr; Special access
+        &rarr; Install unknown apps. You only have to do it once.</p>
+        <h3>Checking the file</h3>
+        <p>The SHA-256 above is the checksum of the exact file served from this page.
+        If you care to, compare it after downloading — it should match character for
+        character.</p>
       </div>
     </div>
   </section>
-""" + strip("Not sure yet?", "The FAQ covers cost, languages, privacy and what the lock protects.", "download.html", "Download for Android", ("faq.html", "Read the FAQ")),
+
+  <!-- Shown once the download has actually started. -->
+  <div class="sendoff" id="sendoff" hidden>
+    <div class="sendoff__box">
+      <div class="sendoff__mark"><img src="assets/icon.png" alt="" width="64" height="64" /></div>
+      <h2>Milte hain app mein.</h2>
+      <p>The file is on its way. Open it when it lands, allow the install, and sign in
+      with Google — that is the whole setup.</p>
+      <button class="btn btn--ghost btn--sm" id="sendoffClose" type="button">Close</button>
+    </div>
+  </div>
+""" + strip("Questions first?", "Cost, languages, privacy and what the lock actually protects.", "faq.html", "Read the FAQ"),
 )
 
 # ── FAQ ─────────────────────────────────────────────────────────────────────
@@ -1167,7 +1198,7 @@ PAGES["faq.html"] = shell(
       </p>
     </div>
   </section>
-""" + strip("Ready when you are.", "The Android build lands shortly. Free, and nothing held back for a paid tier."),
+""" + strip("Ready when you are.", "One file, about eight megabytes. Free, and nothing held back for a paid tier."),
 )
 
 # ── write ───────────────────────────────────────────────────────────────────

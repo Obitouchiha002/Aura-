@@ -142,3 +142,24 @@
     }, { rootMargin: '0px 0px -20% 0px' }).observe(rep);
   }
 })();
+
+/* ── download send-off ──────────────────────────────────────────────────────
+   A download starts silently on most phones. Rather than leave the tap feeling
+   ignored, the page says what happens next. Shown on a short delay so it
+   follows the download rather than racing it. */
+(function () {
+  var get = document.getElementById('get');
+  var sheet = document.getElementById('sendoff');
+  if (!get || !sheet) return;
+
+  get.addEventListener('click', function () {
+    setTimeout(function () { sheet.hidden = false; }, 700);
+  });
+
+  function close() { sheet.hidden = true; }
+  document.getElementById('sendoffClose').addEventListener('click', close);
+  sheet.addEventListener('click', function (e) { if (e.target === sheet) close(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !sheet.hidden) close();
+  });
+})();
