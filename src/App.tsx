@@ -11,6 +11,7 @@ import Inner from './pages/Inner';
 import { Login } from './pages/Login';
 import { MouseGlow } from './components/MouseGlow';
 import { SpaceBackground } from './components/SpaceBackground';
+import { NoticeBanner } from './components/Notice';
 
 /**
  * The admin dashboard is split out on purpose. It pulls in a charting library
@@ -93,11 +94,11 @@ function AppContent() {
 
   return (
     <>
-      {globalSettings.welcomeMessage && !isChat && (
-        <div className="fixed top-0 left-0 right-0 bg-accent-wash text-aura-red border-b border-aura-red/30 px-4 py-2 text-center text-sm z-50 backdrop-blur-md">
-          {globalSettings.welcomeMessage}
-        </div>
-      )}
+      {/* The old banner rendered only when you were NOT in the chat, which is
+          where people actually are — so an announcement was invisible to
+          anyone who went straight there. NoticeBanner shows everywhere, is
+          dismissible, and updates live. */}
+      <NoticeBanner />
       {isChat ? (
         <>
           <SpaceBackground />

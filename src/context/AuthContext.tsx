@@ -9,7 +9,13 @@ interface AuthContextType {
   loading: boolean;
   login: () => Promise<void>;
   logout: () => Promise<void>;
-  checkAndIncrementMessageLimit: () => Promise<{ allowed: boolean; isFreeTier: boolean; justReachedLimit: boolean }>;
+  checkAndIncrementMessageLimit: () => Promise<{
+    allowed: boolean;
+    isFreeTier: boolean;
+    justReachedLimit: boolean;
+    /** Set when an admin has stopped this account. */
+    blocked?: { reason?: string; permanent?: boolean };
+  }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -160,7 +166,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await firebaseLogout();
   };
 
-  const checkAndIncrementMessageLimit = async (): Promise<{ allowed: boolean; isFreeTier: boolean; justReachedLimit: boolean }> => {
+  /**
+   * Decides whether this account may send, and on which tier.
+   *
+   * Three things can stop or shape a send: an admin block, a per-account daily
+   * limit, and the default limit. The block is checked first — a blocked
+   * account should not have its counter advanced or its quota consumed.
+   */
+  const checkAndIncrementMessageLimit = async (): Promise<{
+    allowed: boolean; isFreeTier: boolean; justReachedLimit: boolean;
+    blocked?: { reason?: string; permanent?: boolean };
+  }> => {
     if (!user) return { allowed: false, isFreeTier: false, justReachedLimit: false };
     if (isAdmin) return { allowed: true, isFreeTier: false, justReachedLimit: false };
 
@@ -170,6 +186,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!userSnap.exists()) return { allowed: false, isFreeTier: false, justReachedLimit: false };
     
     const data = userSnap.data();
+
+    if (data.blocked || data.blockedPermanently) {
+      return {
+        allowed: false, isFreeTier: false, justReachedLimit: false,
+        blocked: { reason: data.blockedReason, permanent: !!data.blockedPermanently },
+      };
+    }
+
     const today = new Date().toISOString().split('T')[0];
     
     let currentCount = data.dailyMessageCount || 0;
@@ -184,9 +208,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let isFreeTier = false;
     let justReachedLimit = false;
 
-    if (currentCount >= DAILY_MESSAGE_LIMIT) {
+    // An admin can raise or lower the ceiling for one account.
+    const limit = typeof data.dailyLimit === 'number' && data.dailyLimit >= 0
+      ? data.dailyLimit
+      : DAILY_MESSAGE_LIMIT;
+
+    if (currentCount >= limit) {
       isFreeTier = true;
-      if (currentCount === DAILY_MESSAGE_LIMIT) {
+      if (currentCount === limit) {
         justReachedLimit = true;
       }
     }

@@ -1,12 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { Settings as SettingsIcon, Save, Key, ShieldAlert } from 'lucide-react';
+import { Settings as SettingsIcon, Save, Key, ShieldAlert, Megaphone } from 'lucide-react';
 import { useSettings } from '../../context/SettingsContext';
 
 export default function SettingsPanel() {
   const { userApiKey, setUserApiKey } = useSettings();
   const [appSettings, setAppSettings] = useState({ maintenanceMode: false, welcomeMessage: '' });
+  /** The banner every signed-in user sees, until they dismiss it. */
+  const [notice, setNotice] = useState<{ active: boolean; title: string; body: string; kind: 'info' | 'update' | 'warning' }>(
+    { active: false, title: '', body: '', kind: 'info' },
+  );
   const [savingSettings, setSavingSettings] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -16,7 +20,16 @@ export default function SettingsPanel() {
         const settingsRef = doc(db, 'settings', 'global');
         const settingsSnap = await getDoc(settingsRef);
         if (settingsSnap.exists()) {
-          setAppSettings({ maintenanceMode: settingsSnap.data().maintenanceMode || false, welcomeMessage: settingsSnap.data().welcomeMessage || '' });
+          const d = settingsSnap.data();
+          setAppSettings({ maintenanceMode: d.maintenanceMode || false, welcomeMessage: d.welcomeMessage || '' });
+          if (d.notice) {
+            setNotice({
+              active: !!d.notice.active,
+              title: d.notice.title || '',
+              body: d.notice.body || '',
+              kind: d.notice.kind || 'info',
+            });
+          }
         }
       } catch (error) {
         console.error("Error fetching settings", error);
@@ -30,7 +43,7 @@ export default function SettingsPanel() {
   const handleSaveSettings = async () => {
     setSavingSettings(true);
     try {
-      await setDoc(doc(db, 'settings', 'global'), appSettings, { merge: true });
+      await setDoc(doc(db, 'settings', 'global'), { ...appSettings, notice }, { merge: true });
       alert('Global Settings saved successfully!');
     } catch (error) {
       console.error("Error saving settings", error);
@@ -64,15 +77,67 @@ export default function SettingsPanel() {
             />
           </div>
 
-          <div className="space-y-2">
-            <label className="font-medium block">Global Welcome Message</label>
-            <p className="text-sm text-text-muted">Display a message to all users on the home screen.</p>
-            <textarea 
-              value={appSettings.welcomeMessage}
-              onChange={(e) => setAppSettings(prev => ({ ...prev, welcomeMessage: e.target.value }))}
-              className="w-full bg-bg border border-border rounded-xl p-4 text-text-primary min-h-[100px] outline-none focus:border-aura-red/50 transition-colors"
-              placeholder="Enter an announcement or welcome message..."
+          {/* One banner, shown to everyone, everywhere in the app until they
+              close it. Changing the words brings it back for people who had
+              already dismissed the previous one. */}
+          <div className="space-y-3 p-4 bg-bg rounded-xl border border-border">
+            <div className="flex items-center gap-2">
+              <Megaphone size={17} className="text-aura-red" />
+              <label className="font-medium">Announcement</label>
+              <label className="ml-auto flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={notice.active}
+                  onChange={e => setNotice(p => ({ ...p, active: e.target.checked }))}
+                  className="w-4 h-4 accent-aura-red"
+                />
+                Show it
+              </label>
+            </div>
+            <p className="text-sm text-text-muted">
+              Appears at the top of the app for every signed-in user. They can dismiss it;
+              editing the text makes it appear again.
+            </p>
+
+            <div className="flex gap-2">
+              {(['info', 'update', 'warning'] as const).map(k => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setNotice(p => ({ ...p, kind: k }))}
+                  className={`px-3 py-1.5 rounded-lg text-[13px] border capitalize transition-colors ${
+                    notice.kind === k
+                      ? 'border-aura-red text-aura-red bg-accent-wash'
+                      : 'border-border text-text-muted hover:text-text-primary'
+                  }`}
+                >
+                  {k}
+                </button>
+              ))}
+            </div>
+
+            <input
+              value={notice.title}
+              onChange={e => setNotice(p => ({ ...p, title: e.target.value }))}
+              placeholder="Headline — e.g. Version 1.1 is out"
+              className="w-full bg-elevated border border-border rounded-xl px-4 py-3 text-text-primary outline-none focus:border-aura-red/50 transition-colors"
             />
+            <textarea
+              value={notice.body}
+              onChange={e => setNotice(p => ({ ...p, body: e.target.value }))}
+              placeholder="A line or two. What changed, or what to expect."
+              className="w-full bg-elevated border border-border rounded-xl px-4 py-3 text-text-primary min-h-[80px] outline-none focus:border-aura-red/50 transition-colors"
+            />
+
+            {(notice.title || notice.body) && (
+              <div className="pt-1">
+                <p className="text-[11px] uppercase tracking-widest text-text-faint mb-2">Preview</p>
+                <div className="rounded-xl border border-border bg-surface px-3.5 py-3">
+                  {notice.title && <p className="text-[13.5px] font-semibold text-text-primary">{notice.title}</p>}
+                  {notice.body && <p className="text-[13px] text-text-body mt-0.5">{notice.body}</p>}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2 p-4 bg-bg rounded-xl border border-border">

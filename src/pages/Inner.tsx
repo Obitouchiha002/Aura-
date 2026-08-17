@@ -904,8 +904,13 @@ export default function Inner() {
     }
 
     haptic('impact');
-    const { allowed, isFreeTier } = await checkAndIncrementMessageLimit();
-    if (!allowed) return;
+    const { allowed, isFreeTier, blocked } = await checkAndIncrementMessageLimit();
+    if (!allowed) {
+      showToast('off', blocked?.permanent
+        ? (lang === 'en' ? 'This account has been closed.' : 'यह अकाउंट बंद कर दिया गया है।')
+        : (lang === 'en' ? 'This account is paused.' : 'यह अकाउंट रोका गया है।'));
+      return;
+    }
 
     const userMsgId = Date.now().toString();
     const base = [...messages, { id: userMsgId, text: promptText, isAi: false }];
@@ -1064,8 +1069,26 @@ export default function Inner() {
     if (to === mode || messages.length === 0 || isTyping) return;
 
     haptic('impact');
-    const { allowed, isFreeTier, justReachedLimit } = await checkAndIncrementMessageLimit();
-    if (!allowed) return;
+    const { allowed, isFreeTier, justReachedLimit, blocked } = await checkAndIncrementMessageLimit();
+    if (!allowed) {
+      // Silently doing nothing looked like the app was broken. Say what happened.
+      if (blocked) {
+        setMessages(prev => [...prev, {
+          id: Date.now() + '_blocked',
+          isAi: true,
+          text: `[System] ${
+            blocked.permanent
+              ? (lang === 'en'
+                  ? 'This account has been closed by an administrator.'
+                  : 'यह अकाउंट एडमिन द्वारा बंद कर दिया गया है।')
+              : (lang === 'en'
+                  ? 'This account is currently paused by an administrator.'
+                  : 'यह अकाउंट फ़िलहाल एडमिन द्वारा रोका गया है।')
+          }${blocked.reason ? ` ${blocked.reason}` : ''}`,
+        }]);
+      }
+      return;
+    }
 
     const from = mode;
     let current = messages;
@@ -1166,8 +1189,26 @@ export default function Inner() {
 
     haptic('impact');
 
-    const { allowed, isFreeTier, justReachedLimit } = await checkAndIncrementMessageLimit();
-    if (!allowed) return;
+    const { allowed, isFreeTier, justReachedLimit, blocked } = await checkAndIncrementMessageLimit();
+    if (!allowed) {
+      // Silently doing nothing looked like the app was broken. Say what happened.
+      if (blocked) {
+        setMessages(prev => [...prev, {
+          id: Date.now() + '_blocked',
+          isAi: true,
+          text: `[System] ${
+            blocked.permanent
+              ? (lang === 'en'
+                  ? 'This account has been closed by an administrator.'
+                  : 'यह अकाउंट एडमिन द्वारा बंद कर दिया गया है।')
+              : (lang === 'en'
+                  ? 'This account is currently paused by an administrator.'
+                  : 'यह अकाउंट फ़िलहाल एडमिन द्वारा रोका गया है।')
+          }${blocked.reason ? ` ${blocked.reason}` : ''}`,
+        }]);
+      }
+      return;
+    }
 
     let currentMessages = messages;
     if (justReachedLimit) {
@@ -1253,8 +1294,26 @@ export default function Inner() {
     
     triggerHaptic();
     
-    const { allowed, isFreeTier, justReachedLimit } = await checkAndIncrementMessageLimit();
-    if (!allowed) return;
+    const { allowed, isFreeTier, justReachedLimit, blocked } = await checkAndIncrementMessageLimit();
+    if (!allowed) {
+      // Silently doing nothing looked like the app was broken. Say what happened.
+      if (blocked) {
+        setMessages(prev => [...prev, {
+          id: Date.now() + '_blocked',
+          isAi: true,
+          text: `[System] ${
+            blocked.permanent
+              ? (lang === 'en'
+                  ? 'This account has been closed by an administrator.'
+                  : 'यह अकाउंट एडमिन द्वारा बंद कर दिया गया है।')
+              : (lang === 'en'
+                  ? 'This account is currently paused by an administrator.'
+                  : 'यह अकाउंट फ़िलहाल एडमिन द्वारा रोका गया है।')
+          }${blocked.reason ? ` ${blocked.reason}` : ''}`,
+        }]);
+      }
+      return;
+    }
 
     let currentMessages = messages[messages.length - 1].isAi && messages[messages.length - 1].text.startsWith('[System Error]')
       ? messages.slice(0, -1)

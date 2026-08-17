@@ -1,0 +1,48 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Replacement for the `allow update` line inside match /users/{userId}.
+//
+// WHY THIS MATTERS
+//
+// The rule as it stands lets an account write anything to its own document so
+// long as `role` is unchanged:
+//
+//   allow update: if isAuthenticated() && isValidUser(request.resource.data) &&
+//                 ((isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin());
+//
+// The app now reads `blocked`, `blockedPermanently` and `dailyLimit` from that
+// same document before every send. Under the old rule a blocked account could
+// simply write `blocked: false` to itself, and anyone could raise their own
+// daily limit. The controls in the admin panel would be decoration.
+//
+// The version below keeps everything else as it was and pins the four fields
+// only an admin may change.
+//
+// HOW TO APPLY
+// Firebase Console → Firestore → the ai-studio-474c5037… database → Rules.
+// Find `match /users/{userId}` and replace its `allow update:` line with this.
+// Then Publish.
+// ═══════════════════════════════════════════════════════════════════════════
+
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (
+        isAdmin()
+        || (
+          isOwner(userId)
+          && request.resource.data.role == resource.data.role
+          // Moderation state belongs to the admin, not to the account it
+          // applies to. `unchanged` treats a missing field as unchanged, so
+          // ordinary writes that never mention these still pass.
+          && unchangedOrAbsent('blocked')
+          && unchangedOrAbsent('blockedPermanently')
+          && unchangedOrAbsent('blockedReason')
+          && unchangedOrAbsent('dailyLimit')
+        )
+      );
+
+// ── and add this helper next to isOwner / isAdmin, inside the same
+//    `match /databases/{database}/documents {` block ──────────────────────────
+
+    function unchangedOrAbsent(field) {
+      return !(field in request.resource.data) && !(field in resource.data)
+          || (field in request.resource.data) && (field in resource.data)
+             && request.resource.data[field] == resource.data[field];
+    }
