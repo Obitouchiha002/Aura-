@@ -1350,7 +1350,7 @@ export default function Inner() {
 
   return (
     // data-mode drives the per-mode tint tokens (see index.css)
-    <div data-mode={mode} data-incognito={isIncognito || undefined} className="h-[100dvh] bg-bg flex flex-col relative overflow-hidden pt-0">
+    <div data-mode={mode} data-incognito={isIncognito || undefined} className="h-full min-h-0 bg-bg flex flex-col relative overflow-hidden pt-0">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,var(--page-glow)_0%,transparent_70%)] pointer-events-none" />
       {/* The mode-colour bloom. Tied to --glow-strength, which the light theme
           zeroes: a tinted cloud reads as depth on black and as a stain on

@@ -1093,7 +1093,7 @@ APK = dict(
     version="1.0",
     size="10.4 MB",
     min_android="8.0",
-    sha256="5033a712e561f98b8cc89f5e9e3c39c060e698014c3946c2ab08c6388eec7b88",
+    sha256="19827eceb96bcc74e0144d86f58e0c4fa650261cc601dc9e35d33db825681945",
 )
 
 PAGES["download.html"] = shell(

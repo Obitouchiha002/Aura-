@@ -77,7 +77,16 @@ service cloud.firestore {
     // ===============================================================
     
     function isValidUser(data) {
-      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt', 'lastLoginAt', 'dailyMessageCount', 'lastMessageDate', 'referredBy', 'invitesSent']) &&
+      return hasOnlyAllowedFields([
+               'uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt', 'lastLoginAt',
+               'dailyMessageCount', 'lastMessageDate', 'referredBy', 'invitesSent',
+               // Moderation and billing, written from the admin directory.
+               // hasOnlyAllowedFields rejects the whole document if a field is
+               // missing from this list — and with merge:true the document
+               // being checked is the merged result, so an unlisted field
+               // fails every write, the admin's included.
+               'plan', 'dailyLimit', 'blocked', 'blockedPermanently', 'blockedReason'
+             ]) &&
              data.uid is string && data.uid.size() > 0 &&
              data.email is string && isValidEmail(data.email) &&
              (!('displayName' in data) || data.displayName is string) &&
@@ -88,7 +97,12 @@ service cloud.firestore {
              (!('dailyMessageCount' in data) || data.dailyMessageCount is number) &&
              (!('lastMessageDate' in data) || data.lastMessageDate is string) &&
              (!('referredBy' in data) || data.referredBy is string) &&
-             (!('invitesSent' in data) || data.invitesSent is number);
+             (!('invitesSent' in data) || data.invitesSent is number) &&
+             (!('plan' in data) || data.plan in ['free', 'plus', 'premium']) &&
+             (!('dailyLimit' in data) || data.dailyLimit == null || (data.dailyLimit is number && data.dailyLimit >= 0)) &&
+             (!('blocked' in data) || data.blocked is bool) &&
+             (!('blockedPermanently' in data) || data.blockedPermanently is bool) &&
+             (!('blockedReason' in data) || (data.blockedReason is string && data.blockedReason.size() <= 300));
     }
     
     function isValidSession(data) {
@@ -102,9 +116,16 @@ service cloud.firestore {
     }
     
     function isValidSetting(data) {
-      return hasOnlyAllowedFields(['maintenanceMode', 'welcomeMessage']) &&
+      return hasOnlyAllowedFields(['maintenanceMode', 'welcomeMessage', 'notice']) &&
              data.maintenanceMode is bool &&
-             (!('welcomeMessage' in data) || data.welcomeMessage is string);
+             (!('welcomeMessage' in data) || data.welcomeMessage is string) &&
+             (!('notice' in data) || (
+               data.notice.keys().hasOnly(['active', 'title', 'body', 'kind'])
+               && (!('active' in data.notice) || data.notice.active is bool)
+               && (!('title' in data.notice) || (data.notice.title is string && data.notice.title.size() <= 120))
+               && (!('body' in data.notice) || (data.notice.body is string && data.notice.body.size() <= 500))
+               && (!('kind' in data.notice) || data.notice.kind in ['info', 'update', 'warning'])
+             ));
     }
 
     function isValidFeedback(data) {
@@ -161,6 +182,8 @@ service cloud.firestore {
     
     match /settings/{settingId} {
       allow read: if isAuthenticated();
+      // The banner is read on launch; keeping it behind auth is fine because
+      // nothing shows before sign-in anyway.
       allow create, update, delete: if isAdmin() && isValidSetting(request.resource.data);
     }
     

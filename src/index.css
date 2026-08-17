@@ -305,7 +305,13 @@ body {
 
 html, body {
   transition: background-color .25s ease, color .25s ease;
+  /* The chat is sized to its parent rather than to 100dvh: on Android the
+     dynamic viewport unit does not shrink when the keyboard opens, so the
+     layout kept its full height and slid upward out of view. */
+  height: 100%;
 }
+
+#root { height: 100%; }
 
 /* every text block gets a measure */
 .msg-content, .scenario-text, .report-content p {

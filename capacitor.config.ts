@@ -48,6 +48,17 @@ const config: CapacitorConfig = {
       directUpdate: false,
     },
 
+    /**
+     * Without this Android pans the whole window up when the keyboard opens —
+     * which put the composer at the top of the screen and left a blank band
+     * where the conversation had been. Resizing the webview instead keeps the
+     * layout intact and the composer above the keys.
+     */
+    Keyboard: {
+      resize: 'native',
+      resizeOnFullScreen: true,
+    },
+
     FirebaseAuthentication: {
       skipNativeAuth: false,
       providers: ['google.com'],
