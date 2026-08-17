@@ -300,6 +300,37 @@ function displayName(value: string): { name: string; source?: string } {
   return m ? { name: m[1].trim(), source: m[2].trim() } : { name: value };
 }
 
+/**
+ * Who is speaking in a reply.
+ *
+ * Council and Poets answer as one voice out of several, and the name arrives
+ * inside the text as "[Thomas Shelby] …" rather than on the message. That
+ * bracketed name is the only place it exists, so it is read from there; Mentor
+ * carries it on the message already.
+ */
+function speakerOf(text: string, character?: string): string | null {
+  const m = text.match(/^\s*\[([^\]]{2,40})\]/);
+  if (m) {
+    const name = m[1].replace(/\s+Response$/i, '').trim();
+    if (name && !/^system/i.test(name)) return name;
+  }
+  // A room's own name is not a person and has no face.
+  if (character && !/^The (Council|Poets|Teacher|Psychologist)$/i.test(character)) {
+    return character;
+  }
+  return null;
+}
+
+/**
+ * Drops the "[Name] Response" the model opens with.
+ *
+ * Only for display, and only once that name is already on the label above —
+ * the stored text keeps it, so history and exports still say who spoke.
+ */
+function withoutSpeakerPrefix(text: string): string {
+  return text.replace(/^\s*\[[^\]]{2,40}\]\s*(Response\s*:?)?\s*/i, '');
+}
+
 function initials(value: string): string {
   const words = displayName(value).name.split(/\s+/).filter(Boolean);
   if (words.length === 0) return '?';
@@ -1522,11 +1553,33 @@ export default function Inner() {
                        your own messages read better kept narrow. */
                     msg.isAi ? 'max-w-[92%] md:max-w-[78%] items-start' : 'max-w-[85%] md:max-w-[70%] items-end'
                   }`}>
-                    {msg.isAi && !isError && !isNotice && (
-                      <span className="text-[11px] uppercase tracking-[0.08em] text-mode-tint mb-1.5 ml-0.5 font-mono">
-                        {msg.character || (mode === 'EMOTION' ? 'The Poets' : mode === 'TEACHER' ? 'The Teacher' : mode === 'PSYCHOLOGY' ? 'The Psychologist' : 'The Council')}
-                      </span>
-                    )}
+                    {msg.isAi && !isError && !isNotice && (() => {
+                      const speaker = speakerOf(msg.text, msg.character);
+                      const room = msg.character
+                        || (mode === 'EMOTION' ? 'The Poets' : mode === 'TEACHER' ? 'The Teacher'
+                          : mode === 'PSYCHOLOGY' ? 'The Psychologist' : 'The Council');
+                      return (
+                        <span className="flex items-center gap-2 mb-1.5 ml-0.5">
+                          {speaker && !isIncognito && (
+                            /* The face arrives a beat after the bubble, which
+                               reads as someone turning to answer rather than
+                               the whole row appearing at once. */
+                            <motion.span
+                              key={speaker}
+                              initial={{ opacity: 0, scale: 0.6 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              transition={{ type: 'spring', stiffness: 320, damping: 22, delay: 0.08 }}
+                              className="relative overflow-hidden w-7 h-7 rounded-full shrink-0 flex items-center justify-center bg-surface-2 border border-mode-tint/40 text-[9.5px] font-bold text-text-muted"
+                            >
+                              <CharacterAvatar name={speaker} fallback={initials(speaker)} />
+                            </motion.span>
+                          )}
+                          <span className="text-[11px] uppercase tracking-[0.08em] text-mode-tint font-mono truncate">
+                            {speaker || room}
+                          </span>
+                        </span>
+                      );
+                    })()}
                     <div
                       className={`px-4 py-3 text-[14.5px] leading-[1.65] min-w-0 max-w-full ${
                         isError
@@ -1544,7 +1597,7 @@ export default function Inner() {
                       {msg.isAi ? (
                         msg.id === streamingMsgId ? (
                           <TypewriterText
-                            text={msg.text}
+                            text={speakerOf(msg.text, msg.character) ? withoutSpeakerPrefix(msg.text) : msg.text}
                             animate={true}
                             speed={25}
                             markdown={true}
@@ -1552,7 +1605,12 @@ export default function Inner() {
                           />
                         ) : (
                           <div className="markdown-body">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{mcq ? mcq.body : msg.text}</ReactMarkdown>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                              {(() => {
+                                const body = mcq ? mcq.body : msg.text;
+                                return speakerOf(msg.text, msg.character) ? withoutSpeakerPrefix(body) : body;
+                              })()}
+                            </ReactMarkdown>
                           </div>
                         )
                       ) : (
