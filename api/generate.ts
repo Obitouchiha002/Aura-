@@ -16,8 +16,6 @@
  * outage.
  */
 
-import { applyCors } from './_cors';
-
 type Req = { method?: string; body?: any; headers?: Record<string, any> };
 type Res = {
   status: (code: number) => Res;
@@ -38,6 +36,54 @@ const GEMINI_ENDPOINT = (model: string) =>
  * explicitly. Override with SITE_ORIGIN if the domain changes.
  */
 const SITE_ORIGIN = process.env.SITE_ORIGIN || 'https://aurashakti.vercel.app/';
+
+/**
+ * Cross-origin access.
+ *
+ * Inside the Android shell the page is served by the WebView from
+ * https://localhost, so every call here is cross-origin, and sending JSON
+ * makes it preflighted. Answering OPTIONS with 405 and no
+ * Access-Control-Allow-Origin is what made the WebView refuse the request
+ * before sending it, so every message failed with "Failed to fetch".
+ *
+ * Written out in each handler rather than shared through a helper module:
+ * these files are the deployment's entrypoints, and a relative import between
+ * them failed to resolve at runtime and took the whole function down. A dozen
+ * duplicated lines are worth more than that.
+ *
+ * The list is explicit. CORS is not what protects this endpoint — anything
+ * that is not a browser ignores it — but naming the origins stops other sites
+ * billing their traffic to this key.
+ */
+const ALLOWED_ORIGINS = new Set([
+  'https://localhost',        // Capacitor Android
+  'capacitor://localhost',    // Capacitor iOS
+  'ionic://localhost',
+  'https://aurashakti.vercel.app',
+  'https://aura-shakti-site.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:5173',
+]);
+
+/** Sets the headers, and answers a preflight. True means "already handled". */
+function applyCors(req: any, res: any): boolean {
+  const origin = String(req?.headers?.origin || '');
+  if (ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Max-Age', '86400');
+
+  if (req?.method === 'OPTIONS') {
+    res.status(204);
+    if (typeof res.end === 'function') res.end();
+    else res.json({});
+    return true;
+  }
+  return false;
+}
 
 export default async function handler(req: Req, res: Res) {
   // Must run before anything else: the shell's preflight arrives as OPTIONS,
