@@ -9,15 +9,25 @@
  * A new APK is still needed when something native changes — a new plugin, an
  * icon, a permission, an SDK bump. Everything else ships from here.
  *
- * The manifest is set through two environment variables so a release is a
- * config change rather than a redeploy of this function:
+ * The manifest comes from latest.json, which scripts/release-bundle.mjs writes
+ * next to the zip it just built and the site deploy publishes alongside it. So
+ * cutting a release is one deploy, and the manifest cannot disagree with the
+ * bundle sitting beside it.
  *
- *   BUNDLE_VERSION  e.g. 1.0.1
- *   BUNDLE_URL      the zip of dist/, served from the site
+ * It used to be three environment variables instead. That made a release two
+ * steps that had to agree, and when Vercel's API was unreachable the variables
+ * were deleted but could not be written back — which silently turned live
+ * updates off altogether. A file that ships with the bundle has no such gap.
  *
- * With neither set the endpoint reports "nothing new", which is the safe
- * answer — an app that cannot read a manifest simply keeps what it has.
+ * BUNDLE_VERSION / BUNDLE_URL / BUNDLE_CHECKSUM still win if they are set, so a
+ * release can be pinned or rolled back without a deploy.
+ *
+ * If neither source can be read the endpoint reports "nothing new", which is
+ * the safe answer — an app that cannot read a manifest keeps what it has.
  */
+
+const SITE = process.env.SITE_URL || 'https://aura-shakti-site.vercel.app';
+const MANIFEST_URL = `${SITE}/download/updates/latest.json`;
 
 type Req = { method?: string; body?: any; headers?: Record<string, any> };
 type Res = {
@@ -81,8 +91,24 @@ export default async function handler(req: Req, res: Res) {
 
   res.setHeader('Cache-Control', 'no-store');
 
-  const version = process.env.BUNDLE_VERSION;
-  const url = process.env.BUNDLE_URL;
+  let version = process.env.BUNDLE_VERSION;
+  let url = process.env.BUNDLE_URL;
+  let checksum = process.env.BUNDLE_CHECKSUM;
+
+  if (!version || !url) {
+    try {
+      const manifest: any = await fetch(MANIFEST_URL, { cache: 'no-store' } as any)
+        .then(r => (r.ok ? r.json() : null));
+      if (manifest?.version && manifest?.url) {
+        version = manifest.version;
+        url = manifest.url;
+        checksum = manifest.checksum;
+      }
+    } catch {
+      // Unreachable manifest is not an error worth failing on — saying
+      // "nothing new" leaves the phone on a build that already works.
+    }
+  }
 
   // The plugin treats a response without a url as "you are current".
   if (!version || !url) {
@@ -95,6 +121,6 @@ export default async function handler(req: Req, res: Res) {
     url,
     // Told to the plugin so a half-downloaded bundle is discarded rather than
     // installed.
-    ...(process.env.BUNDLE_CHECKSUM ? { checksum: process.env.BUNDLE_CHECKSUM } : {}),
+    ...(checksum ? { checksum } : {}),
   });
 }
