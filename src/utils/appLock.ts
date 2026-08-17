@@ -123,7 +123,34 @@ export function shouldLock(config: LockConfig): boolean {
   }
 }
 
-/* ── biometric (WebAuthn) ────────────────────────────────────────────────── */
+/* ── biometric ───────────────────────────────────────────────────────────── */
+
+/**
+ * Two implementations, picked by where the app is running.
+ *
+ * On the web the platform authenticator is reached through WebAuthn. Inside
+ * the Android shell that is not an option: an Android WebView does not
+ * implement WebAuthn at all — `window.PublicKeyCredential` is simply not
+ * there — which is why the fingerprint worked in the browser and did nothing
+ * in the APK. The shell goes through the native BiometricPrompt instead.
+ *
+ * Both answer the same question: is this the device's owner, right now. The
+ * credential id below is a marker rather than a key, because the native
+ * prompt has no credential to hand back — the OS keeps that to itself.
+ */
+
+const NATIVE_CREDENTIAL = 'native-biometric';
+
+function isNativeShell(): boolean {
+  return typeof window !== 'undefined'
+    && !!(window as any).Capacitor?.isNativePlatform?.();
+}
+
+/** Loaded on demand so the browser bundle never pays for the native plugin. */
+async function nativeBiometry() {
+  const { BiometricAuth } = await import('@aparajita/capacitor-biometric-auth');
+  return BiometricAuth;
+}
 
 function b64url(buf: ArrayBuffer): string {
   return btoa(String.fromCharCode(...new Uint8Array(buf)))
@@ -137,6 +164,7 @@ function fromB64url(s: string): Uint8Array {
 }
 
 export function isBiometricPossible(): boolean {
+  if (isNativeShell()) return true;
   return typeof window !== 'undefined'
     && !!window.PublicKeyCredential
     && window.isSecureContext;
@@ -144,6 +172,13 @@ export function isBiometricPossible(): boolean {
 
 /** Is there actually a fingerprint/face sensor wired up on this device? */
 export async function hasBiometricSensor(): Promise<boolean> {
+  if (isNativeShell()) {
+    try {
+      return (await (await nativeBiometry()).checkBiometry()).isAvailable;
+    } catch {
+      return false;
+    }
+  }
   if (!isBiometricPossible()) return false;
   try {
     return await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
@@ -159,6 +194,21 @@ export async function hasBiometricSensor(): Promise<boolean> {
  * replacement for account auth.
  */
 export async function registerBiometric(userLabel: string): Promise<string> {
+  // Native has nothing to register: the sensor is already enrolled at the OS
+  // level. Prompting once is still worth it — it proves the sensor works and
+  // it is enrolled before the setting is switched on, so the user cannot end
+  // up with an unlock method that fails the first time they rely on it.
+  if (isNativeShell()) {
+    await (await nativeBiometry()).authenticate({
+      reason: 'Confirm it is you, so this can unlock Aura.',
+      androidTitle: 'Unlock Aura',
+      androidSubtitle: 'Use your fingerprint or face',
+      cancelTitle: 'Cancel',
+      allowDeviceCredential: true,
+    });
+    return NATIVE_CREDENTIAL;
+  }
+
   const challenge = new Uint8Array(32);
   crypto.getRandomValues(challenge);
   const userId = new Uint8Array(16);
@@ -188,6 +238,28 @@ export async function registerBiometric(userLabel: string): Promise<string> {
 }
 
 export async function verifyBiometric(credentialId: string): Promise<boolean> {
+  // A lock set up in the browser and then opened in the shell — or the other
+  // way round — has the wrong kind of credential for where it is now. Falling
+  // through to the wrong implementation would throw; going by where we are
+  // running keeps the code as the way in.
+  if (isNativeShell() || credentialId === NATIVE_CREDENTIAL) {
+    if (!isNativeShell()) return false;
+    try {
+      await (await nativeBiometry()).authenticate({
+        reason: 'Unlock Aura',
+        androidTitle: 'Unlock Aura',
+        androidSubtitle: 'Use your fingerprint or face',
+        cancelTitle: 'Cancel',
+        allowDeviceCredential: true,
+      });
+      return true;
+    } catch {
+      // Cancelled, not recognised, or locked out after too many tries. The
+      // code entry stays on screen either way.
+      return false;
+    }
+  }
+
   const challenge = new Uint8Array(32);
   crypto.getRandomValues(challenge);
 

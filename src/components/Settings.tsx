@@ -424,7 +424,7 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
                 label="Biometric unlock"
                 hint={
                   bioError ? bioError
-                  : !biometricAvailable ? 'No sensor available in this browser'
+                  : !biometricAvailable ? 'No fingerprint or face is set up on this device'
                   : lock.biometric ? 'Face or fingerprint, with your code as backup'
                   : 'Use your face or fingerprint'
                 }
