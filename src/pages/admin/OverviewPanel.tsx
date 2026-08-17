@@ -172,7 +172,7 @@ export default function OverviewPanel({ onNavigate }: { onNavigate: (tab: string
               <div key={user.id} className="flex items-center gap-3 p-3 bg-surface rounded-xl hover:bg-surface-2 transition-colors">
                 <div className="w-10 h-10 rounded-full bg-accent-wash border border-border flex items-center justify-center font-bold overflow-hidden uppercase flex-shrink-0">
                   {user.photoURL ? (
-                    <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
+                    <img src={user.photoURL} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
                   ) : (
                     user.displayName?.[0] || user.email?.[0] || '?'
                   )}

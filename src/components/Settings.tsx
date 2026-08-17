@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Avatar } from './Avatar';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -203,7 +204,7 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
           {user && (
             <div className="bg-surface border border-border shadow-soft p-4 rounded-2xl flex items-center gap-4">
               {user.photoURL ? (
-                <img src={user.photoURL} alt="" className="w-12 h-12 rounded-full border border-border object-cover" />
+                <Avatar src={user.photoURL} name={user.displayName} email={user.email} className="w-12 h-12 border border-border" />
               ) : (
                 <div className="w-12 h-12 bg-surface-2 rounded-full flex items-center justify-center text-lg font-semibold text-text-primary border border-border uppercase">
                   {user.displayName?.[0] || user.email?.[0] || <User size={20} />}

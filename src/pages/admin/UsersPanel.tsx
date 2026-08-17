@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { collection, doc, getDocs, query, orderBy, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Users as UsersIcon, Search, Ban, Check, Gauge, ShieldOff } from 'lucide-react';
+import { Avatar } from '../../components/Avatar';
 
 /**
  * The user directory, and what can be done to an account from it.
@@ -167,13 +168,7 @@ export default function UsersPanel() {
                   <tr key={u.id} className={`hover:bg-surface transition-colors ${busy === u.id ? 'opacity-50' : ''}`}>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        {u.photoURL ? (
-                          <img src={u.photoURL} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
-                        ) : (
-                          <div className="w-8 h-8 bg-surface-2 rounded-full flex items-center justify-center font-bold uppercase shrink-0">
-                            {u.displayName?.[0] || u.email?.[0] || '?'}
-                          </div>
-                        )}
+                        <Avatar src={u.photoURL} name={u.displayName} email={u.email} className="w-8 h-8" />
                         <span className="flex flex-col min-w-0">
                           <span className="font-medium truncate">{u.displayName || 'Anonymous'}</span>
                           <span className="text-[12px] text-text-muted truncate">{u.email}</span>

@@ -20,6 +20,20 @@ const config: CapacitorConfig = {
   },
 
   plugins: {
+    /**
+     * Google sign-in on Android.
+     *
+     * The plugin needs the provider named here — without it the native
+     * account picker is never wired up and signInWithGoogle fails at the
+     * first call. `skipNativeAuth: false` means the native layer signs into
+     * Firebase itself; the JS SDK is then given the same credential so
+     * Firestore rules see a signed-in user too.
+     */
+    FirebaseAuthentication: {
+      skipNativeAuth: false,
+      providers: ['google.com'],
+    },
+
     SplashScreen: {
       launchAutoHide: false,       // hidden by the app once React has mounted
       backgroundColor: '#0A0A0A',
