@@ -53,38 +53,16 @@ interface Handoff {
 }
 
 /**
- * Openers for the empty state, per room.
+ * Openers for the Teacher's empty state.
  *
- * Written as the thing a person would actually type, not as feature names —
- * "Should I take this job?" gets someone further than "Ask advice".
+ * Only this room gets them. Elsewhere the empty screen is the point — a list
+ * of prompts under "The Council awaits" turns a room into a menu.
  */
-const STARTERS: Record<Mode, [string, string][]> = {
-  COUNCIL: [
-    ['Should I take this job?', 'ये job लूँ या नहीं?'],
-    ['Tell me what I am avoiding', 'बताइए मैं किस बात से बच रहा हूँ'],
-    ['Argue against my plan', 'मेरे plan के खिलाफ़ बोलिए'],
-  ],
-  MENTOR: [
-    ['What would you do here?', 'आप होते तो क्या करते?'],
-    ['I keep second-guessing myself', 'मैं बार-बार खुद पर शक करता हूँ'],
-    ['How do I ask for more?', 'ज़्यादा कैसे माँगूँ?'],
-  ],
-  PSYCHOLOGY: [
-    ['I have not been sleeping', 'नींद नहीं आ रही'],
-    ['Everything feels like too much', 'सब कुछ भारी लग रहा है'],
-    ['I keep saying yes to things', 'मैं हर बात के लिए हाँ कह देता हूँ'],
-  ],
-  TEACHER: [
-    ['Explain this to me simply', 'इसे आसान भाषा में समझाइए'],
-    ['Quiz me on something', 'मुझसे कुछ सवाल पूछिए'],
-    ['Make notes on a topic', 'एक विषय पर नोट्स बनाइए'],
-  ],
-  EMOTION: [
-    ['I miss someone', 'किसी की याद आ रही है'],
-    ['Nothing feels like anything', 'कुछ भी महसूस नहीं हो रहा'],
-    ['Write me something for tonight', 'आज रात के लिए कुछ लिखिए'],
-  ],
-};
+const STARTERS: [string, string][] = [
+  ['Explain this to me simply', 'इसे आसान भाषा में समझाइए'],
+  ['Quiz me on something', 'मुझसे कुछ सवाल पूछिए'],
+  ['Make notes on a topic', 'एक विषय पर नोट्स बनाइए'],
+];
 
 const ROOM_NAME: Record<Mode, string> = {
   COUNCIL: 'The Council',
@@ -783,12 +761,23 @@ export default function Inner() {
     const sessionMeta = sessions.find(s => s.id === currentSessionId);
     if (!sessionMeta) return;
 
-    const stripUndefined = <T extends object>(obj: T): T => {
-      const out = { ...obj };
-      (Object.keys(out) as (keyof T)[]).forEach(k => {
-        if (out[k] === undefined) delete out[k];
-      });
-      return out;
+    /**
+     * Firestore rejects `undefined` anywhere in a document, not just at the
+     * top. This used to walk one level, so a nested one — a handoff with no
+     * character — failed every write for the whole session with an error only
+     * visible in the console.
+     */
+    // The trailing comma keeps tsx from reading <T> as a JSX tag.
+    const stripUndefined = <T,>(value: T): T => {
+      if (Array.isArray(value)) return value.map(stripUndefined) as unknown as T;
+      if (value && typeof value === 'object') {
+        const out: Record<string, unknown> = {};
+        Object.entries(value as Record<string, unknown>).forEach(([k, v]) => {
+          if (v !== undefined) out[k] = stripUndefined(v);
+        });
+        return out as T;
+      }
+      return value;
     };
 
     const payload = {
@@ -1061,7 +1050,14 @@ export default function Inner() {
         id: Date.now() + '_handoff',
         text: '',
         isAi: false,
-        handoff: { from, to, character: from === 'MENTOR' ? selectedCharacter : undefined },
+        // Only set `character` when there is one. Firestore rejects an
+        // undefined anywhere in the document, and the sanitiser upstream only
+        // walks the top level — a nested one silently broke every save.
+        handoff: {
+          from,
+          to,
+          ...(from === 'MENTOR' ? { character: selectedCharacter } : {}),
+        },
       },
     ];
     setMessages(withMarker);
@@ -1082,7 +1078,7 @@ export default function Inner() {
     }
 
     const framing = returning
-      ? `[Handoff] This conversation was with you earlier. It then went to ${leftFor}, and has now come back to you. Before anything else, note that they went elsewhere and ask — briefly, in your own voice — what came of it and whether it settled anything. Then carry on from there.`
+      ? `[Handoff] This conversation was with you earlier. It then went to ${leftFor}, and has now come back. Your FIRST line must acknowledge that they went and ask what came of it — in your own voice, the way you would actually say it, not politely. Something to the effect of: so, did they give you your answer? Only after that do you go on. Do not skip it and do not bury it in the middle.`
       : `[Handoff] This conversation has been running with ${leftFor}; you are joining it now. You have the whole exchange above. Do not summarise it back at them. Say what you make of it, in your own voice, and take it forward.`;
 
     try {
@@ -1505,6 +1501,21 @@ export default function Inner() {
             lang={lang}
             onClose={() => setIsMenuOpen(false)}
             items={[
+              // Any room can pick the thread up. The one you are in is left
+              // out; the rest read as "ask someone else about this", which is
+              // what a handoff actually is.
+              ...(messages.length > 0 && !isIncognito
+                ? (['COUNCIL', 'MENTOR', 'PSYCHOLOGY', 'TEACHER', 'EMOTION'] as const)
+                    .filter(m => m !== mode)
+                    .map(m => ({
+                      icon: Users,
+                      label: lang === 'en'
+                        ? `Ask ${m === 'EMOTION' ? 'the Poets' : m === 'PSYCHOLOGY' ? 'the Psychologist' : m === 'COUNCIL' ? 'the Council' : m === 'TEACHER' ? 'the Teacher' : 'a Mentor'}`
+                        : `${ROOM_NAME[m]} से पूछें`,
+                      hint: lang === 'en' ? 'Takes this whole conversation' : 'पूरी बातचीत साथ जाएगी',
+                      onClick: () => moveToRoom(m),
+                    }))
+                : []),
               {
                 icon: History,
                 label: lang === 'en' ? 'Chat history' : 'चैट हिस्ट्री',
@@ -1669,9 +1680,12 @@ export default function Inner() {
                 {/* An empty room with one line in it gives you nothing to do.
                     Three openers, worded as things you would actually say, and
                     phrased for the room you are standing in. */}
-                {!isIncognito && (
+                {/* Only the Teacher gets openers. Everywhere else the empty
+                    screen is deliberate — a prompt list under "The Council
+                    awaits" turns a room into a menu. */}
+                {mode === 'TEACHER' && !isIncognito && (
                   <div className="flex flex-wrap gap-2 justify-center mt-7 max-w-md">
-                    {(STARTERS[mode] || STARTERS.COUNCIL).map(([en, hi]) => (
+                    {STARTERS.map(([en, hi]) => (
                       <button
                         key={en}
                         type="button"
@@ -1693,6 +1707,32 @@ export default function Inner() {
             <AnimatePresence initial={false}>
               {messages.map((msg, mi) => {
                 const isError = msg.isAi && msg.text.startsWith('[System Error]');
+
+                // A handoff is not a message — it is the seam between two
+                // rooms. Drawn as a rule with the destination on it, so the
+                // thread reads as one conversation that changed hands.
+                if (msg.handoff) {
+                  const h = msg.handoff;
+                  return (
+                    <motion.div
+                      key={msg.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="w-full flex items-center gap-3 py-1 select-none"
+                      data-mode={h.to}
+                    >
+                      <span className="h-px flex-1 bg-border" />
+                      <span className="text-[10.5px] uppercase tracking-[0.12em] font-mono text-text-faint whitespace-nowrap flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-mode-tint" aria-hidden />
+                        {lang === 'en'
+                          ? `Taken to ${h.to === 'MENTOR' ? (h.character || 'the Mentor') : ROOM_NAME[h.to]}`
+                          : `${ROOM_NAME[h.to]} के पास`}
+                      </span>
+                      <span className="h-px flex-1 bg-border" />
+                    </motion.div>
+                  );
+                }
+
                 const isNotice = msg.isAi && msg.text.startsWith('[System]');
                 // Only the newest reply becomes tappable. Leaving old questions
                 // live would let a tap answer something three turns back.
@@ -1949,40 +1989,6 @@ export default function Inner() {
                 : (lang === 'en' ? 'Check in' : 'आज कैसा लग रहा है?')}
             </button>
           </div>
-        )}
-        {mode === 'EMOTION' && (
-          <>
-            <button 
-              onClick={() => { setInput(lang === 'en' ? 'Answer this as a ghazal.'  : 'इसका जवाब ग़ज़ल में दीजिए।'); document.getElementById('chat-input')?.focus(); }}
-              className="text-[12px] font-medium bg-surface hover:bg-surface-2 text-text-body px-3 py-1.5 rounded-full border border-border shrink-0 transition-colors"
-            >
-              {lang === 'en' ? 'Ghazal' : 'ग़ज़ल'}
-            </button>
-            <button 
-              onClick={() => { setInput(lang === 'en' ? 'Just one sher.'  : 'बस एक शेर।'); document.getElementById('chat-input')?.focus(); }}
-              className="text-[12px] font-medium bg-surface hover:bg-surface-2 text-text-body px-3 py-1.5 rounded-full border border-border shrink-0 transition-colors"
-            >
-              {lang === 'en' ? 'Short sher' : 'एक शेर'}
-            </button>
-            <button 
-              onClick={() => { setInput(lang === 'en' ? 'Free verse, no rhyme.'  : 'आज़ाद नज़्म, बिना क़ाफ़िये।'); document.getElementById('chat-input')?.focus(); }}
-              className="text-[12px] font-medium bg-surface hover:bg-surface-2 text-text-body px-3 py-1.5 rounded-full border border-border shrink-0 transition-colors"
-            >
-              {lang === 'en' ? 'Free verse' : 'आज़ाद नज़्म'}
-            </button>
-            <button 
-              onClick={() => { setInput(lang === 'en' ? 'Say it gently — leave some light in it.'  : 'नरमी से कहिए — थोड़ी रौशनी रहने दीजिए।'); document.getElementById('chat-input')?.focus(); }}
-              className="text-[12px] font-medium bg-surface hover:bg-surface-2 text-text-body px-3 py-1.5 rounded-full border border-border shrink-0 transition-colors"
-            >
-              {lang === 'en' ? 'Hopeful' : 'उम्मीद'}
-            </button>
-            <button 
-              onClick={() => { setInput(lang === 'en' ? 'Do not soften it.'  : 'इसे हल्का मत कीजिए।'); document.getElementById('chat-input')?.focus(); }}
-              className="text-[12px] font-medium bg-surface hover:bg-surface-2 text-text-body px-3 py-1.5 rounded-full border border-border shrink-0 transition-colors"
-            >
-              {lang === 'en' ? 'Unsparing' : 'बेरहम'}
-            </button>
-          </>
         )}
 
         {(mode === 'TEACHER' || (mode === 'MENTOR' && messages.length > 0)) && (
