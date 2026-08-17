@@ -1,0 +1,195 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - displayName: string (optional)
+    //   - photoURL: string (optional)
+    //   - role: string (required, 'user' or 'admin')
+    //   - createdAt: timestamp (required)
+    //   - lastLoginAt: timestamp (required)
+    //
+    // Collection: sessions
+    // Document ID: {sessionId}
+    // Fields:
+    //   - sessionId: string (required)
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - startTime: timestamp (required)
+    //   - endTime: timestamp (optional)
+    //   - durationSeconds: number (optional)
+    //
+    // Collection: settings
+    // Document ID: {settingId}
+    // Fields:
+    //   - maintenanceMode: boolean (required)
+    //   - welcomeMessage: string (optional)
+    //
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        (request.auth.token.email == "vk1234888i@gmail.com" && request.auth.token.email_verified == true));
+    }
+    
+    // True when a field is untouched by this write — absent from both the old
+    // and the new document, or present in both and equal. Ordinary writes that
+    // never mention the field therefore pass.
+    function unchangedOrAbsent(field) {
+      return !(field in request.resource.data) && !(field in resource.data)
+          || (field in request.resource.data) && (field in resource.data)
+             && request.resource.data[field] == resource.data[field];
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+    
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+    
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt', 'lastLoginAt', 'dailyMessageCount', 'lastMessageDate', 'referredBy', 'invitesSent']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.email is string && isValidEmail(data.email) &&
+             (!('displayName' in data) || data.displayName is string) &&
+             (!('photoURL' in data) || data.photoURL is string) &&
+             data.role in ['user', 'admin'] &&
+             data.createdAt is timestamp &&
+             data.lastLoginAt is timestamp &&
+             (!('dailyMessageCount' in data) || data.dailyMessageCount is number) &&
+             (!('lastMessageDate' in data) || data.lastMessageDate is string) &&
+             (!('referredBy' in data) || data.referredBy is string) &&
+             (!('invitesSent' in data) || data.invitesSent is number);
+    }
+    
+    function isValidSession(data) {
+      return hasOnlyAllowedFields(['sessionId', 'uid', 'email', 'startTime', 'endTime', 'durationSeconds']) &&
+             data.sessionId is string && data.sessionId.size() > 0 &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.startTime is timestamp &&
+             (!('endTime' in data) || data.endTime is timestamp) &&
+             (!('durationSeconds' in data) || data.durationSeconds is number);
+    }
+    
+    function isValidSetting(data) {
+      return hasOnlyAllowedFields(['maintenanceMode', 'welcomeMessage']) &&
+             data.maintenanceMode is bool &&
+             (!('welcomeMessage' in data) || data.welcomeMessage is string);
+    }
+
+    function isValidFeedback(data) {
+      return hasOnlyAllowedFields(['userId', 'email', 'feedbackText', 'rating', 'createdAt', 'status']) &&
+             data.userId is string && data.userId.size() > 0 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.feedbackText is string && data.feedbackText.size() <= 2000 &&
+             (!('rating' in data) || (data.rating is number && data.rating >= 1 && data.rating <= 5)) &&
+             data.createdAt is timestamp &&
+             (!('status' in data) || data.status in ['new', 'read', 'resolved']);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin() || (isAuthenticated() && resource.data.referredBy == request.auth.uid);
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && 
+                    (request.resource.data.role == 'user' || isAdmin());
+      // An account may edit its own profile, but not its own moderation state.
+      // Without these four guards a blocked user could clear their own block
+      // and anyone could raise their own daily limit.
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (
+                      isAdmin()
+                      || (
+                        isOwner(userId)
+                        && request.resource.data.role == resource.data.role
+                        && unchangedOrAbsent('blocked')
+                        && unchangedOrAbsent('blockedPermanently')
+                        && unchangedOrAbsent('blockedReason')
+                        && unchangedOrAbsent('dailyLimit')
+                      )
+                    );
+      allow delete: if isAdmin();
+      
+      match /chatSessions/{sessionId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      match /simulatorState/{document=**} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+    
+    match /sessions/{sessionId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.uid == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid && isValidSession(request.resource.data);
+      allow update: if isAuthenticated() && request.resource.data.uid == request.auth.uid && isValidSession(request.resource.data) &&
+                    request.resource.data.startTime == resource.data.startTime &&
+                    request.resource.data.uid == resource.data.uid;
+      allow delete: if isAdmin();
+    }
+    
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin() && isValidSetting(request.resource.data);
+    }
+    
+    match /feedback/{feedbackId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid && isValidFeedback(request.resource.data);
+      allow update: if isAdmin() && isValidFeedback(request.resource.data);
+      allow delete: if isAdmin();
+    }
+    match /custom_characters/{charId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Character portraits for the public site. Anyone may read; only the owner
+    // may write, checked against the signed-in account's verified email.
+    match /site_portraits/{characterId} {
+      allow read: if true;
+
+      allow write: if request.auth != null
+                && request.auth.token.email_verified == true
+                && request.auth.token.email.lower() in ['vk1234888i@gmail.com']
+                && request.resource.data.image is string
+                && request.resource.data.image.size() < 900000
+                && request.resource.data.image.matches('^data:image/(jpeg|png|webp);base64,.*');
+
+      allow delete: if request.auth != null
+                 && request.auth.token.email_verified == true
+                 && request.auth.token.email.lower() in ['vk1234888i@gmail.com'];
+    }
+  }
+}

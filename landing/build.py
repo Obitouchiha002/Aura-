@@ -253,6 +253,20 @@ def shell(page, title, description, body, accent=None):
         for href, label in rail_links
     )
 
+    # The drawer carries every destination. Six of them are the desktop nav;
+    # the rest only ever appear once the bar has collapsed, so a phone is not
+    # left with fewer ways around the site than a laptop.
+    primary = {href for href, _ in NAV}
+    drawer = "".join(
+        '<a href="%s"%s%s>%s</a>' % (
+            href,
+            current if href == page else "",
+            "" if href in primary else ' class="nav-extra"',
+            esc(label),
+        )
+        for href, label in rail_links
+    )
+
     cols = ""
     for heading, links in FOOT_COLS:
         items = "".join(f'<a href="{h}">{esc(l)}</a>' for h, l in links)
@@ -294,7 +308,7 @@ def shell(page, title, description, body, accent=None):
 <header class="bar">
   <div class="wrap bar__in">
     <a class="mark" href="index.html">Aura<i></i></a>
-    <nav id="nav">{nav}</nav>
+    <nav id="nav">{drawer}</nav>
     <div class="bar__right">
       <button class="toggle" id="theme" type="button" role="switch" aria-checked="false" aria-label="Switch theme">
         <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
@@ -313,7 +327,7 @@ def shell(page, title, description, body, accent=None):
           <line x1="4" y1="8" x2="20" y2="8" /><line x1="4" y1="16" x2="20" y2="16" />
         </svg>
       </button>
-      <a class="btn btn--solid btn--sm" href="download.html">Get the app</a>
+      <a class="btn btn--solid btn--sm bar__cta" href="download.html"><span class="bar__cta-long">Get the app</span><span class="bar__cta-short">Get</span></a>
     </div>
   </div>
 </header>
@@ -439,7 +453,7 @@ PAGES["index.html"] = shell(
       verse. Each is its own room, with its own colour.</p>
       <div class="cta-row">
         <a class="btn btn--solid" href="download.html">Download for Android</a>
-        <a class="btn btn--ghost" href="download.html">Get the Android app</a>
+        <a class="btn btn--ghost" href="#rooms">See the five rooms</a>
       </div>
       <p class="hero__note">Hindi, Hinglish or English &middot; free to use &middot; your mood log never leaves the phone</p>
     </div>

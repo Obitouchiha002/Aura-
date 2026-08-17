@@ -47,15 +47,49 @@
   }
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', paintToggle);
 
-  /* ── the small-screen menu ─────────────────────────────────────────────── */
+  /* ── the small-screen drawer ─────────────────────────────────────────────
+     A backdrop so tapping away closes it, Escape as well, and a class on the
+     body so the sticky rail can get out of the way — two stacked bars ate the
+     top of a short screen. */
   var burger = document.getElementById('burger');
   var nav = document.getElementById('nav');
   if (burger && nav) {
-    burger.addEventListener('click', function () {
-      var open = nav.classList.toggle('open');
+    var scrim = document.createElement('div');
+    scrim.className = 'navscrim';
+    scrim.hidden = true;
+    document.body.appendChild(scrim);
+
+    var setOpen = function (open) {
+      nav.classList.toggle('open', open);
       burger.setAttribute('aria-expanded', String(open));
+      document.body.classList.toggle('nav-open', open);
+      scrim.hidden = !open;
+    };
+
+    burger.addEventListener('click', function () {
+      setOpen(!nav.classList.contains('open'));
+    });
+    scrim.addEventListener('click', function () { setOpen(false); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && nav.classList.contains('open')) setOpen(false);
+    });
+    // Following a link should not leave the drawer open behind the new page.
+    nav.addEventListener('click', function (e) {
+      if (e.target.tagName === 'A') setOpen(false);
     });
   }
+
+  /* ── bring the current page's rail pill into view ────────────────────────
+     The rail scrolls, and on Download, FAQ and every room page the active
+     pill started off-screen — so the one thing it exists to show was the one
+     thing you could not see. */
+  (function () {
+    var rail = document.querySelector('.railnav ul');
+    var here = rail && rail.querySelector('a[aria-current="page"]');
+    if (!rail || !here) return;
+    var target = here.offsetLeft - (rail.clientWidth - here.offsetWidth) / 2;
+    rail.scrollLeft = Math.max(0, target);
+  })();
 
   var still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
