@@ -2,6 +2,7 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { trackKeyboardInset } from './utils/keyboardInset.ts';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -18,6 +19,9 @@ createRoot(document.getElementById('root')!).render(
  * user is looking at.
  */
 const BOOT_FLOOR_MS = 750;
+
+// Must run before the first keyboard opens, which can be immediately.
+trackKeyboardInset();
 const bootShownAt = performance.now();
 
 /** Fade out the inline boot screen and take it out of the tree. */

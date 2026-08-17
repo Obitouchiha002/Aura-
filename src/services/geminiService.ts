@@ -72,15 +72,21 @@ async function generateOnce(
 }
 
 const exhaustedModels: Record<string, number> = {};
-const EXHAUST_COOLDOWN = 2 * 60 * 1000; // 2 minutes cooldown so it checks if limit is back quickly
+/**
+ * How long a model that returned 429 is skipped for.
+ *
+ * This was two minutes, on the theory that a limit might lift quickly. Google's
+ * quotas are mostly daily, so all that did was make roughly one message in
+ * every two minutes pay for a failed round trip before it even started.
+ */
+const EXHAUST_COOLDOWN = 10 * 60 * 1000;
 
-const MODELS = [
-  "gemini-3.1-pro-preview",
-  "gemini-2.5-pro",
-  "gemini-3.1-flash-lite-preview",
-  "gemini-3-flash-preview", 
-  "gemini-2.5-flash"
-];
+/**
+ * Models that answered 404 — retired by Google, and never coming back within
+ * this session. Without this a retired name was retried on every single
+ * message, which is a wasted round trip per reply, forever.
+ */
+const deadModels = new Set<string>();
 
 async function generateWithGroqFallback(
   contents: any[],
@@ -156,22 +162,33 @@ async function generateWithFallback(
 
   let lastError: any;
 
-  // Fast models prioritized as user requested faster replies
+  /**
+   * The order matters more than it looks: every name that fails costs a full
+   * round trip before the real answer is even requested.
+   *
+   * gemini-2.5-pro is gone — it now 404s for this key — and it used to sit
+   * second in both lists, so every reply in the app paid for it. Every name
+   * below was checked against the live endpoint.
+   */
   const modelsToTry = fastMode ? [
+    "gemini-3.6-flash",
     "gemini-3.1-flash-lite-preview",
     "gemini-3-flash-preview",
     "gemini-2.5-flash",
     "gemini-3.1-pro-preview",
-    "gemini-2.5-pro"
   ] : [
-    "gemini-3-flash-preview",
+    // Pro is the better answer when the quota allows it, but it is also the
+    // first to run out, so the flash models sit behind it rather than the
+    // other way round.
     "gemini-3.1-pro-preview",
-    "gemini-2.5-pro",
+    "gemini-3.6-flash",
+    "gemini-3-flash-preview",
     "gemini-3.1-flash-lite-preview",
-    "gemini-2.5-flash"
+    "gemini-2.5-flash",
   ];
 
   for (const modelName of modelsToTry) {
+    if (deadModels.has(modelName)) continue;
     if (exhaustedModels[modelName] && Date.now() < exhaustedModels[modelName]) {
       console.log(`Skipping ${modelName} (on cooldown due to recent quota exhaustion).`);
       continue;
@@ -196,7 +213,10 @@ async function generateWithFallback(
       }
       
       if (errorMessage.includes('404') || errorMessage.includes('not found')) {
-        console.warn(`Model ${modelName} not found. Falling back to next model...`);
+        // Retired, not busy. Asking again later would only cost another round
+        // trip, so it is out for the rest of the session.
+        console.warn(`Model ${modelName} is gone. Dropping it for this session.`);
+        deadModels.add(modelName);
         continue;
       }
 

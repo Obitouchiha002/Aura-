@@ -31,10 +31,16 @@ interface Layer {
   duration: number;
 }
 
+/**
+ * Tiles are large and reasonably populated on purpose. A small tile repeats
+ * often enough on a phone screen that the eye picks out the same little
+ * constellation stacked down the page, which reads as wallpaper rather than
+ * as sky.
+ */
 const LAYERS: Layer[] = [
-  { tile: 300, count: 5, radius: 0.7, opacity: 0.30, duration: 54 },
-  { tile: 380, count: 4, radius: 1.0, opacity: 0.48, duration: 37 },
-  { tile: 460, count: 3, radius: 1.4, opacity: 0.68, duration: 25 },
+  { tile: 480, count: 9, radius: 0.7, opacity: 0.30, duration: 62 },
+  { tile: 560, count: 7, radius: 1.0, opacity: 0.48, duration: 43 },
+  { tile: 640, count: 5, radius: 1.4, opacity: 0.68, duration: 29 },
 ];
 
 /** One layer's tile, as the three background properties that describe it. */

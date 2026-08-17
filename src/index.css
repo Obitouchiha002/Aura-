@@ -310,7 +310,10 @@ html, body {
   height: 100%;
 }
 
-#root { height: 100%; }
+/* --kb-inset is 0 unless the WebView failed to resize itself for the
+   keyboard; see utils/keyboardInset.ts. Subtracting it here is what keeps the
+   composer on screen in the shells where adjustResize does not take. */
+#root { height: calc(100% - var(--kb-inset, 0px)); }
 
 /* every text block gets a measure */
 .msg-content, .scenario-text, .report-content p {
