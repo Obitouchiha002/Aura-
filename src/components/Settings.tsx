@@ -15,6 +15,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useAppLock } from '../context/AppLockContext';
 import { isCryptoAvailable } from '../utils/appLock';
 import { LockSetup } from './LockSetup';
+import { VersionRow } from './VersionRow';
 
 interface SettingsProps {
   onClose: () => void;
@@ -477,6 +478,8 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
           </Section>
 
           <Section title="Account">
+            <VersionRow Row={Row} />
+
             <Row
               icon={LogOut}
               label="Log out"

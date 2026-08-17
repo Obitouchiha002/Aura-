@@ -12,6 +12,7 @@ import { Login } from './pages/Login';
 import { MouseGlow } from './components/MouseGlow';
 import { SpaceBackground } from './components/SpaceBackground';
 import { NoticeBanner } from './components/Notice';
+import { UpdateBanner } from './components/UpdateBanner';
 
 /**
  * The admin dashboard is split out on purpose. It pulls in a charting library
@@ -99,6 +100,8 @@ function AppContent() {
           anyone who went straight there. NoticeBanner shows everywhere, is
           dismissible, and updates live. */}
       <NoticeBanner />
+      {/* Silent until the updater is actually doing something. */}
+      <UpdateBanner />
       {isChat ? (
         <>
           <SpaceBackground />
