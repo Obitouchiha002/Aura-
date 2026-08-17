@@ -300,6 +300,34 @@ function displayName(value: string): { name: string; source?: string } {
   return m ? { name: m[1].trim(), source: m[2].trim() } : { name: value };
 }
 
+/** Every character the app knows, for resolving a shortened name. */
+const ALL_CHARACTERS = [...CHARACTERS.MENTOR, ...CHARACTERS.EMOTION];
+
+/**
+ * Turns whatever the model wrote into the character it meant.
+ *
+ * Replies are signed loosely — "Shelby", "Ayanokoji", "Ghalib" — while the
+ * portraits and the roster are keyed to full names. Without this the label
+ * reads SHELBY over a pair of initials while the photograph of Thomas Shelby
+ * sits unused.
+ *
+ * A surname shared by several characters resolves to nothing rather than to a
+ * guess: showing Tywin's face above Tyrion's words would be worse than showing
+ * no face at all.
+ */
+function resolveCharacter(raw: string): string | null {
+  const norm = (v: string) => v.replace(/\s*\([^)]*\)\s*$/, '').toLowerCase().trim();
+  const target = norm(raw);
+  if (!target) return null;
+
+  const exact = ALL_CHARACTERS.find(c => norm(c) === target);
+  if (exact) return exact;
+
+  // A single word: match it against any word of a full name.
+  const hits = ALL_CHARACTERS.filter(c => norm(c).split(/\s+/).includes(target));
+  return hits.length === 1 ? hits[0] : null;
+}
+
 /**
  * Who is speaking in a reply.
  *
@@ -312,7 +340,7 @@ function speakerOf(text: string, character?: string): string | null {
   const m = text.match(/^\s*\[([^\]]{2,40})\]/);
   if (m) {
     const name = m[1].replace(/\s+Response$/i, '').trim();
-    if (name && !/^system/i.test(name)) return name;
+    if (name && !/^system/i.test(name)) return resolveCharacter(name) || name;
   }
   // A room's own name is not a person and has no face.
   if (character && !/^The (Council|Poets|Teacher|Psychologist)$/i.test(character)) {
@@ -1575,7 +1603,9 @@ export default function Inner() {
                             </motion.span>
                           )}
                           <span className="text-[11px] uppercase tracking-[0.08em] text-mode-tint font-mono truncate">
-                            {speaker || room}
+                            {/* "Sun Tzu (The Art of War)" is how the roster
+                                stores him; the label wants just the name. */}
+                            {speaker ? displayName(speaker).name : room}
                           </span>
                         </span>
                       );
