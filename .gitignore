@@ -13,3 +13,10 @@ android/app/build/
 android/.gradle/
 android/build/
 android/local.properties
+
+# Android signing key — never commit. Losing it means you can never update the app.
+android/keystore/
+*.jks
+*.keystore
+!~/.android/debug.keystore
+android/keystore.properties

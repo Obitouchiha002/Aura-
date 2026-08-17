@@ -1,0 +1,36 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Rules for the site's character portraits.
+//
+// Paste this `match` block inside the existing
+//   service cloud.firestore { match /databases/{database}/documents { … } }
+// in firestore.rules, alongside the blocks already there. Do not replace the
+// file — the app's own collections need the rules that are already in it.
+//
+// Anyone may read: the portraits are shown on a public page. Only the owner
+// may write, checked against the signed-in account's verified email. The admin
+// page checks the same list, but that check is only for a polite message —
+// this is the one that actually holds, because it runs on the server and
+// cannot be edited from a browser.
+// ═══════════════════════════════════════════════════════════════════════════
+
+match /site_portraits/{characterId} {
+  allow read: if true;
+
+  allow write: if request.auth != null
+            && request.auth.token.email_verified == true
+            && request.auth.token.email.lower() in [
+                 'grivaaseo@gmail.com'
+               ]
+            // A portrait is one JPEG data URI and a little metadata. Capping the
+            // size here stops the collection being used as free storage if the
+            // account is ever compromised.
+            && request.resource.data.image is string
+            && request.resource.data.image.size() < 900000
+            && request.resource.data.image.matches('^data:image/(jpeg|png|webp);base64,.*');
+
+  allow delete: if request.auth != null
+             && request.auth.token.email_verified == true
+             && request.auth.token.email.lower() in [
+                  'grivaaseo@gmail.com'
+                ];
+}

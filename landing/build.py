@@ -232,6 +232,10 @@ def plate_rings(seed):
 
 # ── shell ───────────────────────────────────────────────────────────────────
 def shell(page, title, description, body, accent=None):
+    # Only the roster needs the uploaded-portrait fetcher, and it is a module
+    # so it never blocks the rest of the page.
+    portraits = ('\n<script type="module" src="assets/portraits.js"></script>'
+                 if page == "characters.html" else "")
     current = ' aria-current="page"'
     nav = "".join(
         '<a href="%s"%s>%s</a>' % (href, current if href == page else "", esc(label))
@@ -281,6 +285,8 @@ def shell(page, title, description, body, accent=None):
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>{esc(title)}</title>
 <meta name="description" content="{html.escape(description, quote=True)}" />
+<link rel="icon" type="image/png" href="assets/icon.png" />
+<link rel="apple-touch-icon" href="assets/icon.png" />
 <link rel="stylesheet" href="assets/site.css" />{accent_style}
 </head>
 <body>
@@ -330,7 +336,7 @@ def shell(page, title, description, body, accent=None):
   </div>
 </footer>
 
-<script src="assets/site.js"></script>
+<script src="assets/site.js"></script>{portraits}
 </body>
 </html>
 """
@@ -433,7 +439,7 @@ PAGES["index.html"] = shell(
       verse. Each is its own room, with its own colour.</p>
       <div class="cta-row">
         <a class="btn btn--solid" href="download.html">Download for Android</a>
-        <a class="btn btn--ghost" href="download.html">Download for Android</a>
+        <a class="btn btn--ghost" href="download.html">Get the Android app</a>
       </div>
       <p class="hero__note">Hindi, Hinglish or English &middot; free to use &middot; your mood log never leaves the phone</p>
     </div>
@@ -1081,10 +1087,10 @@ PAGES["download.html"] = shell(
         <div class="card">
           <span class="label">Android</span>
           <h3>Install the app</h3>
-          <p>The full experience, with biometric unlock and the camera in the composer.
-          Installed from an APK rather than the Play Store for now, so Android will ask
-          you to allow the install once.</p>
-          <a class="btn btn--solid" href="#" data-download>Download the APK</a>
+          <p>The build is finished and in testing — biometric unlock, the camera in the
+          composer, and all five rooms. The download goes up here the moment sign-in is
+          working on the device.</p>
+          <a class="btn btn--solid" href="#notify" data-download>Tell me when it is ready</a>
           <p class="note">Android 8.0 and above.</p>
         </div>
         <div class="card">
@@ -1161,7 +1167,7 @@ PAGES["faq.html"] = shell(
       </p>
     </div>
   </section>
-""" + strip("Ready when you are.", "Free, and nothing to install if you use the web."),
+""" + strip("Ready when you are.", "The Android build lands shortly. Free, and nothing held back for a paid tier."),
 )
 
 # ── write ───────────────────────────────────────────────────────────────────
