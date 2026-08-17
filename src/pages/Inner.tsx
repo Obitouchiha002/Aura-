@@ -460,12 +460,12 @@ function CharacterPicker({ mode, lang, options, selected, onSelect, onClose }: {
                         : 'bg-transparent border-transparent hover:bg-surface-2 hover:border-border'
                     }`}
                   >
-                    <span className={`w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0 border ${
+                    <span className={`relative overflow-hidden w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0 border ${
                       isActive
                         ? 'bg-mode-tint text-on-accent border-transparent'
                         : 'bg-surface-2 text-text-muted border-border'
                     }`}>
-                      {initials(char)}
+                      <CharacterAvatar name={char} fallback={initials(char)} />
                     </span>
                     <span className="flex flex-col min-w-0 flex-1">
                       <span className={`text-[13.5px] font-medium leading-tight truncate ${isActive ? 'text-mode-tint' : 'text-text-primary'}`}>
@@ -491,6 +491,7 @@ import { TypewriterText } from '../components/TypewriterText';
 import ReactMarkdown from 'react-markdown';
 import { markdownComponents } from '../components/markdownComponents';
 import { parseMcq } from '../utils/parseMcq';
+import { CharacterAvatar } from '../components/CharacterAvatar';
 import { SessionSummarySheet } from '../components/SessionSummarySheet';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { MoodCheckIn, checkedInToday } from '../components/MoodCheckIn';
@@ -1246,8 +1247,8 @@ export default function Inner() {
                       : 'bg-surface border-border hover:border-border-strong'
                   }`}
                 >
-                  <span className="w-7 h-7 rounded-full bg-mode-tint text-on-accent flex items-center justify-center text-[10.5px] font-bold">
-                    {initials(selectedCharacter)}
+                  <span className="relative overflow-hidden w-7 h-7 rounded-full bg-mode-tint text-on-accent flex items-center justify-center text-[10.5px] font-bold">
+                    <CharacterAvatar name={selectedCharacter} fallback={initials(selectedCharacter)} />
                   </span>
                   <ChevronDown
                     size={14}
@@ -1453,7 +1454,18 @@ export default function Inner() {
                 <div className="relative mb-4 sm:mb-6">
                   <div className="absolute inset-0 -m-5 rounded-full bg-mode-wash blur-2xl opacity-[var(--glow-strength)]" />
                   <div className="relative">
-                    {isIncognito
+                    {/* In Mentor the room is one person, so their face belongs
+                        here. Everywhere else — and in incognito, where nobody is
+                        named — the mode's own mark stands. */}
+                    {!isIncognito && mode === 'MENTOR' ? (
+                      <span className="relative overflow-hidden w-[60px] h-[60px] rounded-2xl flex items-center justify-center bg-surface-2 border border-border text-[17px] font-bold text-text-muted">
+                        <CharacterAvatar
+                          name={selectedCharacter}
+                          fallback={initials(selectedCharacter)}
+                          className="rounded-2xl"
+                        />
+                      </span>
+                    ) : isIncognito
                       ? <EyeMark pattern="tomoe" tint="var(--accent)" />
                       : <EyeMark pattern={MODE_EYE[mode]} tint="var(--color-mode-tint)" />}
                   </div>
