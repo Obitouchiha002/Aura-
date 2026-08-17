@@ -199,24 +199,40 @@ import { openEditor } from './assets/cropper.js';
    the page says no politely instead of failing on the first upload. */
 const OWNERS = ['vk1234888i@gmail.com'];
 
+/**
+ * Every character in the app, in the order the app lists them.
+ *
+ * The third field names a portrait that ships with the site — eight of these
+ * exist under a free licence, so they are already in place. They are listed
+ * here anyway: everything should be replaceable from one screen, and an upload
+ * takes precedence over the bundled file.
+ */
 const CHARACTERS = [
   ['Thomas Shelby', 'Peaky Blinders'],
-  ['Harvey Specter', 'Suits'],
-  ['Gustavo Fring', 'Breaking Bad'],
   ['Tywin Lannister', 'Game of Thrones'],
+  ['Petyr Baelish', 'Game of Thrones'],
   ['Cersei Lannister', 'Game of Thrones'],
   ['Tyrion Lannister', 'Game of Thrones'],
-  ['Petyr Baelish', 'Game of Thrones'],
-  ['Kiyotaka Ayanokoji', 'Classroom of the Elite'],
-  ['Johan Liebert', 'Monster'],
   ['Madara Uchiha', 'Naruto'],
   ['Itachi Uchiha', 'Naruto'],
   ['Pain', 'Naruto'],
   ['Shikamaru Nara', 'Naruto'],
+  ['Johan Liebert', 'Monster'],
+  ['Kiyotaka Ayanokoji', 'Classroom of the Elite'],
   ['L', 'Death Note'],
   ['Sosuke Aizen', 'Bleach'],
   ['Senku Ishigami', 'Dr. Stone'],
+  ['Harvey Specter', 'Suits'],
+  ['Gustavo Fring', 'Breaking Bad'],
+  ['Chanakya', 'Arthashastra', 'chanakya.jpg'],
+  ['Sun Tzu', 'The Art of War', 'suntzu.jpg'],
+  ['Niccolò Machiavelli', 'The Prince', 'machiavelli.jpg'],
+  ['Mirza Ghalib', 'Urdu · 1797–1869', 'ghalib.jpg'],
+  ['Jaun Elia', 'Urdu · 1931–2002', 'jaunelia.jpg'],
+  ['Faiz Ahmed Faiz', 'Urdu · 1911–1984', 'faiz.jpg'],
+  ['Ahmad Faraz', 'Urdu · 1931–2008', 'ahmadfaraz.jpg'],
   ['Gulzar', 'Urdu & Hindi'],
+  ['William Shakespeare', 'English · 1564–1616', 'shakespeare.jpg'],
 ];
 
 const app = initializeApp(FIREBASE_CONFIG);
@@ -261,14 +277,19 @@ async function render() {
     return;
   }
 
-  $('count').textContent = `${existing.size} of ${CHARACTERS.length} portraits added.`;
+  const bundledCount = CHARACTERS.filter(c => c[2] && !existing.has(slugFor(c[0]))).length;
+  $('count').textContent =
+    `${existing.size + bundledCount} of ${CHARACTERS.length} portraits set` +
+    (bundledCount ? ` — ${bundledCount} shipped with the site` : '') + '.';
   wrap.innerHTML = '';
 
-  for (const [name, source] of CHARACTERS) {
+  for (const [name, source, bundled] of CHARACTERS) {
     const id = slugFor(name);
     const el = document.createElement('div');
     el.className = 'slot';
-    const saved = existing.get(id);
+    const uploaded = existing.get(id);
+    // An upload wins; otherwise fall back to whatever ships with the site.
+    const saved = uploaded || (bundled ? 'assets/people/' + bundled : null);
     el.innerHTML = `
       <div class="slot__plate">
         ${saved ? `<img alt="">` : `<span>${name.split(' ').map(p => p[0]).join('').slice(0,2)}</span>`}
@@ -278,7 +299,7 @@ async function render() {
         <span class="slot__name">${name}</span>
         <div class="slot__row">
           <label>${saved ? 'Replace' : 'Choose image'}<input type="file" accept="image/*"></label>
-          ${saved ? '<button type="button" title="Remove">Remove</button>' : ''}
+          ${uploaded ? '<button type="button" title="Remove">Remove</button>' : ''}
         </div>
       </div>`;
     if (saved) el.querySelector('img').src = saved;
