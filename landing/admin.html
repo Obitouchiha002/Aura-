@@ -58,6 +58,57 @@
     font-size: .9375rem;
   }
   .err { color: var(--red); font-size: .9375rem; }
+
+  /* ── crop editor ─────────────────────────────────────────────────────────
+     The card is 4:3, so the upload has to be too. Cropping from the centre
+     automatically cut heads off; this lets the face be placed by hand. */
+  .editor {
+    position: fixed; inset: 0; z-index: 200; display: grid; place-items: center;
+    background: color-mix(in srgb, var(--ground) 88%, transparent);
+    backdrop-filter: blur(10px); padding: 1.25rem;
+  }
+  .editor[hidden] { display: none; }
+  .editor__box {
+    width: min(100%, 34rem); background: var(--raised);
+    border: 1px solid var(--line); border-radius: 20px; overflow: hidden;
+    box-shadow: var(--shadow-2); display: grid;
+  }
+  .editor__head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
+    padding: 1.15rem 1.35rem; border-bottom: 1px solid var(--line);
+  }
+  .editor__head h2 { font-size: 1.35rem; }
+
+  /* The viewport is exactly the shape of the card. What you see here is what
+     gets written — the export runs the same transform at a larger size. */
+  .stagearea {
+    position: relative; aspect-ratio: 4 / 3; overflow: hidden;
+    background: #000; cursor: grab; touch-action: none; user-select: none;
+  }
+  .stagearea:active { cursor: grabbing; }
+  .stagearea img {
+    position: absolute; top: 0; left: 0; transform-origin: 0 0;
+    max-width: none; pointer-events: none; -webkit-user-drag: none;
+  }
+  /* A rule of thirds, so a face can be placed rather than guessed at. */
+  .stagearea::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background:
+      linear-gradient(to right, transparent 33.33%, rgba(255,255,255,.22) 33.33%, rgba(255,255,255,.22) calc(33.33% + 1px), transparent calc(33.33% + 1px), transparent 66.66%, rgba(255,255,255,.22) 66.66%, rgba(255,255,255,.22) calc(66.66% + 1px), transparent calc(66.66% + 1px)),
+      linear-gradient(to bottom, transparent 33.33%, rgba(255,255,255,.22) 33.33%, rgba(255,255,255,.22) calc(33.33% + 1px), transparent calc(33.33% + 1px), transparent 66.66%, rgba(255,255,255,.22) 66.66%, rgba(255,255,255,.22) calc(66.66% + 1px), transparent calc(66.66% + 1px));
+  }
+
+  .editor__ctl { padding: 1.15rem 1.35rem; display: grid; gap: 1rem; }
+  .zoomrow { display: flex; align-items: center; gap: .9rem; }
+  .zoomrow input[type=range] { flex: 1; accent-color: var(--accent); }
+  .zoomrow span {
+    font-family: 'JetBrains Mono', monospace; font-size: .75rem;
+    color: var(--ink-faint); min-width: 3.2rem; text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .editor__hint { font-size: .8125rem; color: var(--ink-faint); }
+  .editor__row { display: flex; gap: .6rem; justify-content: flex-end; flex-wrap: wrap; }
+
 </style>
 </head>
 <body>
@@ -109,6 +160,30 @@
   </section>
 </main>
 
+<div class="editor" id="editor" hidden>
+  <div class="editor__box">
+    <div class="editor__head">
+      <h2 id="edName">Adjust</h2>
+      <span class="label">4:3</span>
+    </div>
+    <div class="stagearea" id="edStage"><img id="edImg" alt="" /></div>
+    <div class="editor__ctl">
+      <div class="zoomrow">
+        <span class="label" style="min-width:auto">Zoom</span>
+        <input type="range" id="edZoom" min="1" max="4" step="0.01" value="1" />
+        <span id="edZoomVal">100%</span>
+      </div>
+      <p class="editor__hint">Drag the picture to move it. Scroll or pinch to zoom.</p>
+      <div class="editor__row">
+        <button class="btn btn--ghost btn--sm" id="edCancel" type="button">Cancel</button>
+        <button class="btn btn--ghost btn--sm" id="edReset" type="button">Reset</button>
+        <button class="btn btn--solid btn--sm" id="edSave" type="button">Save portrait</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js';
 import {
@@ -118,6 +193,7 @@ import {
   getFirestore, collection, doc, getDocs, setDoc, deleteDoc,
 } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js';
 import { FIREBASE_CONFIG, COLLECTION, DATABASE_ID, slugFor } from './assets/portraits.js';
+import { openEditor } from './assets/cropper.js';
 
 /* Who may write. The database rules enforce the same list — this is only so
    the page says no politely instead of failing on the first upload. */
@@ -174,39 +250,6 @@ onAuthStateChanged(auth, user => {
   if (allowed) render();
 });
 
-/**
- * Crop to 4:3 from the centre, cap the long edge, and encode as JPEG.
- * Firestore documents stop at 1 MB, and a data URI is a third larger than the
- * bytes it carries — 720px at quality 0.82 lands comfortably under that while
- * still being sharp on the card.
- */
-function shrink(file) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onerror = () => reject(new Error('That file is not an image this browser can read.'));
-    img.onload = () => {
-      const W = 720, H = 540;
-      const scale = Math.max(W / img.width, H / img.height);
-      const w = img.width * scale, h = img.height * scale;
-      const c = document.createElement('canvas');
-      c.width = W; c.height = H;
-      const ctx = c.getContext('2d');
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
-
-      let q = 0.82, out = c.toDataURL('image/jpeg', q);
-      // Back off until it fits, rather than failing the write at the server.
-      while (out.length > 700_000 && q > 0.4) {
-        q -= 0.1;
-        out = c.toDataURL('image/jpeg', q);
-      }
-      URL.revokeObjectURL(img.src);
-      resolve(out);
-    };
-    img.src = URL.createObjectURL(file);
-  });
-}
-
 async function render() {
   const wrap = $('slots');
   let existing = new Map();
@@ -243,9 +286,19 @@ async function render() {
     el.querySelector('input').addEventListener('change', async ev => {
       const file = ev.target.files?.[0];
       if (!file) return;
+      let image;
+      try {
+        image = await openEditor(file, name);
+      } catch (e) {
+        alert(e?.message || e);
+        ev.target.value = '';
+        return;
+      }
+      ev.target.value = '';          // so the same file can be picked again
+      if (!image) return;            // cancelled
+
       el.dataset.state = 'saving';
       try {
-        const image = await shrink(file);
         await setDoc(doc(store, COLLECTION, id), {
           image, name, updatedAt: Date.now(),
         });
