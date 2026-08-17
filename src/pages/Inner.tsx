@@ -29,11 +29,70 @@ type Mode = 'COUNCIL' | 'MENTOR' | 'EMOTION' | 'TEACHER' | 'PSYCHOLOGY';
 interface ChatSession {
   id: string;
   title: string;
+  /** The room it is in now. */
   mode: Mode;
   character: string;
   updatedAt: number;
   messages?: any[];
+  /**
+   * Every room this thread has passed through, in order.
+   *
+   * A conversation is about a subject, not about a room — you can take the
+   * same problem to the Council and then to the Psychologist. Recording the
+   * trail is what stops a handoff erasing where the thread began.
+   */
+  rooms?: Mode[];
 }
+
+/** A message, or the marker left behind when the thread changed rooms. */
+interface Handoff {
+  from: Mode;
+  to: Mode;
+  /** Who was being spoken to, when the room was Mentor. */
+  character?: string;
+}
+
+/**
+ * Openers for the empty state, per room.
+ *
+ * Written as the thing a person would actually type, not as feature names —
+ * "Should I take this job?" gets someone further than "Ask advice".
+ */
+const STARTERS: Record<Mode, [string, string][]> = {
+  COUNCIL: [
+    ['Should I take this job?', 'ये job लूँ या नहीं?'],
+    ['Tell me what I am avoiding', 'बताइए मैं किस बात से बच रहा हूँ'],
+    ['Argue against my plan', 'मेरे plan के खिलाफ़ बोलिए'],
+  ],
+  MENTOR: [
+    ['What would you do here?', 'आप होते तो क्या करते?'],
+    ['I keep second-guessing myself', 'मैं बार-बार खुद पर शक करता हूँ'],
+    ['How do I ask for more?', 'ज़्यादा कैसे माँगूँ?'],
+  ],
+  PSYCHOLOGY: [
+    ['I have not been sleeping', 'नींद नहीं आ रही'],
+    ['Everything feels like too much', 'सब कुछ भारी लग रहा है'],
+    ['I keep saying yes to things', 'मैं हर बात के लिए हाँ कह देता हूँ'],
+  ],
+  TEACHER: [
+    ['Explain this to me simply', 'इसे आसान भाषा में समझाइए'],
+    ['Quiz me on something', 'मुझसे कुछ सवाल पूछिए'],
+    ['Make notes on a topic', 'एक विषय पर नोट्स बनाइए'],
+  ],
+  EMOTION: [
+    ['I miss someone', 'किसी की याद आ रही है'],
+    ['Nothing feels like anything', 'कुछ भी महसूस नहीं हो रहा'],
+    ['Write me something for tonight', 'आज रात के लिए कुछ लिखिए'],
+  ],
+};
+
+const ROOM_NAME: Record<Mode, string> = {
+  COUNCIL: 'The Council',
+  MENTOR: 'The Mentor',
+  PSYCHOLOGY: 'The Psychologist',
+  TEACHER: 'The Teacher',
+  EMOTION: 'The Poets',
+};
 
 function HistoryDrawerComponent({ onClose, sessions, loadSession, currentSessionId, deleteSession, lang }: any) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -402,7 +461,9 @@ function AppMenu({ lang, onClose, items }: {
             role="menuitem"
             disabled={item.disabled}
             onClick={() => { item.onClick(); onClose(); }}
-            className={`w-full flex items-center gap-3.5 px-3.5 py-3 rounded-xl text-left transition-colors disabled:opacity-40 disabled:pointer-events-none ${
+            /* 40% opacity read as a rendering fault rather than a state. These
+               sit at a legible weight now and carry a reason instead. */
+            className={`w-full flex items-center gap-3.5 px-3.5 py-3 rounded-xl text-left transition-colors disabled:opacity-70 disabled:pointer-events-none ${
               item.danger
                 ? 'text-aura-red hover:bg-accent-wash'
                 : item.active
@@ -412,7 +473,14 @@ function AppMenu({ lang, onClose, items }: {
           >
             <item.icon size={18} strokeWidth={1.6} className="shrink-0" />
             <span className="flex flex-col min-w-0 flex-1">
-              <span className="text-[14.5px] font-medium leading-tight">{item.label}</span>
+              <span className="text-[14.5px] font-medium leading-tight flex items-center gap-2">
+                {item.label}
+                {item.disabled && (
+                  <span className="text-[10.5px] font-normal text-text-faint border border-border rounded-full px-1.5 py-0.5 whitespace-nowrap">
+                    {lang === 'en' ? 'after a chat' : 'चैट के बाद'}
+                  </span>
+                )}
+              </span>
               {item.hint && <span className="text-[12px] text-text-faint leading-tight mt-0.5">{item.hint}</span>}
             </span>
             {item.active && <Check size={15} className="shrink-0" />}
@@ -571,7 +639,7 @@ export default function Inner() {
   const [mode, setMode] = useState<Mode>('COUNCIL');
   const [customCharacters, setCustomCharacters] = useState<any[]>([]);
   const [selectedCharacter, setSelectedCharacter] = useState(CHARACTERS.MENTOR[0]);
-  const [messages, setMessages] = useState<{ id: string; text: string; isAi: boolean; character?: string; imageUrl?: string; attachments?: string[] }[]>([]);
+  const [messages, setMessages] = useState<{ id: string; text: string; isAi: boolean; character?: string; imageUrl?: string; attachments?: string[]; mode?: Mode; handoff?: Handoff }[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [isIncognito, setIsIncognito] = useState(false);
   // Only a reply that just arrived should type itself out. Without this, every
@@ -952,57 +1020,94 @@ export default function Inner() {
     }
   };
 
-  const bringToCouncil = async () => {
-    if (mode !== 'MENTOR' || messages.length === 0) return;
-    
-    triggerHaptic();
-    
+  /**
+   * Takes the whole conversation into another room.
+   *
+   * The thread is the subject; the rooms are who you ask about it. So nothing
+   * is copied or split — a marker is dropped in, the room changes, and the
+   * history travels intact.
+   *
+   * The framing below is sent to the model but never added to the transcript.
+   * The old button wrote "I was discussing this with Shelby…" as though the
+   * user had typed it, which put words in their mouth and left them in the
+   * exported history for good.
+   */
+  const moveToRoom = async (to: Mode, toCharacter?: string) => {
+    if (to === mode || messages.length === 0 || isTyping) return;
+
+    haptic('impact');
     const { allowed, isFreeTier, justReachedLimit } = await checkAndIncrementMessageLimit();
     if (!allowed) return;
 
-    let currentMessages = messages;
+    const from = mode;
+    let current = messages;
+
     if (justReachedLimit) {
-      const limitMsgId = Date.now().toString() + "_limit";
-      const limitMsg = lang === 'en' 
-        ? "[System] Daily premium limit reached. Automatically switching to the free version." 
+      const limitMsg = lang === 'en'
+        ? "[System] Daily premium limit reached. Automatically switching to the free version."
         : "[System] आपकी दैनिक प्रीमियम सीमा समाप्त हो गई है। स्वचालित रूप से मुफ्त संस्करण पर स्विच किया जा रहा है।";
-      currentMessages = [...currentMessages, { id: limitMsgId, text: limitMsg, isAi: true }];
-      setMessages(currentMessages);
+      current = [...current, { id: Date.now() + '_limit', text: limitMsg, isAi: true }];
     }
 
-    const transitionMsg = lang === 'en' 
-      ? `I was discussing this with ${selectedCharacter}. Council, what are your collective thoughts on our conversation?`
-      : `मैं ${selectedCharacter} के साथ इस पर चर्चा कर रहा था। परिषद, हमारी बातचीत पर आपके सामूहिक विचार क्या हैं?`;
-      
-    const userMsgId = Date.now().toString();
-    const newMessages = [...currentMessages, { id: userMsgId, text: transitionMsg, isAi: false }];
-    setMessages(newMessages);
-    setMode('COUNCIL');
+    // Has this room already been in this conversation? A room that is being
+    // returned to should notice the gap rather than carry on as if nothing
+    // happened.
+    const returning = current.some(m => m.mode === to || m.handoff?.to === to);
+    const leftFor = ROOM_NAME[from];
+
+    const withMarker = [
+      ...current,
+      {
+        id: Date.now() + '_handoff',
+        text: '',
+        isAi: false,
+        handoff: { from, to, character: from === 'MENTOR' ? selectedCharacter : undefined },
+      },
+    ];
+    setMessages(withMarker);
+    setMode(to);
+    if (toCharacter) setSelectedCharacter(toCharacter);
     setIsTyping(true);
-    
+
+    const speaker = to === 'MENTOR' ? (toCharacter || selectedCharacter) : ROOM_NAME[to];
+
     if (currentSessionId) {
-      setSessions(prev => prev.map(s => s.id === currentSessionId ? {
-        ...s,
-        mode: 'COUNCIL',
-        character: 'The Council',
-        updatedAt: Date.now()
-      } : s));
+      setSessions(prev => prev.map(sn => sn.id === currentSessionId ? {
+        ...sn,
+        mode: to,
+        character: speaker,
+        rooms: [...(sn.rooms?.length ? sn.rooms : [from]), to],
+        updatedAt: Date.now(),
+      } : sn));
     }
+
+    const framing = returning
+      ? `[Handoff] This conversation was with you earlier. It then went to ${leftFor}, and has now come back to you. Before anything else, note that they went elsewhere and ask — briefly, in your own voice — what came of it and whether it settled anything. Then carry on from there.`
+      : `[Handoff] This conversation has been running with ${leftFor}; you are joining it now. You have the whole exchange above. Do not summarise it back at them. Say what you make of it, in your own voice, and take it forward.`;
 
     try {
-      const response = await getInnerVoiceResponse(transitionMsg, 'COUNCIL', 'The Council', currentMessages, userApiKey, language, isFreeTier);
+      const response = await getInnerVoiceResponse(
+        framing, to, speaker, withMarker, userApiKey, language, isFreeTier,
+      );
       const aiMsgId = (Date.now() + 1).toString();
       setStreamingMsgId(aiMsgId);
       haptic('success');
-      const finalMessages = [...newMessages, { id: aiMsgId, text: response, isAi: true }];
-      setMessages(finalMessages);
-    } catch (error) {
-      const errorMsgId = (Date.now() + 2).toString();
-      setMessages([...newMessages, { id: errorMsgId, text: "[System Error] Failed to consult the Council.", isAi: true }]);
+      setMessages([...withMarker, {
+        id: aiMsgId, text: response, isAi: true, character: speaker, mode: to,
+      }]);
+    } catch {
+      setMessages([...withMarker, {
+        id: (Date.now() + 2).toString(),
+        text: `[System Error] ${ROOM_NAME[to]} could not be reached.`,
+        isAi: true,
+      }]);
     } finally {
       setIsTyping(false);
     }
   };
+
+  /** Kept so the existing Mentor button keeps working. */
+  const bringToCouncil = () => moveToRoom('COUNCIL');
 
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
@@ -1210,7 +1315,7 @@ export default function Inner() {
                     key={m}
                     onClick={() => { if (mode !== m) { triggerHaptic(); switchChat(m); } }}
                     aria-pressed={isActive}
-                    className={`relative min-h-[40px] flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-xl text-[12.5px] font-medium tracking-[0.01em] transition-colors duration-200 ${isActive ? 'text-on-accent' : 'text-text-muted hover:text-text-primary'}`}
+                    className={`relative min-h-[40px] shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-[12.5px] font-medium tracking-[0.01em] transition-colors duration-200 ${isActive ? 'text-on-accent' : 'text-text-muted hover:text-text-primary'}`}
                   >
                     {isActive && (
                       <motion.div
@@ -1231,7 +1336,7 @@ export default function Inner() {
                 <button
                   onClick={() => setIsMoreOpen(!isMoreOpen)}
                   aria-expanded={isMoreOpen}
-                  className={`relative min-h-[40px] w-full sm:w-auto px-3 sm:px-4 py-2 rounded-xl text-[12.5px] font-medium tracking-[0.01em] transition-colors duration-200 flex items-center justify-center gap-1 ${(mode === 'TEACHER' || mode === 'EMOTION') ? 'text-on-accent' : 'text-text-muted hover:text-text-primary'}`}
+                  className={`relative min-h-[40px] shrink-0 w-auto px-3.5 sm:px-4 py-2 rounded-xl text-[12.5px] font-medium tracking-[0.01em] transition-colors duration-200 flex items-center justify-center gap-1 ${(mode === 'TEACHER' || mode === 'EMOTION') ? 'text-on-accent' : 'text-text-muted hover:text-text-primary'}`}
                 >
                   {(mode === 'TEACHER' || mode === 'EMOTION') && (
                     <motion.div
@@ -1258,7 +1363,10 @@ export default function Inner() {
                         exit={{ opacity: 0, y: -6, scale: 0.96 }}
                         transition={{ duration: 0.15, ease: 'easeOut' }}
                         role="menu"
-                        className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-40 bg-surface border border-border rounded-2xl p-1.5 shadow-float z-50 origin-top"
+                        /* Centred under "More", but "More" sits at the right of
+                           a phone screen, so the sheet was touching the edge.
+                           right-0 on small screens keeps a margin. */
+                        className="absolute top-full right-0 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 mt-3 mr-1 sm:mr-0 w-40 bg-surface border border-border rounded-2xl p-1.5 shadow-float z-50 origin-top"
                       >
                         {([
                           { id: 'TEACHER', en: 'Teacher', hi: 'शिक्षक' },
@@ -1315,6 +1423,9 @@ export default function Inner() {
                   />
                 </button>
               )}
+              {/* One surface behind the three controls, so they read as a toolbar
+                  rather than three unexplained glyphs floating in the bar. */}
+              <div className="flex items-center gap-0.5 p-0.5 rounded-2xl border border-border bg-surface/60">
               <button
                 onClick={startNewChat}
                 disabled={messages.length === 0}
@@ -1332,6 +1443,7 @@ export default function Inner() {
               >
                 <Menu size={19} strokeWidth={1.6} />
               </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1547,9 +1659,34 @@ export default function Inner() {
                     : mode === 'TEACHER'
                     ? (lang === 'en' ? 'Ask until it makes sense.' : 'जब तक समझ न आए, पूछते रहिए।')
                     : mode === 'PSYCHOLOGY'
-                    ? (lang === 'en' ? 'Nothing here leaves this room.' : 'यहाँ की बात यहीं रहेगी।')
+                    /* The old line — "nothing here leaves this room" — was not
+                       true: replies come from a model, so messages do leave the
+                       device. What is genuinely local is the mood log. */
+                    ? (lang === 'en' ? 'Your mood log stays on this phone.' : 'आपका मूड लॉग इसी फ़ोन पर रहता है।')
                     : (lang === 'en' ? 'Say it as it is.' : 'जैसा है वैसा कहिए।')}
                 </p>
+
+                {/* An empty room with one line in it gives you nothing to do.
+                    Three openers, worded as things you would actually say, and
+                    phrased for the room you are standing in. */}
+                {!isIncognito && (
+                  <div className="flex flex-wrap gap-2 justify-center mt-7 max-w-md">
+                    {(STARTERS[mode] || STARTERS.COUNCIL).map(([en, hi]) => (
+                      <button
+                        key={en}
+                        type="button"
+                        onClick={() => {
+                          haptic('select');
+                          setInput(lang === 'en' ? en : hi);
+                          document.getElementById('chat-input')?.focus();
+                        }}
+                        className="text-[12.5px] font-medium bg-surface hover:bg-surface-2 hover:border-mode-tint/50 text-text-body px-3.5 py-2 rounded-full border border-border shadow-soft transition-colors"
+                      >
+                        {lang === 'en' ? en : hi}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1813,6 +1950,40 @@ export default function Inner() {
             </button>
           </div>
         )}
+        {mode === 'EMOTION' && (
+          <>
+            <button 
+              onClick={() => { setInput(lang === 'en' ? 'Answer this as a ghazal.'  : 'इसका जवाब ग़ज़ल में दीजिए।'); document.getElementById('chat-input')?.focus(); }}
+              className="text-[12px] font-medium bg-surface hover:bg-surface-2 text-text-body px-3 py-1.5 rounded-full border border-border shrink-0 transition-colors"
+            >
+              {lang === 'en' ? 'Ghazal' : 'ग़ज़ल'}
+            </button>
+            <button 
+              onClick={() => { setInput(lang === 'en' ? 'Just one sher.'  : 'बस एक शेर।'); document.getElementById('chat-input')?.focus(); }}
+              className="text-[12px] font-medium bg-surface hover:bg-surface-2 text-text-body px-3 py-1.5 rounded-full border border-border shrink-0 transition-colors"
+            >
+              {lang === 'en' ? 'Short sher' : 'एक शेर'}
+            </button>
+            <button 
+              onClick={() => { setInput(lang === 'en' ? 'Free verse, no rhyme.'  : 'आज़ाद नज़्म, बिना क़ाफ़िये।'); document.getElementById('chat-input')?.focus(); }}
+              className="text-[12px] font-medium bg-surface hover:bg-surface-2 text-text-body px-3 py-1.5 rounded-full border border-border shrink-0 transition-colors"
+            >
+              {lang === 'en' ? 'Free verse' : 'आज़ाद नज़्म'}
+            </button>
+            <button 
+              onClick={() => { setInput(lang === 'en' ? 'Say it gently — leave some light in it.'  : 'नरमी से कहिए — थोड़ी रौशनी रहने दीजिए।'); document.getElementById('chat-input')?.focus(); }}
+              className="text-[12px] font-medium bg-surface hover:bg-surface-2 text-text-body px-3 py-1.5 rounded-full border border-border shrink-0 transition-colors"
+            >
+              {lang === 'en' ? 'Hopeful' : 'उम्मीद'}
+            </button>
+            <button 
+              onClick={() => { setInput(lang === 'en' ? 'Do not soften it.'  : 'इसे हल्का मत कीजिए।'); document.getElementById('chat-input')?.focus(); }}
+              className="text-[12px] font-medium bg-surface hover:bg-surface-2 text-text-body px-3 py-1.5 rounded-full border border-border shrink-0 transition-colors"
+            >
+              {lang === 'en' ? 'Unsparing' : 'बेरहम'}
+            </button>
+          </>
+        )}
 
         {(mode === 'TEACHER' || (mode === 'MENTOR' && messages.length > 0)) && (
           <div className="flex overflow-x-auto scrollbar-hide gap-2 px-2 pb-1 max-w-3xl mx-auto w-full">
@@ -1851,12 +2022,24 @@ export default function Inner() {
                 >
                   🔍 {lang === 'en' ? 'Analyze' : 'विश्लेषण करें'}
                 </button>
-                <button 
-                  onClick={() => { setInput(lang === 'en' ? 'Explain this like I am 5' : 'मुझे इसे बहुत सरल भाषा में समझाइए'); document.getElementById('chat-input')?.focus(); }}
-                  className="text-[12px] font-medium bg-surface hover:bg-surface-2 text-text-body px-3 py-1.5 rounded-full border border-border shrink-0 transition-colors"
-                >
-                  🍼 {lang === 'en' ? 'Explain simply' : 'सरल भाषा'}
-                </button>
+                  <button 
+                    onClick={() => { setInput(lang === 'en' ? "Explain this in simple language" : "इसे आसान भाषा में समझाइए"); document.getElementById('chat-input')?.focus(); }}
+                    className="text-[12px] font-medium bg-surface hover:bg-surface-2 text-text-body px-3 py-1.5 rounded-full border border-border shrink-0 transition-colors"
+                  >
+                    {lang === 'en' ? 'Simple' : 'आसान भाषा'}
+                  </button>
+                  <button 
+                    onClick={() => { setInput(lang === 'en' ? "Take me through this step by step" : "इसे स्टेप बाय स्टेप कराइए"); document.getElementById('chat-input')?.focus(); }}
+                    className="text-[12px] font-medium bg-surface hover:bg-surface-2 text-text-body px-3 py-1.5 rounded-full border border-border shrink-0 transition-colors"
+                  >
+                    {lang === 'en' ? 'Step by step' : 'स्टेप बाय स्टेप'}
+                  </button>
+                  <button 
+                    onClick={() => { setInput(lang === 'en' ? "I am still not getting it — where does this usually confuse people?" : "अभी भी समझ नहीं आया — लोग यहाँ कहाँ अटकते हैं?"); document.getElementById('chat-input')?.focus(); }}
+                    className="text-[12px] font-medium bg-surface hover:bg-surface-2 text-text-body px-3 py-1.5 rounded-full border border-border shrink-0 transition-colors"
+                  >
+                    {lang === 'en' ? 'Still stuck' : 'अभी भी अटका हूँ'}
+                  </button>
               </>
             )}
           </div>

@@ -48,6 +48,7 @@ export function checkedInToday(): boolean {
 interface Props {
   lang: string;
   onClose: () => void;
+  /** Logged, and the user wants to talk about it. */
   onLogged?: (entry: MoodEntry) => void;
 }
 
@@ -63,13 +64,20 @@ export const MoodCheckIn: React.FC<Props> = ({ lang, onClose, onLogged }) => {
     ? (log.slice(0, 7).reduce((s, e) => s + e.level, 0) / Math.min(log.length, 7))
     : 0;
 
-  const save = () => {
+  /**
+   * `talk` decides whether the check-in also opens the conversation.
+   *
+   * The single button used to say "Save check-in" and then quietly drop a
+   * sentence into the composer, which is not what saving means. Both things are
+   * now offered by name.
+   */
+  const save = (talk: boolean) => {
     if (chosen === null) return;
     const entry: MoodEntry = { at: Date.now(), level: chosen, note: note.trim() || undefined };
     logMood(entry);
     haptic('success');
     setSaved(true);
-    onLogged?.(entry);
+    if (talk) onLogged?.(entry);
     setTimeout(onClose, 900);
   };
 
@@ -149,13 +157,22 @@ export const MoodCheckIn: React.FC<Props> = ({ lang, onClose, onLogged }) => {
                   />
                 </div>
 
-                <button
-                  onClick={save}
-                  disabled={chosen === null}
-                  className="w-full min-h-[48px] rounded-2xl bg-aura-red text-on-accent font-semibold text-[15px] disabled:opacity-40 hover:brightness-110 transition-all"
-                >
-                  {lang === 'en' ? 'Save check-in' : 'सेव करें'}
-                </button>
+                <div className="grid gap-2">
+                  <button
+                    onClick={() => save(true)}
+                    disabled={chosen === null}
+                    className="w-full min-h-[48px] rounded-2xl bg-aura-red text-on-accent font-semibold text-[15px] disabled:opacity-40 hover:brightness-110 transition-all"
+                  >
+                    {lang === 'en' ? 'Save and talk about it' : 'सेव करके बात करें'}
+                  </button>
+                  <button
+                    onClick={() => save(false)}
+                    disabled={chosen === null}
+                    className="w-full min-h-[44px] rounded-2xl border border-border bg-surface text-text-body font-medium text-[14px] disabled:opacity-40 hover:bg-surface-2 transition-all"
+                  >
+                    {lang === 'en' ? 'Just save it' : 'सिर्फ़ सेव करें'}
+                  </button>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
