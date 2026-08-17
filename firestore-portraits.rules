@@ -19,7 +19,7 @@ match /site_portraits/{characterId} {
   allow write: if request.auth != null
             && request.auth.token.email_verified == true
             && request.auth.token.email.lower() in [
-                 'grivaaseo@gmail.com'
+                 'vk1234888i@gmail.com'
                ]
             // A portrait is one JPEG data URI and a little metadata. Capping the
             // size here stops the collection being used as free storage if the
@@ -31,6 +31,6 @@ match /site_portraits/{characterId} {
   allow delete: if request.auth != null
              && request.auth.token.email_verified == true
              && request.auth.token.email.lower() in [
-                  'grivaaseo@gmail.com'
+                  'vk1234888i@gmail.com'
                 ];
 }
