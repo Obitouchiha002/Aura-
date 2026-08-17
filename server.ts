@@ -28,6 +28,12 @@ async function startServer() {
     await handler(req as any, res as any);
   });
 
+  // Live-update manifest, same handler Vercel serves.
+  app.post("/api/updates", async (req, res) => {
+    const { default: handler } = await import("./api/updates.ts");
+    await handler(req as any, res as any);
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

@@ -20,7 +20,22 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const DAILY_MESSAGE_LIMIT = 50;
+/**
+ * What each plan gets in a day.
+ *
+ * Past the limit nobody is cut off — they continue on the slower model. So
+ * these are about who waits, not who is refused. `null` means no ceiling.
+ *
+ * An admin can override any single account from the user directory, which
+ * takes precedence over the plan.
+ */
+const PLAN_LIMITS: Record<string, number | null> = {
+  free: 25,
+  plus: 200,
+  premium: null,     // unlimited
+};
+
+const DAILY_MESSAGE_LIMIT = PLAN_LIMITS.free ?? 25;
 
 /* ─────────────── LOCAL TESTING ONLY — REMOVE BEFORE GOING LIVE ───────────────
  * Skips the Google sign-in screen so the app can be used on localhost without
@@ -208,12 +223,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let isFreeTier = false;
     let justReachedLimit = false;
 
-    // An admin can raise or lower the ceiling for one account.
-    const limit = typeof data.dailyLimit === 'number' && data.dailyLimit >= 0
-      ? data.dailyLimit
+    // Precedence: an override set on this one account, then their plan, then
+    // the default. A premium plan has no ceiling at all.
+    const planLimit = PLAN_LIMITS[data.plan as string] !== undefined
+      ? PLAN_LIMITS[data.plan as string]
       : DAILY_MESSAGE_LIMIT;
 
-    if (currentCount >= limit) {
+    const limit = typeof data.dailyLimit === 'number' && data.dailyLimit >= 0
+      ? data.dailyLimit
+      : planLimit;
+
+    if (limit !== null && currentCount >= limit) {
       isFreeTier = true;
       if (currentCount === limit) {
         justReachedLimit = true;

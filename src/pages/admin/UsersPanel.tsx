@@ -13,7 +13,15 @@ import { Avatar } from '../../components/Avatar';
  * before every send — see checkAndIncrementMessageLimit.
  */
 
-const DEFAULT_LIMIT = 50;
+/** Must match PLAN_LIMITS in AuthContext — the app is what enforces these. */
+const PLANS = {
+  free:    { label: 'Free',    limit: 25 as number | null },
+  plus:    { label: 'Plus',    limit: 200 as number | null },
+  premium: { label: 'Premium', limit: null as number | null },
+};
+type PlanId = keyof typeof PLANS;
+
+const DEFAULT_PLAN: PlanId = 'free';
 
 interface Row {
   id: string;
@@ -21,6 +29,7 @@ interface Row {
   displayName?: string;
   photoURL?: string;
   role?: string;
+  plan?: PlanId;
   dailyLimit?: number;
   dailyMessageCount?: number;
   blocked?: boolean;
@@ -87,11 +96,20 @@ export default function UsersPanel() {
     patch(u.id, { blockedPermanently: true, blockedReason: reason.trim() });
   };
 
+  /** Cycles free → plus → premium, which is faster than a menu per row. */
+  const cyclePlan = (u: Row) => {
+    const order: PlanId[] = ['free', 'plus', 'premium'];
+    const now = (u.plan && PLANS[u.plan] ? u.plan : DEFAULT_PLAN) as PlanId;
+    const next = order[(order.indexOf(now) + 1) % order.length];
+    patch(u.id, { plan: next });
+  };
+
   const setLimit = (u: Row) => {
-    const current = typeof u.dailyLimit === 'number' ? u.dailyLimit : DEFAULT_LIMIT;
+    const planLimit = planOf(u).limit;
+    const current = typeof u.dailyLimit === 'number' ? u.dailyLimit : planLimit;
     const next = window.prompt(
-      `Daily message limit for ${u.email || u.id}.\n\nEveryone gets ${DEFAULT_LIMIT} by default. Past the limit they keep going on the slower model rather than stopping.\n\nLeave blank to go back to the default.`,
-      String(current),
+      `Daily message limit for ${u.email || u.id}.\n\nThis overrides their plan. Past the limit they keep going on the slower model rather than stopping.\n\nLeave blank to go back to their plan's limit.`,
+      current === null ? '' : String(current),
     );
     if (next === null) return;
     // Deleting the field, rather than writing 0, is what restores the default.
@@ -104,6 +122,8 @@ export default function UsersPanel() {
     patch(u.id, { dailyLimit: Math.floor(n) });
   };
 
+  const planOf = (u: Row) => PLANS[(u.plan && PLANS[u.plan] ? u.plan : DEFAULT_PLAN) as PlanId];
+
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!needle) return users;
@@ -114,6 +134,7 @@ export default function UsersPanel() {
   }, [users, q]);
 
   const stopped = users.filter(u => u.blocked || u.blockedPermanently).length;
+  const paid = users.filter(u => u.plan && u.plan !== 'free').length;
 
   if (loading) return <div className="animate-pulse h-64 bg-surface rounded-2xl" />;
 
@@ -125,7 +146,7 @@ export default function UsersPanel() {
           <h2 className="text-xl font-medium mr-auto">
             Users
             <span className="ml-3 text-[13px] text-text-muted font-normal">
-              {users.length} total{stopped > 0 ? ` · ${stopped} stopped` : ''}
+              {users.length} total{paid > 0 ? ` · ${paid} paid` : ''}{stopped > 0 ? ` · ${stopped} stopped` : ''}
             </span>
           </h2>
           <div className="relative">
@@ -149,6 +170,7 @@ export default function UsersPanel() {
               <tr>
                 <th className="px-6 py-4 font-normal">User</th>
                 <th className="px-6 py-4 font-normal">Status</th>
+                <th className="px-6 py-4 font-normal">Plan</th>
                 <th className="px-6 py-4 font-normal">Today</th>
                 <th className="px-6 py-4 font-normal">Last login</th>
                 <th className="px-6 py-4 font-normal text-right">Controls</th>
@@ -157,12 +179,13 @@ export default function UsersPanel() {
             <tbody className="divide-y divide-border text-sm">
               {shown.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-10 text-center text-text-faint">
+                  <td colSpan={6} className="px-6 py-10 text-center text-text-faint">
                     {users.length === 0 ? 'No users yet.' : 'Nobody matches that.'}
                   </td>
                 </tr>
               ) : shown.map(u => {
-                const limit = typeof u.dailyLimit === 'number' ? u.dailyLimit : DEFAULT_LIMIT;
+                const plan = planOf(u);
+                const limit = typeof u.dailyLimit === 'number' ? u.dailyLimit : plan.limit;
                 const used = u.dailyMessageCount || 0;
                 return (
                   <tr key={u.id} className={`hover:bg-surface transition-colors ${busy === u.id ? 'opacity-50' : ''}`}>
@@ -192,10 +215,27 @@ export default function UsersPanel() {
                     </td>
 
                     <td className="px-6 py-4 whitespace-nowrap">
+                      <button
+                        onClick={() => cyclePlan(u)}
+                        disabled={busy === u.id}
+                        title="Click to change plan"
+                        className={`px-2.5 py-1 rounded-full text-[10px] uppercase tracking-widest border transition-colors ${
+                          u.plan === 'premium'
+                            ? 'border-creative/50 text-creative bg-creative-wash'
+                            : u.plan === 'plus'
+                            ? 'border-success/50 text-success'
+                            : 'border-border text-text-muted hover:border-border-strong'
+                        }`}
+                      >
+                        {plan.label}
+                      </button>
+                    </td>
+
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <span className="font-mono tabular-nums text-text-body">{used}</span>
-                      <span className="text-text-faint"> / {limit}</span>
+                      <span className="text-text-faint"> / {limit === null ? '\u221e' : limit}</span>
                       {typeof u.dailyLimit === 'number' && (
-                        <span className="ml-2 text-[10px] uppercase tracking-widest text-text-faint">set</span>
+                        <span className="ml-2 text-[10px] uppercase tracking-widest text-text-faint">override</span>
                       )}
                     </td>
 

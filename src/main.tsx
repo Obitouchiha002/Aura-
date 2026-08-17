@@ -23,4 +23,15 @@ requestAnimationFrame(() => {
   import('@capacitor/splash-screen')
     .then(({ SplashScreen }) => SplashScreen.hide())
     .catch(() => {});
+
+  /**
+   * Tell the updater this build starts.
+   *
+   * A live-update bundle that never reports itself ready is rolled back to the
+   * previous one, which is what stops a bad release bricking the app. Skipping
+   * this call would make every update roll back a few seconds after it ran.
+   */
+  import('@capgo/capacitor-updater')
+    .then(({ CapacitorUpdater }) => CapacitorUpdater.notifyAppReady())
+    .catch(() => {});
 });

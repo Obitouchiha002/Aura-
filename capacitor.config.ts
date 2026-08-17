@@ -29,6 +29,25 @@ const config: CapacitorConfig = {
      * Firebase itself; the JS SDK is then given the same credential so
      * Firestore rules see a signed-in user too.
      */
+    /**
+     * Live updates for the web layer.
+     *
+     * Nearly all of this app is web assets, so nearly every change can reach a
+     * phone without a new APK. The app asks /api/updates on launch, downloads
+     * a newer bundle in the background, and runs it from the next start.
+     *
+     * Native changes — a plugin, an icon, a permission — still need a build.
+     */
+    CapacitorUpdater: {
+      autoUpdate: true,
+      updateUrl: 'https://aurashakti.vercel.app/api/updates',
+      // If a bundle fails to call notifyAppReady it is rolled back rather than
+      // leaving the app stuck on a build that cannot start.
+      appReadyTimeout: 10000,
+      responseTimeout: 20,
+      directUpdate: false,
+    },
+
     FirebaseAuthentication: {
       skipNativeAuth: false,
       providers: ['google.com'],
