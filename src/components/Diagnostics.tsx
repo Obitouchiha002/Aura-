@@ -78,6 +78,19 @@ export const Diagnostics: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       });
     }
 
+    // A worker still controlling the page inside the shell is the suspect for
+    // both the hanging plugin import and the unstyled layout.
+    try {
+      const regs = await navigator.serviceWorker?.getRegistrations?.();
+      out.push({
+        label: 'Service worker',
+        value: regs && regs.length
+          ? `${regs.length} registered${navigator.serviceWorker.controller ? ', controlling this page' : ''}`
+          : 'none',
+        ok: !(isNative && regs && regs.length),
+      });
+    } catch {}
+
     setLines(out);
   }, [isNative]);
 
@@ -128,8 +141,17 @@ export const Diagnostics: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
           <div>
             <p className="text-[11px] uppercase tracking-wide text-text-faint mb-1.5">
-              Keyboard — chat box par tap karke ye screen kholiye
+              Keyboard — neeche wale box par tap kijiye
             </p>
+            {/* The numbers only mean anything while the keyboard is up, and
+                asking someone to open Settings mid-typing is not a test. The
+                input is here so the measurement can be taken and screenshotted
+                in one place. */}
+            <input
+              type="text"
+              placeholder="Yahan tap karein…"
+              className="w-full mb-2 rounded-xl border border-border bg-surface-2 px-3 py-2.5 text-[14px] text-text-primary outline-none focus:border-accent"
+            />
             <div className="rounded-xl border border-border bg-surface-2 divide-y divide-border">
               {kb.map(l => (
                 <div key={l.label} className="flex items-center justify-between px-3 py-2">

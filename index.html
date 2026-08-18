@@ -112,17 +112,46 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/service-worker.js')
-            .then(registration => {
-              console.log('ServiceWorker registration successful with scope: ', registration.scope);
-            })
-            .catch(err => {
-              console.log('ServiceWorker registration failed: ', err);
-            });
+      /**
+       * The service worker belongs to the website, and only to the website.
+       *
+       * Inside the Android shell the page is served by the webview itself from
+       * https://localhost, and the worker's network-first rule then puts an
+       * interception layer in front of assets that are already on the device.
+       * Its fetch goes nowhere, so a lazily-imported chunk can hang forever —
+       * which is what left the biometric row saying "Checking…" and nothing
+       * else — and a stale hit can hand back the previous build's CSS, which
+       * renders the app unstyled: white ground, composer at the top.
+       *
+       * There is nothing for it to do in the shell. Everything it would cache
+       * is already local.
+       */
+      (function () {
+        if (!('serviceWorker' in navigator)) return;
+
+        var native = !!(window.Capacitor
+          && window.Capacitor.isNativePlatform
+          && window.Capacitor.isNativePlatform());
+
+        if (native) {
+          // Not merely skipping registration: phones that already installed it
+          // stay broken until it is actively removed, and they cannot be
+          // reached any other way.
+          navigator.serviceWorker.getRegistrations()
+            .then(function (regs) { regs.forEach(function (r) { r.unregister(); }); })
+            .catch(function () {});
+          if (window.caches && caches.keys) {
+            caches.keys()
+              .then(function (keys) { keys.forEach(function (k) { caches.delete(k); }); })
+              .catch(function () {});
+          }
+          return;
+        }
+
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/service-worker.js').catch(function () {});
         });
-      }
+      })();
     </script>
   </body>
 </html>
