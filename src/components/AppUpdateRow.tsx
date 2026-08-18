@@ -17,6 +17,25 @@ import {
  * which is as close to automatic as the platform allows.
  */
 
+/**
+ * A web update that has already been fetched and is waiting.
+ *
+ * The updater downloads in the background and swaps the bundle the next time
+ * the app is backgrounded, which means a user who opens Settings sees nothing
+ * at all and reasonably concludes the update is not working. Asking the plugin
+ * what is queued turns that silence into a sentence and a button.
+ */
+async function pendingWebUpdate(): Promise<string | null> {
+  if (!(window as any).Capacitor?.isNativePlatform?.()) return null;
+  try {
+    const { CapacitorUpdater } = await import('@capgo/capacitor-updater');
+    const next: any = await CapacitorUpdater.getNextBundle();
+    return next?.version || null;
+  } catch {
+    return null;
+  }
+}
+
 type State =
   | { kind: 'idle' }
   | { kind: 'checking' }
@@ -30,8 +49,11 @@ type State =
 export const AppUpdateRow: React.FC<{ Row: React.ComponentType<any> }> = ({ Row }) => {
   const [state, setState] = useState<State>({ kind: 'idle' });
   const [native, setNative] = useState<string | null>(null);
+  const [webPending, setWebPending] = useState<string | null>(null);
+  const [applying, setApplyingWeb] = useState(false);
 
   useEffect(() => { installedVersion().then(setNative); }, []);
+  useEffect(() => { pendingWebUpdate().then(setWebPending); }, []);
 
   // Checked once on open, so a waiting update is seen without being asked for.
   useEffect(() => {
@@ -84,6 +106,28 @@ export const AppUpdateRow: React.FC<{ Row: React.ComponentType<any> }> = ({ Row 
 
   return (
     <>
+      {webPending && (
+        <Row
+          icon={Download}
+          label="Naya update taiyaar"
+          hint={`Version ${webPending} download ho chuka hai`}
+        >
+          <button
+            onClick={async () => {
+              setApplyingWeb(true);
+              try {
+                const { CapacitorUpdater } = await import('@capgo/capacitor-updater');
+                await CapacitorUpdater.reload();
+              } catch { setApplyingWeb(false); }
+            }}
+            disabled={applying}
+            className="shrink-0 rounded-full bg-accent text-on-accent text-xs font-semibold px-3.5 py-2 disabled:opacity-60"
+          >
+            {applying ? 'Lag raha…' : 'Abhi lagayein'}
+          </button>
+        </Row>
+      )}
+
       <Row
         icon={state.kind === 'current' ? CheckCircle2 : Download}
         label="App update"

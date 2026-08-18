@@ -1,7 +1,7 @@
 {
-  "version": "1.1.3",
-  "url": "https://aurashakti.vercel.app/download/AuraShakti-1.1.3.apk",
-  "size": 14783736,
-  "sha256": "52e256fc8bb42ccc6afb62313140850a9476a97c6c336aa435f51536855e0df2",
-  "notes": "Keyboard white area, biometric check, service worker"
+  "version": "1.1.4",
+  "url": "https://aurashakti.vercel.app/download/AuraShakti-1.1.4.apk",
+  "size": 12403345,
+  "sha256": "f1defc8c1ddf8bd89b6a72864d292ddafdf50f52cbb9f763c09f74b4f2c71f4d",
+  "notes": "Shows a waiting update in Settings"
 }
