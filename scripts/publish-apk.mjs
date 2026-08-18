@@ -79,7 +79,9 @@ fs.writeFileSync(
 const buildPy = path.join(ROOT, 'landing', 'build.py');
 let py = fs.readFileSync(buildPy, 'utf8');
 py = py
-  .replace(/file="download\/AuraShakti-[^"]+\.apk"/, `file="download/${name}"`)
+  // Absolute, pointing at the app's deployment. The site no longer holds the
+  // file, and a relative path there would be a dead link.
+  .replace(/file="[^"]*AuraShakti-[^"]+\.apk"/, `file="${SITE}/download/${name}"`)
   .replace(/version="\d+\.\d+\.\d+"/, `version="${version}"`)
   .replace(/size="[^"]+"/, `size="${(bytes.length / 1048576).toFixed(1)} MB"`)
   .replace(/sha256="[a-f0-9]{64}"/, `sha256="${sha256}"`);

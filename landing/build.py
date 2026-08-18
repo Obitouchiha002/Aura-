@@ -1089,7 +1089,7 @@ PAGES["developer.html"] = shell(
 
 # ── download ────────────────────────────────────────────────────────────────
 APK = dict(
-    file="download/AuraShakti-1.1.4.apk",
+    file="https://aurashakti.vercel.app/download/AuraShakti-1.1.4.apk",
     version="1.1.4",
     size="11.8 MB",
     min_android="8.0",
