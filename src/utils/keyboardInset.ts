@@ -25,8 +25,18 @@
 
 import { registerPlugin } from '@capacitor/core';
 
-const set = (px: number) =>
+/**
+ * Writes the inset, unless the native side has taken over.
+ *
+ * MainActivity starts publishing on the first inset pass, which is after this
+ * module has already installed its listeners — so without this check the web
+ * path could still overwrite an exact native value with its own guess a
+ * moment later.
+ */
+const set = (px: number) => {
+  if ((window as any).__auraNativeKb) return;
   document.documentElement.style.setProperty('--kb-inset', `${Math.max(0, Math.round(px))}px`);
+};
 
 /**
  * The height the plugin last reported, readable from anywhere.
@@ -162,6 +172,16 @@ export function trackKeyboardInset(): () => void {
 
   if (!isNativeShell()) return trackViaViewport();
 
+  // MainActivity publishes the keyboard height from WindowInsets, which is the
+  // platform's own answer and does not depend on a plugin event arriving. When
+  // it is doing that, everything below would only be a second opinion — and a
+  // worse one — so it stands down.
+  if ((window as any).__auraNativeKb) {
+    return () => {};
+  }
+  const onNative = () => {};
+  window.addEventListener('aura:keyboard', onNative);
+
   // A field was focused and half a second later nothing had changed: no
   // plugin event, no resize. That is the one outcome the numbers alone cannot
   // show, and it is worth naming.
@@ -185,6 +205,7 @@ export function trackKeyboardInset(): () => void {
   const stopPlugin = trackViaPlugin();
 
   return () => {
+    window.removeEventListener('aura:keyboard', onNative);
     document.removeEventListener('focusin', onFocus, true);
     stopViewport();
     stopPlugin();

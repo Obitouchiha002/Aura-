@@ -1,7 +1,7 @@
 {
-  "version": "1.2.0",
-  "url": "https://aurashakti.vercel.app/download/AuraShakti-1.2.0.apk",
-  "size": 12404669,
-  "sha256": "aa585bd556ffd8fd7574c2cffc7696fb5e90bc328addc5ffe0ebace21c519a87",
-  "notes": "Keyboard fix: one resizer, not two"
+  "version": "1.2.1",
+  "url": "https://aurashakti.vercel.app/download/AuraShakti-1.2.1.apk",
+  "size": 12406861,
+  "sha256": "748fa0caedf1a4a7abc575916af76e9dcc786e80a2c280d05f69c9805cb77886",
+  "notes": "Keyboard: native insets"
 }
