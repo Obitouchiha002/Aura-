@@ -186,7 +186,24 @@ export default async function handler(req: Req, res: Res) {
       .join('')
       .trim();
 
-    res.status(200).json({ text: text || 'Silence.' });
+    if (!text) {
+      // A 200 with no text means the model produced nothing — almost always a
+      // safety stop, occasionally a recitation or token limit. Returning the
+      // word "Silence." for this hid a real failure behind something that
+      // looked like a deliberate answer, and made it untestable. Say which.
+      const blocked =
+        data?.promptFeedback?.blockReason ||
+        data?.candidates?.[0]?.finishReason ||
+        'EMPTY';
+      const ratings = (data?.candidates?.[0]?.safetyRatings || [])
+        .filter((r: any) => r?.blocked || r?.probability === 'HIGH' || r?.probability === 'MEDIUM')
+        .map((r: any) => `${r.category}=${r.probability}`)
+        .join(' ');
+      res.status(502).json({ error: `blocked ${blocked}${ratings ? ' ' + ratings : ''}` });
+      return;
+    }
+
+    res.status(200).json({ text });
   } catch (err: any) {
     res.status(502).json({ error: err?.message || 'Upstream request failed' });
   }
