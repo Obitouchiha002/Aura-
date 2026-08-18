@@ -106,7 +106,18 @@ export const Diagnostics: React.FC<{ onClose: () => void }> = ({ onClose }) => {
    * while the keyboard was actually there.
    */
   useEffect(() => {
-    let minInner = Infinity, minVv = Infinity, maxGap = 0, maxInset = 0, minRoot = Infinity;
+    // Kept across openings. The extremes reset every time this screen was
+    // reopened, so a reading taken after closing the keyboard showed nothing —
+    // which is exactly the sequence anyone naturally follows.
+    const KEY = 'aura_kb_extremes';
+    const saved = (() => {
+      try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; }
+    })();
+    let minInner = saved.minInner ?? Infinity;
+    let minVv = saved.minVv ?? Infinity;
+    let maxGap = saved.maxGap ?? 0;
+    let maxInset = saved.maxInset ?? 0;
+    let minRoot = saved.minRoot ?? Infinity;
 
     const read = () => {
       const vv = window.visualViewport;
@@ -122,6 +133,9 @@ export const Diagnostics: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       maxGap = Math.max(maxGap, gap);
       maxInset = Math.max(maxInset, inset);
       minRoot = Math.min(minRoot, root);
+      try {
+        localStorage.setItem(KEY, JSON.stringify({ minInner, minVv, maxGap, maxInset, minRoot }));
+      } catch {}
 
       setKb([
         { label: 'innerHeight', value: `${inner}  (sabse kam ${minInner})` },
@@ -172,7 +186,17 @@ export const Diagnostics: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
           <div>
             <p className="text-[11px] uppercase tracking-wide text-text-faint mb-1.5">
-              Keyboard — neeche wale box par tap kijiye
+              Keyboard — neeche wale box par tap kijiye, kuch type kijiye
+            </p>
+            <p className="text-[12px] text-text-muted mb-2">
+              Numbers yaad rehte hain — keyboard band karne ke baad bhi. Screen band
+              karke dobara kholenge to bhi rahenge.{' '}
+              <button
+                className="underline text-text-faint"
+                onClick={() => { try { localStorage.removeItem('aura_kb_extremes'); } catch {} location.reload(); }}
+              >
+                reset
+              </button>
             </p>
             {/* The numbers only mean anything while the keyboard is up, and
                 asking someone to open Settings mid-typing is not a test. The
