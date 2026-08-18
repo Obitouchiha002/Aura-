@@ -16,6 +16,7 @@ import { useAppLock } from '../context/AppLockContext';
 import { isCryptoAvailable } from '../utils/appLock';
 import { LockSetup } from './LockSetup';
 import { VersionRow } from './VersionRow';
+import { Diagnostics } from './Diagnostics';
 
 interface SettingsProps {
   onClose: () => void;
@@ -113,6 +114,7 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
   const [joinedCount, setJoinedCount] = useState(0);
   const [copied, setCopied] = useState(false);
   const [showLockSetup, setShowLockSetup] = useState(false);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
   const {
     config: lock, biometricAvailable, biometricStatus,
     disable: disableLock, setAutoLockMinutes,
@@ -493,6 +495,13 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
             <VersionRow Row={Row} />
 
             <Row
+              icon={ShieldAlert}
+              label="Diagnostics"
+              hint="Kya kaam kar raha hai, kya nahi"
+              onClick={() => setShowDiagnostics(true)}
+            />
+
+            <Row
               icon={LogOut}
               label="Log out"
               danger
@@ -513,6 +522,7 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
       <AnimatePresence>
         {showLockSetup && <LockSetup onClose={() => setShowLockSetup(false)} />}
       </AnimatePresence>
+      {showDiagnostics && <Diagnostics onClose={() => setShowDiagnostics(false)} />}
       <ReportIssueModal
         isOpen={showReportModal}
         onClose={() => setShowReportModal(false)}
