@@ -78,6 +78,27 @@ export const Diagnostics: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       });
     }
 
+    // What the keyboard plugin itself reports — the one number that is true
+    // whether or not the webview resizes.
+    if (isNative) {
+      try {
+        const { Keyboard } = await import('@capacitor/keyboard');
+        let seen = 0;
+        await Keyboard.addListener('keyboardDidShow', (i: any) => {
+          seen = Math.round(i?.keyboardHeight || 0);
+          try { localStorage.setItem('aura_kb_plugin', String(seen)); } catch {}
+        });
+        const remembered = Number(localStorage.getItem('aura_kb_plugin') || 0);
+        out.push({
+          label: 'Keyboard plugin height',
+          value: remembered ? `${remembered}px (aakhri baar)` : 'abhi tak keyboard khula nahi',
+          ok: true,
+        });
+      } catch (e: any) {
+        out.push({ label: 'Keyboard plugin', value: 'nahi mila', ok: false });
+      }
+    }
+
     // A worker still controlling the page inside the shell is the suspect for
     // both the hanging plugin import and the unstyled layout.
     try {

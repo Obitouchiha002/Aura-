@@ -651,3 +651,18 @@ html, body {
 .native-shell .chat-header {
   background-color: var(--bg);
 }
+
+/* The document itself must not scroll inside the shell.
+   When the webview does not resize for the keyboard, the browser's fallback is
+   to scroll the focused field into view — which lifts the composer up the
+   screen and leaves the bottom of a still-full-height layout showing beneath
+   it. That is the gap under the chat box. Pinning the document removes the
+   only thing it could scroll; utils/keyboardInset.ts takes the space away
+   properly instead. */
+.native-shell,
+.native-shell body {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
