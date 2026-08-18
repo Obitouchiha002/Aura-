@@ -23,3 +23,5 @@ android/keystore.properties
 
 # Live-update bundles — regenerate with scripts/release-bundle.mjs
 landing/download/updates/*.zip
+# The live-update bundle ships with the app's deployment, so it is tracked.
+!public/updates/*.zip

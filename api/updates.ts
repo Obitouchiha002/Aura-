@@ -26,8 +26,13 @@
  * the safe answer — an app that cannot read a manifest keeps what it has.
  */
 
-const SITE = process.env.SITE_URL || 'https://aura-shakti-site.vercel.app';
-const MANIFEST_URL = `${SITE}/download/updates/latest.json`;
+/**
+ * The manifest ships with this deployment, so it is read from this origin.
+ * Pointing at the marketing site meant a release needed the Vercel CLI, and
+ * when that session expired updates could not be published at all.
+ */
+const SITE = process.env.SITE_URL || 'https://aurashakti.vercel.app';
+const MANIFEST_URL = `${SITE}/updates/latest.json`;
 
 type Req = { method?: string; body?: any; headers?: Record<string, any> };
 type Res = {
