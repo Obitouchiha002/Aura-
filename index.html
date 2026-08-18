@@ -7,8 +7,12 @@
     <meta name="description" content="Aura Shakti — council, mentors, focus and simulation for a sharper mind." />
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#0A0A0A" />
-    <link rel="icon" type="image/png" href="/logo.png" />
-    <link rel="apple-touch-icon" href="/logo.png" />
+    <!-- logo.png is 694x657 and a different mark entirely; installed from the
+         browser the app used to look like a different product from the one on
+         the phone. These are rendered from assets/icon.svg, the same mark the
+         Android launcher uses. -->
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <script>
       window.process = window.process || { env: {} };
 

@@ -58,8 +58,10 @@ export const Login: React.FC = () => {
         className="relative z-10 max-w-sm w-full flex flex-col items-center space-y-10"
       >
         <div className="text-center space-y-4">
+          {/* The app's own mark, the same one the launcher and the installed
+              web app use. This was a third, unrelated logo. */}
           <img
-            src="/logo.png"
+            src="/icon-192.png"
             alt=""
             aria-hidden="true"
             className="w-16 h-16 mx-auto rounded-2xl border border-border object-cover shadow-lg"
