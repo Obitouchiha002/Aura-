@@ -60,7 +60,7 @@ console.log('  Packing…');
 // the plugin unpacks it as the web root and will not find it one level down.
 // updates/ is excluded or each release would contain the previous one, and
 // the bundle would double in size every time.
-run(`cd dist && zip -qr "${zipPath}" . -x 'updates/*'`);
+run(`cd dist && zip -qr "${zipPath}" . -x 'updates/*' 'download/*'`);
 
 const bytes = fs.readFileSync(zipPath);
 const checksum = createHash('sha256').update(bytes).digest('hex');

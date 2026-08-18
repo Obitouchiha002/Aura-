@@ -15,7 +15,7 @@
  * gap here. So it is one tap, then the system's own prompt.
  */
 
-const APK_MANIFEST = 'https://aura-shakti-site.vercel.app/download/updates/apk.json';
+const APK_MANIFEST = 'https://aurashakti.vercel.app/updates/apk.json';
 
 export interface ApkRelease {
   version: string;

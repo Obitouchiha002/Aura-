@@ -13,10 +13,24 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- The window was left transparent, so on a phone in light mode the
+             system painted it white. Any strip the webview does not cover —
+             notably the one a keyboard resize leaves behind — flashed white
+             under a black app. The window is the app's own ground now. -->
+        <item name="android:windowBackground">@color/aura_black</item>
+        <!-- MIUI and others apply an automatic dark filter to views they think
+             are light. This app is already dark; letting the system invert it
+             produces washed-out greys. -->
+        <item name="android:forceDarkAllowed">false</item>
     </style>
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <!-- Android 12 and up ignore the drawable above and build the launch
+             screen from these instead. Without them the app opened on a white
+             field before the dark app appeared. -->
+        <item name="android:windowSplashScreenBackground">@color/aura_black</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
     </style>
 </resources>

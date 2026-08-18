@@ -19,9 +19,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
-const SITE = 'https://aura-shakti-site.vercel.app';
+const SITE = 'https://aurashakti.vercel.app';
 const BUILT = path.join(ROOT, 'android/app/build/outputs/apk/release/app-release.apk');
-const OUT = path.join(ROOT, 'landing', 'download');
+/**
+ * Served from the app's own deployment rather than the marketing site. The
+ * site is CLI-only, and when that session expired there was no way to publish
+ * a build at all — including the one that fixed the bug being reported.
+ */
+const OUT = path.join(ROOT, 'public', 'download');
 
 const version = process.argv[2];
 const notes = process.argv[3];
@@ -44,7 +49,8 @@ if (named !== version) {
   process.exit(1);
 }
 
-fs.mkdirSync(path.join(OUT, 'updates'), { recursive: true });
+fs.mkdirSync(OUT, { recursive: true });
+fs.mkdirSync(path.join(ROOT, 'public', 'updates'), { recursive: true });
 
 // Only the current build stays on the site; older ones are only weight.
 for (const f of fs.readdirSync(OUT)) {
@@ -59,7 +65,7 @@ const bytes = fs.readFileSync(path.join(OUT, name));
 const sha256 = createHash('sha256').update(bytes).digest('hex');
 
 fs.writeFileSync(
-  path.join(OUT, 'updates', 'apk.json'),
+  path.join(ROOT, 'public', 'updates', 'apk.json'),
   JSON.stringify({
     version,
     url: `${SITE}/download/${name}`,
@@ -82,11 +88,11 @@ execSync('python3 build.py', { cwd: path.join(ROOT, 'landing'), stdio: 'inherit'
 
 console.log(`
   APK ${version} staged
-    file      landing/download/${name}
+    file      public/download/${name}
     size      ${(bytes.length / 1048576).toFixed(1)} MB
     sha256    ${sha256}
-    manifest  landing/download/updates/apk.json
+    manifest  public/updates/apk.json
 
-  Deploy the site and phones will be offered it inside the app:
-    cd landing && npx vercel deploy --prod --yes --archive=tgz
+  Commit and push. The app project deploys from git, and phones are offered
+  the build from inside the app on the next check.
 `);

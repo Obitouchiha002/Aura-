@@ -25,3 +25,6 @@ android/keystore.properties
 landing/download/updates/*.zip
 # The live-update bundle ships with the app's deployment, so it is tracked.
 !public/updates/*.zip
+
+# The APK ships with the app's deployment so it can be published by a push.
+!public/download/*.apk

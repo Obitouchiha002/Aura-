@@ -10,6 +10,8 @@
  * localhost and on HTTPS, and is simply unavailable over plain HTTP.
  */
 
+import { registerPlugin } from '@capacitor/core';
+
 export type LockMethod = 'pin' | 'passcode' | 'pattern';
 
 export interface LockConfig {
@@ -146,10 +148,37 @@ function isNativeShell(): boolean {
     && !!(window as any).Capacitor?.isNativePlatform?.();
 }
 
-/** Loaded on demand so the browser bundle never pays for the native plugin. */
-async function nativeBiometry() {
-  const { BiometricAuth } = await import('@aparajita/capacitor-biometric-auth');
-  return BiometricAuth;
+/**
+ * The native biometric plugin, reached without a dynamic import.
+ *
+ * Loading the package lazily looked tidy and was the bug: on a device the
+ * import of that chunk hung — never resolving, never rejecting — so the
+ * settings row sat on "Checking…" forever while the plugin itself was
+ * perfectly healthy. The diagnostics screen, which calls the bridge directly,
+ * reported isAvailable=true on the very same phone at the same moment.
+ *
+ * registerPlugin is in @capacitor/core, which is already in the main bundle,
+ * so there is no chunk to fetch and nothing to hang on. The name is the one
+ * the plugin registers itself under natively.
+ */
+function nativeBiometry(): any {
+  const bridged = (window as any).Capacitor?.Plugins?.BiometricAuthNative;
+  return bridged || registerPlugin('BiometricAuthNative');
+}
+
+/**
+ * Never let a native call strand the UI.
+ *
+ * A promise that neither resolves nor rejects leaves whatever is waiting on it
+ * showing a spinner for the rest of the session, which is exactly what
+ * happened here. Anything that cannot answer in a few seconds is treated as
+ * unavailable.
+ */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ]);
 }
 
 function b64url(buf: ArrayBuffer): string {
@@ -187,7 +216,7 @@ export async function checkBiometricStatus(): Promise<BiometricStatus> {
   if (isNativeShell()) {
     let result: any;
     try {
-      result = await (await nativeBiometry()).checkBiometry();
+      result = await withTimeout(nativeBiometry().checkBiometry(), 5000);
     } catch {
       // The plugin is not in this build of the shell. Nothing the phone can
       // do about it — the app itself has to be updated.
@@ -228,7 +257,7 @@ export async function registerBiometric(userLabel: string): Promise<string> {
   // it is enrolled before the setting is switched on, so the user cannot end
   // up with an unlock method that fails the first time they rely on it.
   if (isNativeShell()) {
-    await (await nativeBiometry()).authenticate({
+    await nativeBiometry().authenticate({
       reason: 'Confirm it is you, so this can unlock Aura.',
       androidTitle: 'Unlock Aura',
       androidSubtitle: 'Use your fingerprint or face',
@@ -274,7 +303,7 @@ export async function verifyBiometric(credentialId: string): Promise<boolean> {
   if (isNativeShell() || credentialId === NATIVE_CREDENTIAL) {
     if (!isNativeShell()) return false;
     try {
-      await (await nativeBiometry()).authenticate({
+      await nativeBiometry().authenticate({
         reason: 'Unlock Aura',
         androidTitle: 'Unlock Aura',
         androidSubtitle: 'Use your fingerprint or face',

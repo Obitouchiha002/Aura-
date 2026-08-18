@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The app's ground. Used for the window itself, so any area the webview
+         does not cover — the strip a resize leaves behind when the keyboard
+         opens — is the app's black rather than the system's white. -->
+    <color name="aura_black">#0A0A0A</color>
+</resources>
