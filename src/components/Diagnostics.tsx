@@ -79,22 +79,17 @@ export const Diagnostics: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     }
 
     // What the keyboard plugin itself reports — the one number that is true
-    // whether or not the webview resizes.
+    // whether or not the webview resizes. Read live, not from storage.
     if (isNative) {
       try {
-        const { Keyboard } = await import('@capacitor/keyboard');
-        let seen = 0;
-        await Keyboard.addListener('keyboardDidShow', (i: any) => {
-          seen = Math.round(i?.keyboardHeight || 0);
-          try { localStorage.setItem('aura_kb_plugin', String(seen)); } catch {}
-        });
-        const remembered = Number(localStorage.getItem('aura_kb_plugin') || 0);
+        const { lastKeyboardHeight } = await import('../utils/keyboardInset');
+        const h = lastKeyboardHeight();
         out.push({
           label: 'Keyboard plugin height',
-          value: remembered ? `${remembered}px (aakhri baar)` : 'abhi tak keyboard khula nahi',
-          ok: true,
+          value: h ? `${h}px` : 'plugin ne abhi tak kuch nahi bataya',
+          ok: h > 0,
         });
-      } catch (e: any) {
+      } catch {
         out.push({ label: 'Keyboard plugin', value: 'nahi mila', ok: false });
       }
     }
@@ -165,6 +160,7 @@ export const Diagnostics: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         { label: '--kb-inset', value: `${inset}px  (sabse zyada ${maxInset}px)` },
         { label: '#root height', value: `${root}  (sabse kam ${minRoot})` },
         { label: 'screen', value: `${Math.round(window.screen.height)} · dpr ${window.devicePixelRatio}` },
+        { label: 'plugin height', value: `${(window as any).__auraKbHeight || 0}px` },
       ]);
     };
 

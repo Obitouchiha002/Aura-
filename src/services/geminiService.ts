@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { profilePrompt, rosterPrompt } from './characterProfiles';
+import { memoryPrompt, learnFrom } from '../utils/userMemory';
 
 /**
  * Runs one generate call against one model.
@@ -439,11 +440,35 @@ You: "Theek hai. Na jaanna bhi jawab hai.\n\nKuch aur pooch loon, ya bas thodi d
 
 - ${langPrompt}`;
 
-  const systemInstruction = mode === 'TEACHER' ? teacherInstruction : mode === 'PSYCHOLOGY' ? psychologyInstruction : mode === 'COUNCIL' ? councilInstruction : mode === 'EMOTION' ? emotionInstruction : mentorInstruction;
+  const baseInstruction = mode === 'TEACHER' ? teacherInstruction : mode === 'PSYCHOLOGY' ? psychologyInstruction : mode === 'COUNCIL' ? councilInstruction : mode === 'EMOTION' ? emotionInstruction : mentorInstruction;
+
+  // Anything durable the person has said before, in every room. A mentor who
+  // has been told about your business should not ask what you do.
+  learnFrom(userMessage, mode);
+  const systemInstruction = baseInstruction + memoryPrompt();
 
   try {
-    // ONLY keep the last 5 relevant messages in history for EXTREME SPEED
-    const recentHistory = history.length > 5 ? history.slice(history.length - 5) : history;
+    /**
+     * How much of the conversation goes back to the model.
+     *
+     * This was five messages, for speed. Five is nothing: a character forgot
+     * what it had been told three exchanges earlier, and the room that is meant
+     * to remember you did not. In a companion app that is not a performance
+     * trade-off, it is the whole point being cut.
+     *
+     * The bound is on characters rather than turns, because turns vary from a
+     * word to an essay. Older messages are dropped from the front, so the
+     * recent conversation always survives.
+     */
+    const HISTORY_BUDGET = 24_000;
+    const recentHistory: typeof history = [];
+    let used = 0;
+    for (let i = history.length - 1; i >= 0; i--) {
+      const size = (history[i]?.text || '').length;
+      if (used + size > HISTORY_BUDGET && recentHistory.length >= 6) break;
+      recentHistory.unshift(history[i]);
+      used += size;
+    }
     const rawContents = recentHistory.map(msg => ({
       role: msg.isAi ? 'model' : 'user',
       parts: [{ text: msg.text }]

@@ -18,6 +18,7 @@ import { LockSetup } from './LockSetup';
 import { VersionRow } from './VersionRow';
 import { Diagnostics } from './Diagnostics';
 import { AppUpdateRow } from './AppUpdateRow';
+import { MemoryRow } from './MemoryRow';
 
 interface SettingsProps {
   onClose: () => void;
@@ -493,6 +494,8 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
           </Section>
 
           <Section title="Account">
+            <MemoryRow Row={Row} />
+
             <AppUpdateRow Row={Row} />
 
             <VersionRow Row={Row} />

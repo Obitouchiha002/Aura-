@@ -26,6 +26,22 @@
 const set = (px: number) =>
   document.documentElement.style.setProperty('--kb-inset', `${Math.max(0, Math.round(px))}px`);
 
+/**
+ * The height the plugin last reported, readable from anywhere.
+ *
+ * Diagnostics used to read this from storage, written on a previous run, so it
+ * said "keyboard never opened" while the keyboard was open. A live value makes
+ * one screenshot enough.
+ */
+let lastKeyboard = 0;
+export const lastKeyboardHeight = () => lastKeyboard;
+
+/** Also on window, so the diagnostics table can poll it without an import. */
+function remember(px: number) {
+  lastKeyboard = px;
+  try { (window as any).__auraKbHeight = px; } catch {}
+}
+
 function isNativeShell(): boolean {
   return typeof window !== 'undefined'
     && !!(window as any).Capacitor?.isNativePlatform?.();
@@ -68,24 +84,33 @@ async function trackViaPlugin(): Promise<() => void> {
   const onShow = (info: any) => {
     const kb = Number(info?.keyboardHeight) || 0;
     if (kb <= 0) return;
+    remember(kb);
 
-    // The plugin fires before the webview settles. A frame later innerHeight
-    // tells us which of the two happened: if it shrank, the layout is already
-    // correct and adding the inset would take the same space away twice.
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        const shrank = heightBefore - window.innerHeight;
-        set(shrank > kb * 0.6 ? 0 : kb);
-        // The page may already have panned to reveal the field. Undoing that
-        // is what puts the composer back at the bottom where it belongs.
-        window.scrollTo(0, 0);
-      }, 50);
-    });
+    // Apply first, correct after.
+    //
+    // This used to wait for a timer and only then decide, which meant that if
+    // the check did not run — or ran while the webview was mid-settle — nothing
+    // was applied at all and the composer stayed underneath the keyboard. Doing
+    // it in this order, the worst case is a correction rather than no effect.
+    set(kb);
+    window.scrollTo(0, 0);
+
+    // Then, once the webview has settled, withdraw it if the space was already
+    // taken away natively — otherwise it would be taken twice.
+    const recheck = () => {
+      const shrank = heightBefore - window.innerHeight;
+      set(shrank > kb * 0.6 ? 0 : kb);
+      window.scrollTo(0, 0);
+    };
+    setTimeout(recheck, 60);
+    setTimeout(recheck, 300);
   };
 
   const onHide = () => {
     set(0);
-    heightBefore = window.innerHeight;
+    // Recorded while the keyboard is down, so the next comparison is against a
+    // full-height viewport.
+    setTimeout(() => { heightBefore = window.innerHeight; }, 100);
     window.scrollTo(0, 0);
   };
 
