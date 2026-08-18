@@ -24,6 +24,13 @@ type Res = {
   end: () => void;
 };
 
+const RELAXED_SAFETY = [
+  'HARM_CATEGORY_HARASSMENT',
+  'HARM_CATEGORY_HATE_SPEECH',
+  'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+  'HARM_CATEGORY_DANGEROUS_CONTENT',
+].map(category => ({ category, threshold: 'BLOCK_ONLY_HIGH' }));
+
 const GEMINI_ENDPOINT = (model: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
 
@@ -97,7 +104,7 @@ export default async function handler(req: Req, res: Res) {
 
   // Vercel parses JSON bodies; the local express server does too.
   const body = typeof req.body === 'string' ? safeParse(req.body) : req.body;
-  const { provider = 'gemini', model, contents, systemInstruction, temperature } = body || {};
+  const { provider = 'gemini', model, contents, systemInstruction, temperature, relaxSafety } = body || {};
 
   if (!Array.isArray(contents) || contents.length === 0) {
     res.status(400).json({ error: 'contents is required' });
@@ -158,6 +165,12 @@ export default async function handler(req: Req, res: Res) {
         ...(systemInstruction
           ? { systemInstruction: { parts: [{ text: systemInstruction }] } }
           : {}),
+        // Asked for by the character rooms only — see RELAXED_SAFETY in
+        // geminiService. The default setting sands the edges off characters
+        // written to be blunt and amoral, which reads as the whole app having
+        // become cautious. ONLY_HIGH still blocks severe content. The
+        // Psychologist never sets this.
+        ...(relaxSafety ? { safetySettings: RELAXED_SAFETY } : {}),
         generationConfig: { temperature: temperature ?? 0.7 },
       }),
     });

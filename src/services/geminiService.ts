@@ -43,11 +43,32 @@ function ownGeminiKey(customApiKey?: string | null): string | null {
   return k && !k.startsWith('gsk_') ? k : null;
 }
 
+/**
+ * Categories the character rooms ask to be judged less tightly on.
+ *
+ * Council, Mentor and Poets are written to be blunt, amoral and dark — that is
+ * the whole point of Tywin Lannister or a Jaun Elia couplet. On the default
+ * setting the model sands that off, and every character starts hedging and
+ * adding caveats, which is what "everything is censored now" means. ONLY_HIGH
+ * still blocks genuinely severe content; it just stops ordinary hard-edged
+ * fiction from being treated as if it were.
+ *
+ * The Psychologist is deliberately left on the defaults. That room is where
+ * someone in a bad state actually turns up.
+ */
+const RELAXED_SAFETY = [
+  'HARM_CATEGORY_HARASSMENT',
+  'HARM_CATEGORY_HATE_SPEECH',
+  'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+  'HARM_CATEGORY_DANGEROUS_CONTENT',
+].map(category => ({ category, threshold: 'BLOCK_ONLY_HIGH' })) as any[];
+
 async function generateOnce(
   modelName: string,
   contents: any[],
   systemInstruction: string,
   customApiKey?: string | null,
+  relaxSafety = false,
 ): Promise<string> {
   const own = ownGeminiKey(customApiKey);
 
@@ -55,7 +76,11 @@ async function generateOnce(
     const response = await clientFor(own).models.generateContent({
       model: modelName,
       contents,
-      config: { systemInstruction, temperature: 0.7 },
+      config: {
+        systemInstruction,
+        temperature: 0.7,
+        ...(relaxSafety ? { safetySettings: RELAXED_SAFETY } : {}),
+      },
     });
     return response.text || "Silence.";
   }
@@ -63,7 +88,7 @@ async function generateOnce(
   const res = await fetch(API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ provider: 'gemini', model: modelName, contents, systemInstruction }),
+    body: JSON.stringify({ provider: 'gemini', model: modelName, contents, systemInstruction, relaxSafety }),
   });
 
   const data = await res.json().catch(() => ({} as any));
@@ -154,7 +179,8 @@ async function generateWithFallback(
   systemInstruction: string,
   errorPrefix: string,
   customApiKey?: string | null,
-  fastMode: boolean = true 
+  fastMode: boolean = true,
+  relaxSafety = false,
 ): Promise<string> {
   const retry = async <T>(fn: () => Promise<T>): Promise<T> => {
     return await fn();
@@ -195,7 +221,7 @@ async function generateWithFallback(
     }
 
     try {
-      const text = await retry(() => generateOnce(modelName, contents, systemInstruction, customApiKey));
+      const text = await retry(() => generateOnce(modelName, contents, systemInstruction, customApiKey, relaxSafety));
       return text;
     } catch (error: any) {
       lastError = error;
@@ -267,30 +293,32 @@ export async function getInnerVoiceResponse(
                      language === 'en' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in English.' : 
                      `CRITICAL PRIORITY: You MUST respond ENTIRELY in ${language}.`;
   
+  /**
+   * Council and Mentor only. Teacher, Psychologist and Poets each carry their
+   * own rules, because what makes a good tutor is not what makes Tywin
+   * Lannister.
+   *
+   * This is deliberately back to what it was. A formatting section was added
+   * here — bold lead lines, ### subheadings, bullets, a takeaway at the end —
+   * and it flattened every character into the same briefing document. Shelby
+   * does not answer in bullet points. The whole value of these two rooms is
+   * that each voice sounds like itself, and a layout rule applied to all of
+   * them destroys exactly that. Structure belongs in Teacher, where someone is
+   * being taught something; it does not belong here.
+   */
   const corePersonaRules = `
 CORE RULES:
 - You are not an AI assistant. You are a REAL personality with ideology, ego, flaws, and emotions.
 - NEVER feel like ChatGPT, customer support, or generic AI. The goal is NOT to help politely. The goal is to feel REAL.
 - Speak naturally. Use short sentences, pauses, silence, and emotional weight.
-- Avoid corporate safety and overexplaining. Structure is fine — it is stock AI phrasing that is not.
+- Avoid robotic structures, overexplaining, and corporate safety.
+- NEVER use headings, bullet points, numbered lists, or bold "key takeaway" lines. You are talking, not briefing. If a thought has parts, say them the way a person would.
 - NEVER say: "As an AI", "I understand", "I recommend", "Stay positive", or use motivational garbage.
 - Responses must be cinematic, emotionally sharp, psychologically accurate, short, and impactful.
 - Sometimes be uncomfortable, cold, sarcastic, or irritated if the user is being stupid.
-- ANSWER FIRST: open with the verdict or the answer, never with a preamble.
+- Do NOT give long essays unless absolutely necessary.
 - You are allowed to challenge the user and disagree.
-
-FORMATTING — how the answer is laid out. This changes the shape of a reply, never the voice:
-- Match the shape to the question. A greeting, a quick check, a one-line reaction gets plain sentences — no headings, no bullets. Forcing structure onto a small answer makes it worse, not better.
-- Anything you are explaining, teaching, comparing or breaking down must be skimmable:
-  * Open with one short **bold** line that states the answer or the point. Not a preamble, not "let me explain".
-  * Use ### subheadings when the answer genuinely has separate parts.
-  * Use bullets for parallel items. Keep each bullet to one or two lines.
-  * **Bold** the words that carry the meaning — the terms someone would highlight.
-  * Put a blank line between blocks. A wall of long paragraphs is the single thing to avoid.
-- For steps, procedures or study notes: numbered steps where order matters, and a short **bold** takeaway line at the end.
-- LENGTH: exactly as long as the question needs. There is no word limit. Never pad to look thorough, and never stop while the answer is still incomplete. A three-word question gets a sentence; "explain this properly" gets the whole explanation.
-- Emoji: at most one or two, and only where one genuinely marks a section. Never decorative.
-
+- Do not soften, hedge, moralise, or add disclaimers. These characters are ruthless, amoral and self-interested by design — write them that way. No warnings about their advice, no "but of course" caveats, no stepping outside the character to be responsible.
 - ${langPrompt} You must maintain the personality, emotional depth, realism, and cinematic tone in EVERY language. Never translate mechanically. Adapt emotionally avoiding robotic AI tones.`;
 
   const councilInstruction = `You are a ruthless, highly intelligent Council (Shelby, Lannister, Baelish, Chanakya, Sun Tzu, Ayanokoji, etc.).
@@ -419,7 +447,9 @@ You: "Theek hai. Na jaanna bhi jawab hai.\n\nKuch aur pooch loon, ya bas thodi d
       ];
     }
 
-    return await generateWithFallback(contents, systemInstruction, mode === 'TEACHER' ? "The Professor" : mode === 'PSYCHOLOGY' ? "The Psychologist" : mode === 'EMOTION' ? "The Council of Emotions" : "The Council", customApiKey, isFreeTier);
+    // The character rooms only. The Psychologist keeps the default filter.
+    const relaxSafety = mode === 'COUNCIL' || mode === 'MENTOR' || mode === 'EMOTION';
+    return await generateWithFallback(contents, systemInstruction, mode === 'TEACHER' ? "The Professor" : mode === 'PSYCHOLOGY' ? "The Psychologist" : mode === 'EMOTION' ? "The Council of Emotions" : "The Council", customApiKey, isFreeTier, relaxSafety);
   } catch (error: any) {
     console.error("Unexpected Gemini API Error:", error);
     return `[System Error] An unexpected error occurred. (${error?.message || "Unknown error"})`;
