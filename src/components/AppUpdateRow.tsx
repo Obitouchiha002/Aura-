@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Download, CheckCircle2 } from 'lucide-react';
-import { checkForAppUpdate, downloadAndInstall, installedVersion, type ApkRelease } from '../utils/apkUpdate';
+import {
+  checkForAppUpdate, downloadAndInstall, installedVersion,
+  canInstallApks, openInstallPermissionSettings, type ApkRelease,
+} from '../utils/apkUpdate';
 
 /**
  * Updating the app without leaving it.
@@ -21,6 +24,7 @@ type State =
   | { kind: 'available'; release: ApkRelease }
   | { kind: 'downloading'; release: ApkRelease; percent: number }
   | { kind: 'installing' }
+  | { kind: 'needs-permission'; release: ApkRelease }
   | { kind: 'failed'; reason: string };
 
 export const AppUpdateRow: React.FC<{ Row: React.ComponentType<any> }> = ({ Row }) => {
@@ -46,6 +50,13 @@ export const AppUpdateRow: React.FC<{ Row: React.ComponentType<any> }> = ({ Row 
   }, [native]);
 
   const install = useCallback(async (release: ApkRelease) => {
+    // Checked before the download, not after it. Android refuses the handover
+    // with a bare dialog, and finding that out at the end of 13 MB is the
+    // worst possible moment.
+    if (!(await canInstallApks())) {
+      setState({ kind: 'needs-permission', release });
+      return;
+    }
     setState({ kind: 'downloading', release, percent: 0 });
     try {
       await downloadAndInstall(release, percent =>
@@ -65,6 +76,7 @@ export const AppUpdateRow: React.FC<{ Row: React.ComponentType<any> }> = ({ Row 
     : state.kind === 'available' ? `Naya version ${state.release.version} · ${(state.release.size / 1048576).toFixed(1)} MB`
     : state.kind === 'downloading' ? `Download ho raha hai — ${state.percent}%`
     : state.kind === 'installing' ? 'Android ka install screen khul gaya'
+    : state.kind === 'needs-permission' ? 'Ek baar permission deni hogi — "Allow from this source" on kar dijiye'
     : state.kind === 'failed' ? state.reason
     : `App ${native}`;
 
@@ -77,7 +89,18 @@ export const AppUpdateRow: React.FC<{ Row: React.ComponentType<any> }> = ({ Row 
         label="App update"
         hint={hint}
       >
-        {state.kind === 'available' || state.kind === 'failed' ? (
+        {state.kind === 'needs-permission' ? (
+          <button
+            onClick={async () => {
+              await openInstallPermissionSettings();
+              // They come back to this screen; offer the update again.
+              setState({ kind: 'available', release: state.release });
+            }}
+            className="shrink-0 rounded-full bg-accent text-on-accent text-xs font-semibold px-3.5 py-2"
+          >
+            Permission dein
+          </button>
+        ) : state.kind === 'available' || state.kind === 'failed' ? (
           <button
             onClick={() => install(state.kind === 'available' ? state.release : (state as any).release)}
             disabled={state.kind === 'failed'}

@@ -73,6 +73,32 @@ export async function checkForAppUpdate(): Promise<ApkRelease | null> {
  * FileProvider already exposes — an APK handed over from anywhere else is
  * refused by the installer as an unreadable URI.
  */
+/**
+ * Whether Android will let this app hand over an APK at all.
+ *
+ * Since Oreo the permission is granted per source by the user, so the first
+ * update otherwise ends in "your phone isn't allowed to install unknown apps
+ * from this source" — after the download, with no explanation. Asking first
+ * turns that into one clear step.
+ */
+export async function canInstallApks(): Promise<boolean> {
+  if (!isNativeShell()) return false;
+  try {
+    const p = (window as any).Capacitor?.Plugins?.InstallPermission;
+    if (!p) return true; // older shell without the check — let it try
+    return !!(await p.canInstall()).allowed;
+  } catch {
+    return true;
+  }
+}
+
+/** Opens the one settings page where that permission lives. */
+export async function openInstallPermissionSettings(): Promise<void> {
+  try {
+    await (window as any).Capacitor?.Plugins?.InstallPermission?.openSettings();
+  } catch {}
+}
+
 export async function downloadAndInstall(
   release: ApkRelease,
   onProgress?: (percent: number) => void,
