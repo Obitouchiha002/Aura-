@@ -67,7 +67,7 @@ const checksum = createHash('sha256').update(bytes).digest('hex');
 
 fs.writeFileSync(
   path.join(OUT, 'latest.json'),
-  JSON.stringify({ version, url: `${SITE}/download/updates/${zipName}`, checksum }, null, 2) + '\n',
+  JSON.stringify({ version, url: `${SITE}/updates/${zipName}`, checksum }, null, 2) + '\n',
 );
 
 console.log(`
@@ -86,7 +86,7 @@ console.log(`
          npx vercel env rm BUNDLE_URL production --yes
          npx vercel env rm BUNDLE_CHECKSUM production --yes
          printf '%s' '${version}' | npx vercel env add BUNDLE_VERSION production
-         printf '%s' '${SITE}/download/updates/${zipName}' | npx vercel env add BUNDLE_URL production
+         printf '%s' '${SITE}/updates/${zipName}' | npx vercel env add BUNDLE_URL production
          printf '%s' '${checksum}' | npx vercel env add BUNDLE_CHECKSUM production
          npx vercel deploy --prod --yes
 
