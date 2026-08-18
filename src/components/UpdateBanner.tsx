@@ -16,7 +16,7 @@ import { Download, RefreshCw } from 'lucide-react';
  * Nothing here renders on the web, where there is no updater at all.
  */
 
-type Phase = 'idle' | 'downloading' | 'ready';
+type Phase = 'idle' | 'downloading' | 'ready' | 'dismissed';
 
 export const UpdateBanner: React.FC = () => {
   const [phase, setPhase] = useState<Phase>('idle');
@@ -69,10 +69,14 @@ export const UpdateBanner: React.FC = () => {
     }
   };
 
-  if (phase === 'idle') return null;
+  if (phase === 'idle' || phase === 'dismissed') return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[95] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pointer-events-none">
+    /* Anchored to the top. At the bottom it sat directly over the chat
+       composer, so an update notice made the app unusable until it was acted
+       on — which is the opposite of what a background update should feel
+       like. */
+    <div className="fixed inset-x-0 top-0 z-[95] p-3 pt-[max(0.75rem,env(safe-area-inset-top))] pointer-events-none">
       <div className="pointer-events-auto mx-auto max-w-md rounded-2xl border border-border bg-elevated shadow-float px-4 py-3">
         {phase === 'downloading' ? (
           <div className="flex items-center gap-3">
@@ -101,13 +105,21 @@ export const UpdateBanner: React.FC = () => {
                 </p>
               </div>
             </div>
-            <button
-              onClick={applyNow}
-              disabled={applying}
-              className="mt-3 w-full rounded-full bg-accent text-on-accent text-[13px] font-semibold py-2.5 disabled:opacity-60"
-            >
-              {applying ? 'Lag raha hai…' : 'Abhi lagayein'}
-            </button>
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={() => setPhase('dismissed')}
+                className="rounded-full border border-border px-4 py-2.5 text-[13px] text-text-muted"
+              >
+                Baad mein
+              </button>
+              <button
+                onClick={applyNow}
+                disabled={applying}
+                className="flex-1 rounded-full bg-accent text-on-accent text-[13px] font-semibold py-2.5 disabled:opacity-60"
+              >
+                {applying ? 'Lag raha hai…' : 'Abhi lagayein'}
+              </button>
+            </div>
           </>
         )}
       </div>
