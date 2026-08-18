@@ -96,25 +96,56 @@ export const Diagnostics: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
   useEffect(() => { collect(); }, [collect]);
 
-  // Keyboard geometry, live. If adjustResize is working these two track each
-  // other and the gap stays 0 with the keyboard open.
+  /**
+   * Keyboard geometry, live — and remembered.
+   *
+   * The live numbers are only true while the keyboard is up, and the keyboard
+   * goes down the moment a screenshot is taken on some phones. So the extremes
+   * are kept too: the smallest viewport and the largest gap seen since this
+   * screen opened. One screenshot after typing then carries what happened
+   * while the keyboard was actually there.
+   */
   useEffect(() => {
+    let minInner = Infinity, minVv = Infinity, maxGap = 0, maxInset = 0, minRoot = Infinity;
+
     const read = () => {
       const vv = window.visualViewport;
+      const inner = window.innerHeight;
+      const vvH = vv ? Math.round(vv.height) : inner;
+      const gap = vv ? Math.round(inner - vv.height - vv.offsetTop) : 0;
+      const inset = parseInt(
+        getComputedStyle(document.documentElement).getPropertyValue('--kb-inset') || '0', 10) || 0;
+      const root = Math.round(document.getElementById('root')?.getBoundingClientRect().height || 0);
+
+      minInner = Math.min(minInner, inner);
+      minVv = Math.min(minVv, vvH);
+      maxGap = Math.max(maxGap, gap);
+      maxInset = Math.max(maxInset, inset);
+      minRoot = Math.min(minRoot, root);
+
       setKb([
-        { label: 'window.innerHeight', value: String(window.innerHeight) },
-        { label: 'visualViewport.height', value: vv ? String(Math.round(vv.height)) : 'nahi' },
-        { label: 'gap (keyboard dhak raha)', value: vv ? String(Math.round(window.innerHeight - vv.height - vv.offsetTop)) : '—' },
-        { label: '--kb-inset', value: getComputedStyle(document.documentElement).getPropertyValue('--kb-inset').trim() || '0px' },
-        { label: '#root height', value: String(Math.round(document.getElementById('root')?.getBoundingClientRect().height || 0)) },
+        { label: 'innerHeight', value: `${inner}  (sabse kam ${minInner})` },
+        { label: 'visualViewport', value: `${vvH}  (sabse kam ${minVv})` },
+        { label: 'gap', value: `${gap}  (sabse zyada ${maxGap})` },
+        { label: '--kb-inset', value: `${inset}px  (sabse zyada ${maxInset}px)` },
+        { label: '#root height', value: `${root}  (sabse kam ${minRoot})` },
+        { label: 'screen', value: `${Math.round(window.screen.height)} · dpr ${window.devicePixelRatio}` },
       ]);
     };
+
     read();
     const vv = window.visualViewport;
     vv?.addEventListener('resize', read);
     vv?.addEventListener('scroll', read);
-    const t = setInterval(read, 500);
-    return () => { vv?.removeEventListener('resize', read); vv?.removeEventListener('scroll', read); clearInterval(t); };
+    window.addEventListener('resize', read);
+    // 200ms so a keyboard that opens and closes quickly is still caught.
+    const t = setInterval(read, 200);
+    return () => {
+      vv?.removeEventListener('resize', read);
+      vv?.removeEventListener('scroll', read);
+      window.removeEventListener('resize', read);
+      clearInterval(t);
+    };
   }, []);
 
   return (
