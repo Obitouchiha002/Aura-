@@ -1089,11 +1089,11 @@ PAGES["developer.html"] = shell(
 
 # ── download ────────────────────────────────────────────────────────────────
 APK = dict(
-    file="download/AuraShakti-1.0.6.apk",
-    version="1.0.6",
-    size="12.8 MB",
+    file="download/AuraShakti-1.1.0.apk",
+    version="1.1.0",
+    size="12.9 MB",
     min_android="8.0",
-    sha256="e4bf604fe7f4e0c1197bc930c84be174d286888dcbce667ab7c299ee2fcbd983",
+    sha256="1b209723ef0fe3af45d131e71e7c57e54ccf177f6ddda1eab1bb01e99f32e8f8",
 )
 
 PAGES["download.html"] = shell(

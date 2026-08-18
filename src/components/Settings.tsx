@@ -17,6 +17,7 @@ import { isCryptoAvailable } from '../utils/appLock';
 import { LockSetup } from './LockSetup';
 import { VersionRow } from './VersionRow';
 import { Diagnostics } from './Diagnostics';
+import { AppUpdateRow } from './AppUpdateRow';
 
 interface SettingsProps {
   onClose: () => void;
@@ -492,6 +493,8 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
           </Section>
 
           <Section title="Account">
+            <AppUpdateRow Row={Row} />
+
             <VersionRow Row={Row} />
 
             <Row

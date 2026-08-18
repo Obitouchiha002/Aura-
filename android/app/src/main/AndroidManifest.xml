@@ -33,4 +33,10 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Lets the app hand a downloaded build to Android's package installer, so
+         updating does not mean opening the site in a browser and finding the
+         file by hand. Android still shows its own install confirmation; no app
+         can install another app silently. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 </manifest>
