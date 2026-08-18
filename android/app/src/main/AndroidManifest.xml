@@ -7,8 +7,20 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+        <!-- windowSoftInputMode is adjustNothing, not adjustResize.
+
+             Two things were resizing the webview for the keyboard: Android,
+             because of adjustResize, and Capacitor's SystemBars, which applies
+             the IME inset itself. On a device running both, a 349px keyboard
+             took the viewport from 776 to 125 — subtracted twice — and the chat
+             collapsed to a strip with the composer stranded at the top.
+
+             Android resizes nothing now, and the web layer takes the space away
+             once, using the height the keyboard plugin reports. See
+             utils/keyboardInset.ts, which also detects the case where something
+             else already resized and then stays out of the way. -->
         <activity
-            android:windowSoftInputMode="adjustResize"
+            android:windowSoftInputMode="adjustNothing"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
             android:label="@string/title_activity_main"

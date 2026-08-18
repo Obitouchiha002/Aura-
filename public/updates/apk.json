@@ -1,7 +1,7 @@
 {
-  "version": "1.1.4",
-  "url": "https://aurashakti.vercel.app/download/AuraShakti-1.1.4.apk",
-  "size": 12403345,
-  "sha256": "f1defc8c1ddf8bd89b6a72864d292ddafdf50f52cbb9f763c09f74b4f2c71f4d",
-  "notes": "Shows a waiting update in Settings"
+  "version": "1.2.0",
+  "url": "https://aurashakti.vercel.app/download/AuraShakti-1.2.0.apk",
+  "size": 12404669,
+  "sha256": "aa585bd556ffd8fd7574c2cffc7696fb5e90bc328addc5ffe0ebace21c519a87",
+  "notes": "Keyboard fix: one resizer, not two"
 }
