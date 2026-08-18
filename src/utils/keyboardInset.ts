@@ -23,6 +23,8 @@
  * Exposed as --kb-inset, which index.css subtracts from the app's height.
  */
 
+import { registerPlugin } from '@capacitor/core';
+
 const set = (px: number) =>
   document.documentElement.style.setProperty('--kb-inset', `${Math.max(0, Math.round(px))}px`);
 
@@ -40,6 +42,19 @@ export const lastKeyboardHeight = () => lastKeyboard;
 function remember(px: number) {
   lastKeyboard = px;
   try { (window as any).__auraKbHeight = px; } catch {}
+  note('plugin ne bataya');
+}
+
+/**
+ * A one-line account of what happened the last time a field was focused.
+ *
+ * If this ever has to be diagnosed again, the question is only ever which of
+ * three things occurred: the plugin reported a height, the webview resized
+ * itself, or neither. Recording it turns the next report into an answer rather
+ * than another round of guessing.
+ */
+function note(what: string) {
+  try { (window as any).__auraKbNote = what; } catch {}
 }
 
 function isNativeShell(): boolean {
@@ -73,9 +88,18 @@ function trackViaViewport(): () => void {
 /**
  * The shell path: take the height from the plugin, then check whether the
  * webview already accounted for it.
+ *
+ * The plugin is reached through the bridge rather than by importing the
+ * package. A dynamic import of a plugin chunk is what left the biometric check
+ * hanging on a device — the promise neither resolved nor rejected — and this
+ * had exactly the same shape: if the import never settled, no listener was
+ * ever registered and the composer stayed under the keyboard with nothing in
+ * the logs to say why. registerPlugin is already in the main bundle, so there
+ * is no chunk to fetch and nothing to wait on.
  */
-async function trackViaPlugin(): Promise<() => void> {
-  const { Keyboard } = await import('@capacitor/keyboard');
+function trackViaPlugin(): () => void {
+  const Keyboard: any =
+    (window as any).Capacitor?.Plugins?.Keyboard || registerPlugin('Keyboard');
   const handles: Array<{ remove: () => void }> = [];
 
   /** Height before the keyboard opened, to tell a resize from a pan. */
@@ -99,7 +123,9 @@ async function trackViaPlugin(): Promise<() => void> {
     // taken away natively — otherwise it would be taken twice.
     const recheck = () => {
       const shrank = heightBefore - window.innerHeight;
-      set(shrank > kb * 0.6 ? 0 : kb);
+      const resized = shrank > kb * 0.6;
+      set(resized ? 0 : kb);
+      note(resized ? `webview khud shrink hua (${shrank})` : `inset lagaya (${kb})`);
       window.scrollTo(0, 0);
     };
     setTimeout(recheck, 60);
@@ -118,7 +144,14 @@ async function trackViaPlugin(): Promise<() => void> {
     ['keyboardWillShow', onShow], ['keyboardDidShow', onShow],
     ['keyboardWillHide', onHide], ['keyboardDidHide', onHide],
   ] as const) {
-    try { handles.push(await Keyboard.addListener(name as any, fn as any)); } catch {}
+    // Not awaited: addListener resolves with a handle, but the listener itself
+    // is registered immediately. Awaiting it was one more promise that could
+    // fail to settle before the first keyboard ever opened.
+    try {
+      Promise.resolve(Keyboard.addListener(name, fn))
+        .then((h: any) => { if (h?.remove) handles.push(h); })
+        .catch(() => {});
+    } catch {}
   }
 
   return () => handles.forEach(h => { try { h.remove(); } catch {} });
@@ -129,11 +162,31 @@ export function trackKeyboardInset(): () => void {
 
   if (!isNativeShell()) return trackViaViewport();
 
+  // A field was focused and half a second later nothing had changed: no
+  // plugin event, no resize. That is the one outcome the numbers alone cannot
+  // show, and it is worth naming.
+  const onFocus = (e: Event) => {
+    const el = e.target as HTMLElement | null;
+    if (!el || !/^(INPUT|TEXTAREA)$/.test(el.tagName)) return;
+    const before = window.innerHeight;
+    const kbBefore = lastKeyboard;
+    note('focus hua, jawab ka intezaar');
+    setTimeout(() => {
+      if (lastKeyboard === kbBefore && window.innerHeight === before) {
+        note('kuch nahi hua — plugin chup, webview waisa hi');
+      }
+    }, 600);
+  };
+  document.addEventListener('focusin', onFocus, true);
+
   // The viewport listener stays on as well: on a webview that does resize it
   // simply reports 0, and it costs nothing to have both agree.
   const stopViewport = trackViaViewport();
-  let stopPlugin: (() => void) | null = null;
-  trackViaPlugin().then(stop => { stopPlugin = stop; }).catch(() => {});
+  const stopPlugin = trackViaPlugin();
 
-  return () => { stopViewport(); stopPlugin?.(); };
+  return () => {
+    document.removeEventListener('focusin', onFocus, true);
+    stopViewport();
+    stopPlugin();
+  };
 }

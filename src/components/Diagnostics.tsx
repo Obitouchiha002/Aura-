@@ -161,6 +161,7 @@ export const Diagnostics: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         { label: '#root height', value: `${root}  (sabse kam ${minRoot})` },
         { label: 'screen', value: `${Math.round(window.screen.height)} · dpr ${window.devicePixelRatio}` },
         { label: 'plugin height', value: `${(window as any).__auraKbHeight || 0}px` },
+        { label: 'kya hua', value: String((window as any).__auraKbNote || '—') },
       ]);
     };
 
