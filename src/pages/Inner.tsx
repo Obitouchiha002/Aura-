@@ -5,7 +5,7 @@ import { generateImage } from '../services/nvidiaService';
 import { useSettings } from '../context/SettingsContext';
 import { useLang } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
-import { collection, doc, getDocs, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Send, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as SettingsIcon, RefreshCcw, Download, Users, Sparkles, Target, Gamepad2, Mic, Ghost, Copy, Check, Search, Menu, Eye, Paperclip, Camera, ImagePlus, FileText, FileDown, Printer, ClipboardList, HeartPulse, GraduationCap } from 'lucide-react';
 import { Settings } from '../components/Settings';
@@ -801,6 +801,21 @@ export default function Inner() {
     if (!sessionMeta) return;
 
     /**
+     * An empty thread is never something to save.
+     *
+     * By the time a session has an id it has at least one message: handleSend
+     * sets the messages before it sets the id, and the two paths that really do
+     * empty a chat — clearCurrentChat and deleteSession — delete the document
+     * and drop the id rather than writing a blank one.
+     *
+     * So an empty array here always means the screen is momentarily out of step
+     * with the thread being opened, and writing it would merge `messages: []`
+     * over a conversation that is still there. That is how a chat came back
+     * from history with its title intact and nothing inside it.
+     */
+    if (messages.length === 0) return;
+
+    /**
      * Firestore rejects `undefined` anywhere in a document, not just at the
      * top. This used to walk one level, so a nested one — a handoff with no
      * character — failed every write for the whole session with an error only
@@ -992,15 +1007,54 @@ export default function Inner() {
     window.location.hash = 'chat';
   };
 
-  const loadSession = (session: ChatSession) => {
+  /**
+   * Opens a thread from the history drawer.
+   *
+   * The messages may not be on the session object. `sessions` only carries them
+   * for the threads that were read from Firestore when the app started — a
+   * thread begun, continued or handed off during this visit is added to that
+   * array from the send path, which has no reason to know the message list and
+   * does not put one there.
+   *
+   * This used to be `setMessages(session.messages || [])`, so opening such a
+   * thread showed an empty chat under its own title, and the sync effect then
+   * merged that empty array back over the stored one. The conversation was
+   * gone, and the history row it was listed under stayed exactly where it was.
+   *
+   * So the stored document is the authority whenever the copy in memory has
+   * nothing, and what comes back is kept on the session object so returning to
+   * the thread does not read it again.
+   */
+  const loadSession = async (session: ChatSession) => {
     triggerHaptic();
     setCurrentSessionId(session.id);
     setMode(session.mode);
     if (session.mode !== 'COUNCIL') {
       setSelectedCharacter(session.character);
     }
-    setMessages(session.messages || []);
     window.location.hash = 'chat';
+
+    if (session.messages) {
+      setMessages(session.messages);
+      return;
+    }
+
+    // Blank while the document is read. The sync effect refuses to write an
+    // empty thread, so nothing is lost in this gap.
+    setMessages([]);
+    if (!user) return;
+
+    try {
+      const snap = await getDoc(doc(db, 'users', user.uid, 'chatSessions', session.id));
+      const stored = (snap.exists() ? snap.data().messages : null) || [];
+      setMessages(stored);
+      setSessions(prev => prev.map(s => (s.id === session.id ? { ...s, messages: stored } : s)));
+    } catch (e) {
+      console.error('Failed to open session', e);
+      showToast('off', lang === 'en'
+        ? 'Could not open that chat — check your connection'
+        : 'यह चैट खुल नहीं सकी — कनेक्शन देखिए');
+    }
   };
 
   // Called from the history drawer, which already stops the click from
