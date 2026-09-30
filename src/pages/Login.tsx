@@ -27,6 +27,12 @@ export const Login: React.FC = () => {
           ? `This site (${window.location.hostname}) is not on the app's authorized sign-in domains, so Google blocked the popup. Add it in Firebase Console → Authentication → Settings → Authorized domains.`
           : code === 'auth/network-request-failed'
           ? 'Could not reach the sign-in service. Please check your connection and try again.'
+          // These arrive as the browser's own sentence with no Firebase code —
+          // "Database is closing" and the like. Sign-in now falls back to
+          // localStorage and then to a redirect, so reaching this message means
+          // the browser refused every one of them.
+          : /database|indexeddb|storage|quota/i.test(String(e?.message || ''))
+          ? 'Your browser would not let the app store the sign-in. If this is a private window, or site data is blocked or full, try a normal window.'
           // The native picker reports a message rather than a Firebase code, so
           // showing only the code left every Android failure looking identical
           // and unreportable. Whatever detail exists is surfaced.

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, loginWithGoogle, logout as firebaseLogout } from '../firebase';
+import { auth, db, loginWithGoogle, logout as firebaseLogout, completeRedirectSignIn } from '../firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -84,6 +84,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     let sessionInterval: NodeJS.Timeout;
     let currentSessionId: string | null = null;
+
+    /**
+     * A sign-in that finished by redirect lands back here, not in the popup
+     * handler that started it. Asking for the result is what makes a redirect
+     * that failed say why, rather than returning the person to the login screen
+     * with no reason given. The user itself still arrives below.
+     */
+    completeRedirectSignIn();
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
