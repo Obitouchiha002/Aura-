@@ -12,6 +12,7 @@ The output is ordinary HTML with no build step of its own, so it can be edited
 directly afterwards if that is easier for a small change.
 """
 
+import datetime
 import html
 import json
 import os
@@ -60,6 +61,10 @@ ORG_URL = "https://lzworth.in"
 # 1100x560, close enough to the 1.91:1 that link previews crop to.
 OG_IMAGE = "assets/shots/council-desk.png"
 OG_IMAGE_SIZE = (1100, 560)
+
+# When these pages were generated. Honest by construction, and a sitemap
+# without it gives a crawler no reason to look again.
+BUILD_DATE = datetime.date.today().isoformat()
 
 APP_SUMMARY = (
     "Aura Shakti is an AI companion app with five rooms — a council that argues, "
@@ -165,7 +170,10 @@ FOOT_COLS = [
         ("faq.html", "FAQ"),
     ]),
     ("The developer", [
-        ("developer.html", "About Vansh"),
+        # The anchor text is the full name, not "About Vansh". An internal
+        # link on every page, with the name someone would actually search, is
+        # the strongest on-page signal available for whose work this is.
+        ("developer.html", "Vansh Kashyap"),
         ("https://vanshkashyap.lzworth.in", "Portfolio"),
         ("https://techbyvansh.lzworth.in", "Projects"),
     ]),
@@ -418,7 +426,27 @@ def shell(page, title, description, body, accent=None, schema=None):
     # Person and app on every page, sharing @ids, plus whatever this page is.
     # `</` is escaped because a JSON string containing it would otherwise end
     # the script element early and spill the rest of the graph onto the page.
-    graph = [person_node(), site_node(), app_node()] + list(schema or [])
+    # A node for this page in particular, so the authorship claim is attached
+    # to each page rather than only to the site as a whole, and a breadcrumb so
+    # a result can show where the page sits instead of a bare url.
+    page_node = {
+        "@type": "WebPage",
+        "@id": canonical + "#page",
+        "url": canonical,
+        "name": title,
+        "description": description,
+        "isPartOf": {"@id": f"{SITE_URL}/#website"},
+        "about": {"@id": f"{SITE_URL}/#app"},
+        "author": {"@id": f"{SITE_URL}/#vansh-kashyap"},
+        "inLanguage": "en",
+    }
+
+    crumbs = [{"@type": "ListItem", "position": 1, "name": "Home", "item": SITE_URL + "/"}]
+    if page != "index.html":
+        crumbs.append({"@type": "ListItem", "position": 2, "name": title, "item": canonical})
+    page_node["breadcrumb"] = {"@type": "BreadcrumbList", "itemListElement": crumbs}
+
+    graph = [person_node(), site_node(), app_node(), page_node] + list(schema or [])
     ld = json.dumps({"@context": "https://schema.org", "@graph": graph},
                     ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 
@@ -622,6 +650,7 @@ PAGES["index.html"] = shell(
       </div>
       <p class="hero__note">Opens in the browser &middot; sign in with Google &middot; Hindi, Hinglish or English &middot; free to use</p>
       <p class="hero__note" style="margin-top:.35rem">There is an <a href="download.html">Android app</a> too — it is a build or two behind and still has some rough edges.</p>
+      <p class="hero__note" style="margin-top:.35rem">Designed and built by <a href="developer.html">Vansh Kashyap</a>.</p>
     </div>
 
     <div class="stage" id="stage">
@@ -1465,6 +1494,7 @@ def sitemap():
         urls += (
             "  <url>\n"
             f"    <loc>{esc(loc)}</loc>\n"
+            f"    <lastmod>{BUILD_DATE}</lastmod>\n"
             f"    <changefreq>monthly</changefreq>\n"
             f"    <priority>{PRIORITY.get(name, '0.6')}</priority>\n"
             "  </url>\n"
