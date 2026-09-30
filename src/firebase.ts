@@ -57,6 +57,42 @@ function createAuth() {
 }
 
 export const auth = createAuth();
+
+/**
+ * What this browser actually allows, said once on launch.
+ *
+ * Sign-in has now failed here in three different ways, each reported as a
+ * sentence with no way to tell which of storage, popups or the redirect was
+ * refused — so every fix has been a guess. This prints the answer. One console
+ * screenshot names the layer that is broken.
+ *
+ * Console only, and every probe is wrapped: this runs in the case where storage
+ * throws on being touched, which is the case it exists to describe.
+ */
+(() => {
+  const probe = (label: string, fn: () => void) => {
+    try { fn(); return `${label}=ok`; } catch (e: any) { return `${label}=BLOCKED(${e?.name || 'error'})`; }
+  };
+
+  const lines = [
+    probe('localStorage', () => {
+      localStorage.setItem('aura_probe', '1');
+      localStorage.removeItem('aura_probe');
+    }),
+    probe('sessionStorage', () => {
+      sessionStorage.setItem('aura_probe', '1');
+      sessionStorage.removeItem('aura_probe');
+    }),
+    probe('indexedDB', () => {
+      if (!window.indexedDB) throw new Error('absent');
+    }),
+    `cookies=${navigator.cookieEnabled ? 'ok' : 'BLOCKED'}`,
+    `origin=${window.location.origin}`,
+    `authDomain=${(firebaseConfig as any).authDomain}`,
+  ];
+
+  console.log('[aura/auth]', lines.join('  '));
+})();
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true
 }, firebaseConfig.firestoreDatabaseId);
@@ -68,35 +104,56 @@ const isNative = Capacitor.isNativePlatform();
 /**
  * Whether a failed popup is worth retrying as a full-page redirect.
  *
- * A popup needs a window it is allowed to open and storage it can reach across
- * two origins. A redirect needs neither, so most of what stops a popup does not
- * stop it — but it costs the person the page they are on, so it is only used
- * where the popup had no chance rather than after every failure.
+ * Only when the popup itself was the problem — a window the browser would not
+ * let us open, or an environment that has no popups to open. A redirect does
+ * not need a second window, so those it genuinely fixes.
+ *
+ * It does NOT cover a storage failure, although it used to. A redirect has to
+ * write down where it came from before it leaves and read it back on the way
+ * in; if storage is refusing us, it cannot do either, so it returns to a page
+ * that has no session, shows the login screen, and the person clicks again.
+ * That is the loop — Google asking for an account over and over, each attempt
+ * looking like the first. An error message they can act on is worth more than a
+ * retry that cannot succeed.
  *
  * Closing the window counts as an answer, not a failure: sending someone away
  * from the page because they changed their mind is worse than doing nothing.
  */
 function worthRedirecting(error: any): boolean {
   const code = String(error?.code || '');
+  return code === 'auth/popup-blocked'
+      || code === 'auth/operation-not-supported-in-this-environment';
+}
 
-  if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+/**
+ * One redirect per visit, whatever happens to it.
+ *
+ * A redirect that comes back without a session leaves the login screen up, and
+ * the obvious thing to do is click the button again — so the guard cannot live
+ * in the click handler. sessionStorage is the right scope: it is forgotten when
+ * the tab closes, so a real retry later is still allowed, and it survives the
+ * navigation to Google and back, which is the only thing it has to survive.
+ *
+ * Wrapped, because a browser that is refusing storage is exactly the case this
+ * exists for. If it cannot be read, no redirect is attempted at all — the
+ * conservative answer, since a redirect needs that same storage to work.
+ */
+const REDIRECT_TRIED = 'aura_auth_redirect_tried';
+
+function claimRedirectAttempt(): boolean {
+  try {
+    if (sessionStorage.getItem(REDIRECT_TRIED)) return false;
+    sessionStorage.setItem(REDIRECT_TRIED, '1');
+    return true;
+  } catch {
     return false;
   }
-
-  if (
-    code === 'auth/popup-blocked' ||
-    code === 'auth/web-storage-unsupported' ||
-    code === 'auth/operation-not-supported-in-this-environment' ||
-    code === 'auth/internal-error'
-  ) {
-    return true;
-  }
-
-  // The storage failures arrive with no Firebase code at all — just the
-  // browser's own sentence, which is why they used to surface as a bare
-  // "try again" with nothing to act on.
-  return /database|indexeddb|storage|quota/i.test(String(error?.message || ''));
 }
+
+/** Called once a session really exists, so a later sign-in may redirect again. */
+export const clearRedirectAttempt = () => {
+  try { sessionStorage.removeItem(REDIRECT_TRIED); } catch {}
+};
 
 /**
  * Picks up a sign-in that finished by coming back to the page.
@@ -155,10 +212,10 @@ export const loginWithGoogle = async () => {
   } catch (error) {
     console.error("Error signing in with Google", error);
 
-    if (!isNative && worthRedirecting(error)) {
+    if (!isNative && worthRedirecting(error) && claimRedirectAttempt()) {
       // Leaves this page for Google's and comes back signed in, which is the
-      // one route left when the popup could not be opened or could not reach
-      // its storage. Nothing after this line runs.
+      // one route left when the popup could not be opened at all. Nothing
+      // after this line runs.
       await signInWithRedirect(auth, googleProvider);
       return null;
     }

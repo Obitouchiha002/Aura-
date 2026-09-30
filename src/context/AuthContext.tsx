@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, loginWithGoogle, logout as firebaseLogout, completeRedirectSignIn } from '../firebase';
+import { auth, db, loginWithGoogle, logout as firebaseLogout, completeRedirectSignIn, clearRedirectAttempt } from '../firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -96,6 +96,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
+        // A session exists, so the one-redirect-per-visit guard has done its
+        // job and a future sign-in in this tab may use one again.
+        clearRedirectAttempt();
         
         try {
           // Check or create user profile in Firestore

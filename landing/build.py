@@ -23,10 +23,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # it needs nothing installed — so every primary button on this site points here
 # and the Android APK sits behind them as the secondary option.
 #
-# The .vercel.app address still serves the same deployment and is what installed
-# APKs fetch their updates from, so it stays wired into capacitor.config.ts and
-# the release scripts. This is only what a person is sent to.
-APP_URL = "https://aurashakti.lzworth.in"
+# Pointed back at .vercel.app for now. Sign-in on aurashakti.lzworth.in loops —
+# Google asks for an account, comes back, and the session is not there — and a
+# primary CTA that cannot be completed is worse than an uglier one that can.
+# Move it back once sign-in on that name is verified end to end.
+APP_URL = "https://aurashakti.vercel.app"
 APP_CTA = "Sign in and start"
 
 # ── navigation ──────────────────────────────────────────────────────────────
