@@ -18,6 +18,17 @@ import re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
+# ── where the app itself lives ──────────────────────────────────────────────
+# The web app is the way in. It is the build that gets fixed the same day, and
+# it needs nothing installed — so every primary button on this site points here
+# and the Android APK sits behind them as the secondary option.
+#
+# The .vercel.app address still serves the same deployment and is what installed
+# APKs fetch their updates from, so it stays wired into capacitor.config.ts and
+# the release scripts. This is only what a person is sent to.
+APP_URL = "https://aurashakti.lzworth.in"
+APP_CTA = "Sign in and start"
+
 # ── navigation ──────────────────────────────────────────────────────────────
 NAV = [
     ("index.html", "Home"),
@@ -327,7 +338,7 @@ def shell(page, title, description, body, accent=None):
           <line x1="4" y1="8" x2="20" y2="8" /><line x1="4" y1="16" x2="20" y2="16" />
         </svg>
       </button>
-      <a class="btn btn--solid btn--sm bar__cta" href="download.html"><span class="bar__cta-long">Get the app</span><span class="bar__cta-short">Get</span></a>
+      <a class="btn btn--solid btn--sm bar__cta" href="{APP_URL}"><span class="bar__cta-long">Open the app</span><span class="bar__cta-short">Open</span></a>
     </div>
   </div>
 </header>
@@ -345,7 +356,7 @@ def shell(page, title, description, body, accent=None):
     <div class="foot-cols">{cols}</div>
     <div class="foot">
       <span>Aura Shakti — built by <a href="https://vanshkashyap.lzworth.in">Vansh Kashyap</a>, LZ Worth</span>
-      <span><a href="download.html">Download for Android</a></span>
+      <span><a href="{APP_URL}">Open the web app</a> &middot; <a href="download.html">Android</a></span>
     </div>
   </div>
 </footer>
@@ -394,14 +405,23 @@ def views(slug, name):
 """
 
 
-def strip(title, blurb, href="download.html", cta="Download for Android", second=None):
+def strip(title, blurb, href=None, cta=None, second=None):
     """
-    The closing call to action. There is deliberately no web-app link anywhere
-    on this site — that build is private, and Android is the only public way in.
+    The closing call to action.
+
+    It used to send everyone to the APK — the web build was private then, and
+    Android was the only public way in. That is the other way round now: the web
+    app is open, needs nothing installed, and is the build that gets fixed the
+    same day, so it takes the solid button and the download becomes the quiet
+    second one.
     """
+    href = href or APP_URL
+    cta = cta or APP_CTA
     extra = ""
     if second:
         extra = f'<a class="btn btn--ghost" href="{second[0]}">{esc(second[1])}</a>'
+    elif href == APP_URL:
+        extra = '<a class="btn btn--ghost" href="download.html">Get it on Android</a>'
     return f"""  <section class="strip tight">
     <div class="wrap strip__in">
       <div>
@@ -452,10 +472,11 @@ PAGES["index.html"] = shell(
       actually listens. A teacher who quizzes you back. And four poets who answer in
       verse. Each is its own room, with its own colour.</p>
       <div class="cta-row">
-        <a class="btn btn--solid" href="download.html">Download for Android</a>
+        <a class="btn btn--solid" href="{APP_URL}">{APP_CTA}</a>
         <a class="btn btn--ghost" href="#rooms">See the five rooms</a>
       </div>
-      <p class="hero__note">Hindi, Hinglish or English &middot; free to use &middot; your mood log never leaves the phone</p>
+      <p class="hero__note">Opens in the browser &middot; sign in with Google &middot; Hindi, Hinglish or English &middot; free to use</p>
+      <p class="hero__note" style="margin-top:.35rem">There is an <a href="download.html">Android app</a> too — it is a build or two behind and still has some rough edges.</p>
     </div>
 
     <div class="stage" id="stage">
@@ -655,7 +676,7 @@ for r in ROOMS:
     body = (
         phead("A room in Aura Shakti", r["name"], d["lede"],
               '<div class="cta-row" style="margin-top:2rem">'
-              '<a class="btn btn--solid" href="download.html">Get the app</a>'
+              f'<a class="btn btn--solid" href="{APP_URL}">{APP_CTA}</a>'
               '<a class="btn btn--ghost" href="characters.html">See who is in it</a></div>')
         + views(r["slug"], r["name"])
         + f"""  <section class="tight">
@@ -1106,6 +1127,21 @@ PAGES["download.html"] = shell(
           "not coming from the Play Store, and it is the same permission you "
           "would grant any direct download.")
     + f"""  <section class="tight">
+    <div class="wrap">
+      <div class="prose rise">
+        <h3>The web app is the better way in right now</h3>
+        <p style="color:var(--ink-muted)">This build is a little behind, and a few
+        things in it are still being ironed out. Everything the app does, the site
+        does — same rooms, same characters, same reasoning test — with nothing to
+        install and fixes landing the day they are written.</p>
+        <div class="cta-row" style="margin-top:1.2rem">
+          <a class="btn btn--solid" href="{APP_URL}">{APP_CTA}</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tight">
     <div class="wrap">
       <div class="release rise">
         <div class="release__head">

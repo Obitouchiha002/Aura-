@@ -153,7 +153,7 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
   }, [onClose]);
 
   const handleCopyLink = async () => {
-    const inviteLink = `https://aurashakti.vercel.app/?ref=${user?.uid}`;
+    const inviteLink = `https://aurashakti.lzworth.in/?ref=${user?.uid}`;
     try {
       await navigator.clipboard.writeText(inviteLink);
     } catch (err) {
@@ -369,7 +369,7 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
                 </button>
               </div>
               <p className="text-[12px] text-text-faint font-mono truncate pl-8">
-                aurashakti.vercel.app/?ref={user?.uid?.substring(0, 6) || 'guest'}
+                aurashakti.lzworth.in/?ref={user?.uid?.substring(0, 6) || 'guest'}
               </p>
               <div className="flex gap-6 pl-8">
                 <div>

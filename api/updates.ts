@@ -64,6 +64,8 @@ const ALLOWED_ORIGINS = new Set([
   'capacitor://localhost',    // Capacitor iOS
   'ionic://localhost',
   'https://aurashakti.vercel.app',
+  'https://aurashakti.lzworth.in',   // the app's own domain
+  'https://aura.lzworth.in',         // the marketing site
   'https://aura-shakti-site.vercel.app',
   'http://localhost:3000',
   'http://localhost:5173',
