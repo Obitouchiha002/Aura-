@@ -13,6 +13,7 @@ directly afterwards if that is easier for a small change.
 """
 
 import html
+import json
 import os
 import re
 
@@ -29,6 +30,111 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # person is sent to.
 APP_URL = "https://aurashakti.lzworth.in"
 APP_CTA = "Sign in and start"
+
+# ── identity, for search engines ────────────────────────────────────────────
+# Two things should be findable: the app by its name, and who made it. Search
+# engines get the first from titles and descriptions; the second only from
+# structured data and an author tag, because "built by Vansh Kashyap" sitting in
+# a footer is text on a page and nothing more. These constants feed both.
+SITE_URL = "https://aura.lzworth.in"
+APP_NAME = "Aura Shakti"
+APP_VERSION = "1.2.1"
+AUTHOR = "Vansh Kashyap"
+AUTHOR_URL = "https://vanshkashyap.lzworth.in"
+# sameAs is how a search engine decides that the Vansh Kashyap on this site and
+# the one on those profiles are one person. Every link is one he publishes
+# himself, so they corroborate each other.
+AUTHOR_SAME_AS = [
+    AUTHOR_URL,
+    "https://techbyvansh.lzworth.in",
+    "https://www.linkedin.com/in/techbyvansh",
+    "https://github.com/Obitouchiha002",
+    "https://youtube.com/@techbyvansh",
+    "https://instagram.com/vanshkashayp70",
+]
+AUTHOR_EMAIL = "vk1234888i@gmail.com"
+AUTHOR_ROLE = "AI Automation & Full-Stack Developer"
+ORG_NAME = "LZ Worth"
+ORG_URL = "https://lzworth.in"
+
+# 1100x560, close enough to the 1.91:1 that link previews crop to.
+OG_IMAGE = "assets/shots/council-desk.png"
+OG_IMAGE_SIZE = (1100, 560)
+
+APP_SUMMARY = (
+    "Aura Shakti is an AI companion app with five rooms — a council that argues, "
+    "a mentor with an ego, a psychologist who listens, a teacher who quizzes you "
+    "and four poets — in Hindi, Hinglish and English."
+)
+
+# ── structured data ─────────────────────────────────────────────────────────
+# One @graph per page, sharing @ids, so the person and the app are the same
+# entities everywhere rather than a fresh unlinked copy on each page. This is
+# what lets a search engine answer "who made Aura Shakti" with a name.
+
+def person_node():
+    return {
+        "@type": "Person",
+        "@id": f"{SITE_URL}/#vansh-kashyap",
+        "name": AUTHOR,
+        "url": AUTHOR_URL,
+        "jobTitle": AUTHOR_ROLE,
+        "email": AUTHOR_EMAIL,
+        "description": (
+            f"{AUTHOR} is an {AUTHOR_ROLE.lower()} in New Delhi, co-founder of the "
+            f"{ORG_NAME} studio, and the developer of the {APP_NAME} app."
+        ),
+        "sameAs": AUTHOR_SAME_AS,
+        "knowsAbout": [
+            "React", "Next.js", "TypeScript", "Firebase", "Supabase", "Tailwind CSS",
+            "n8n", "AI automation", "Android development", "Vercel",
+        ],
+        "address": {"@type": "PostalAddress", "addressLocality": "New Delhi", "addressCountry": "IN"},
+        "worksFor": [
+            {"@type": "Organization", "name": ORG_NAME, "url": ORG_URL},
+            {"@type": "Organization", "name": "Grivaa Capital"},
+        ],
+    }
+
+
+def app_node():
+    return {
+        "@type": "SoftwareApplication",
+        "@id": f"{SITE_URL}/#app",
+        "name": APP_NAME,
+        "alternateName": ["Aura", "Aura Shakti app", "AuraShakti"],
+        "url": APP_URL,
+        "installUrl": f"{SITE_URL}/download.html",
+        "downloadUrl": f"{SITE_URL}/download.html",
+        "applicationCategory": "LifestyleApplication",
+        "operatingSystem": "Android 8.0 and newer; any modern web browser",
+        "softwareVersion": APP_VERSION,
+        "description": APP_SUMMARY,
+        "inLanguage": ["en", "hi"],
+        "image": f"{SITE_URL}/{OG_IMAGE}",
+        "screenshot": f"{SITE_URL}/{OG_IMAGE}",
+        # Named three ways on purpose: different consumers read different ones,
+        # and the question being answered is always "who made this".
+        "author": {"@id": f"{SITE_URL}/#vansh-kashyap"},
+        "creator": {"@id": f"{SITE_URL}/#vansh-kashyap"},
+        "publisher": {"@id": f"{SITE_URL}/#vansh-kashyap"},
+        "offers": {"@type": "Offer", "price": "0", "priceCurrency": "INR"},
+    }
+
+
+def site_node():
+    return {
+        "@type": "WebSite",
+        "@id": f"{SITE_URL}/#website",
+        "name": APP_NAME,
+        "url": SITE_URL,
+        "description": APP_SUMMARY,
+        "inLanguage": "en",
+        "author": {"@id": f"{SITE_URL}/#vansh-kashyap"},
+        "creator": {"@id": f"{SITE_URL}/#vansh-kashyap"},
+        "publisher": {"@id": f"{SITE_URL}/#vansh-kashyap"},
+        "about": {"@id": f"{SITE_URL}/#app"},
+    }
 
 # ── navigation ──────────────────────────────────────────────────────────────
 NAV = [
@@ -243,7 +349,7 @@ def plate_rings(seed):
 
 
 # ── shell ───────────────────────────────────────────────────────────────────
-def shell(page, title, description, body, accent=None):
+def shell(page, title, description, body, accent=None, schema=None):
     # Only the roster needs the uploaded-portrait fetcher, and it is a module
     # so it never blocks the rest of the page.
     portraits = ('\n<script type="module" src="assets/portraits.js"></script>'
@@ -304,16 +410,54 @@ def shell(page, title, description, body, accent=None):
             '</style>'
         )
 
+    # The home page is served at / as well as /index.html, so it names the
+    # bare directory as canonical — otherwise the same page competes with
+    # itself for the same terms.
+    canonical = SITE_URL + "/" + ("" if page == "index.html" else page)
+
+    # Person and app on every page, sharing @ids, plus whatever this page is.
+    # `</` is escaped because a JSON string containing it would otherwise end
+    # the script element early and spill the rest of the graph onto the page.
+    graph = [person_node(), site_node(), app_node()] + list(schema or [])
+    ld = json.dumps({"@context": "https://schema.org", "@graph": graph},
+                    ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+
+    desc = html.escape(description, quote=True)
+    ogw, ogh = OG_IMAGE_SIZE
+
     return f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>{esc(title)}</title>
-<meta name="description" content="{html.escape(description, quote=True)}" />
+<meta name="description" content="{desc}" />
+<link rel="canonical" href="{canonical}" />
+
+<!-- Who made this. The footer says so in words; this says so in a field, which
+     is the part a search engine can actually attribute. -->
+<meta name="author" content="{AUTHOR}" />
+<meta name="robots" content="index, follow, max-image-preview:large" />
+<meta name="theme-color" content="#0A0A0A" />
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="{APP_NAME}" />
+<meta property="og:title" content="{esc(title)}" />
+<meta property="og:description" content="{desc}" />
+<meta property="og:url" content="{canonical}" />
+<meta property="og:image" content="{SITE_URL}/{OG_IMAGE}" />
+<meta property="og:image:width" content="{ogw}" />
+<meta property="og:image:height" content="{ogh}" />
+<meta property="og:locale" content="en_IN" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="{esc(title)}" />
+<meta name="twitter:description" content="{desc}" />
+<meta name="twitter:image" content="{SITE_URL}/{OG_IMAGE}" />
+
 <link rel="icon" type="image/png" href="assets/icon.png" />
 <link rel="apple-touch-icon" href="assets/icon.png" />
 <link rel="stylesheet" href="assets/site.css" />{accent_style}
+<script type="application/ld+json">{ld}</script>
 </head>
 <body>
 
@@ -463,8 +607,8 @@ for r in ROOMS:
 
 PAGES["index.html"] = shell(
     "index.html",
-    "Aura Shakti",
-    "Five rooms, one app: a council that argues, a mentor with an ego, a psychologist who listens, a teacher who quizzes you, and four poets.",
+    "Aura Shakti — five AI rooms, in Hindi, Hinglish and English",
+    "Aura Shakti is an AI companion app by Vansh Kashyap: a council that argues, a mentor with an ego, a psychologist who listens, a teacher who quizzes you, and four poets. Free, on the web and on Android.",
     f"""  <section class="hero">
     <div class="hero__glow"></div>
     <div class="wrap hero__copy">
@@ -1048,10 +1192,21 @@ PAGES["privacy.html"] = shell(
 )
 
 # ── developer ───────────────────────────────────────────────────────────────
+# ProfilePage tells a search engine this page is *about* a person rather than
+# merely mentioning one, which is what makes it the result for his name.
+PROFILE_SCHEMA = [{
+    "@type": "ProfilePage",
+    "@id": f"{SITE_URL}/developer.html#profile",
+    "url": f"{SITE_URL}/developer.html",
+    "name": f"{AUTHOR} — developer of {APP_NAME}",
+    "mainEntity": {"@id": f"{SITE_URL}/#vansh-kashyap"},
+    "about": {"@id": f"{SITE_URL}/#vansh-kashyap"},
+}]
+
 PAGES["developer.html"] = shell(
     "developer.html",
-    "Vansh Kashyap — Aura Shakti",
-    "Aura Shakti is built by Vansh Kashyap, co-founder of LZ Worth: a developer and automation builder in New Delhi.",
+    "Vansh Kashyap — developer of Aura Shakti",
+    "Aura Shakti is made by Vansh Kashyap, a software developer and automation builder in New Delhi and co-founder of LZ Worth. The app, and the rest of his work.",
     phead("The developer", "Vansh Kashyap",
           "Co-founder of LZ Worth, based in New Delhi. A developer and automation "
           "builder who ships fast websites, React applications and n8n systems for "
@@ -1099,14 +1254,22 @@ PAGES["developer.html"] = shell(
 
       <div class="rise">
         <div class="links">
-          <a href="https://vanshkashyap.lzworth.in">Portfolio <span>vanshkashyap.lzworth.in</span></a>
-          <a href="https://techbyvansh.lzworth.in">Projects <span>techbyvansh.lzworth.in</span></a>
+          <a href="https://vanshkashyap.lzworth.in" rel="me">Portfolio <span>vanshkashyap.lzworth.in</span></a>
+          <a href="https://techbyvansh.lzworth.in" rel="me">Projects <span>techbyvansh.lzworth.in</span></a>
+          <!-- rel="me" is the readable half of the sameAs list in this page's
+               structured data: the same claim, made in the markup, pointing at
+               profiles that link back. -->
+          <a href="https://github.com/Obitouchiha002" rel="me">GitHub <span>Obitouchiha002</span></a>
+          <a href="https://www.linkedin.com/in/techbyvansh" rel="me">LinkedIn <span>in/techbyvansh</span></a>
+          <a href="https://youtube.com/@techbyvansh" rel="me">YouTube <span>@techbyvansh</span></a>
+          <a href="mailto:vk1234888i@gmail.com">Email <span>vk1234888i@gmail.com</span></a>
         </div>
         <p class="note" style="margin-top:1.5rem">Available for selected freelance projects.</p>
       </div>
     </div>
   </section>
 """ + strip("Want something like this built?", "Start with the portfolio — the work there is live and clickable.", "https://vanshkashyap.lzworth.in", "See the work"),
+    schema=PROFILE_SCHEMA,
 )
 
 # ── download ────────────────────────────────────────────────────────────────
@@ -1234,10 +1397,24 @@ faq_html = "".join(
     f"<details><summary>{esc(q)}</summary><p>{esc(a)}</p></details>" for q, a in FAQ
 )
 
+# The same questions, in the form search results can show answers from
+# directly. Built from the page's own FAQ list so the two cannot drift apart.
+FAQ_SCHEMA = [{
+    "@type": "FAQPage",
+    "@id": f"{SITE_URL}/faq.html#faq",
+    "url": f"{SITE_URL}/faq.html",
+    "about": {"@id": f"{SITE_URL}/#app"},
+    "mainEntity": [
+        {"@type": "Question", "name": q,
+         "acceptedAnswer": {"@type": "Answer", "text": a}}
+        for q, a in FAQ
+    ],
+}]
+
 PAGES["faq.html"] = shell(
     "faq.html",
-    "FAQ — Aura Shakti",
-    "Common questions about Aura Shakti: cost, languages, privacy, the reasoning test, API keys and the app lock.",
+    "Aura Shakti FAQ — cost, languages, privacy and the app lock",
+    "Common questions about Aura Shakti: what it costs, which languages it understands, what leaves your phone, the reasoning test, API keys and the app lock.",
     phead("FAQ", "The questions people actually ask.",
           "Short answers, including to the ones with an inconvenient answer.")
     + f"""  <section class="tight">
@@ -1250,10 +1427,63 @@ PAGES["faq.html"] = shell(
     </div>
   </section>
 """ + strip("Ready when you are.", "One file, about eight megabytes. Free, and nothing held back for a paid tier."),
+    schema=FAQ_SCHEMA,
 )
+
+# ── what crawlers are told ──────────────────────────────────────────────────
+# Without a sitemap the room and character pages are only reachable by
+# following links, and admin.html — a page with nothing on it for a stranger —
+# is as crawlable as the home page. Both are written here so they cannot fall
+# out of step with the page list above.
+
+ROBOTS = f"""User-agent: *
+Allow: /
+
+# Nothing here for a search engine: a console that needs signing in, and a
+# smoke-test page.
+Disallow: /admin.html
+Disallow: /test-theme.css
+
+Sitemap: {SITE_URL}/sitemap.xml
+"""
+
+# The home page first, then the pages that answer a search, then the rest.
+PRIORITY = {
+    "index.html": "1.0",
+    "download.html": "0.9",
+    "features.html": "0.9",
+    "characters.html": "0.8",
+    "developer.html": "0.8",
+    "faq.html": "0.8",
+}
+
+
+def sitemap():
+    urls = ""
+    for name in sorted(PAGES):
+        loc = SITE_URL + "/" + ("" if name == "index.html" else name)
+        urls += (
+            "  <url>\n"
+            f"    <loc>{esc(loc)}</loc>\n"
+            f"    <changefreq>monthly</changefreq>\n"
+            f"    <priority>{PRIORITY.get(name, '0.6')}</priority>\n"
+            "  </url>\n"
+        )
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f"{urls}</urlset>\n"
+    )
+
 
 # ── write ───────────────────────────────────────────────────────────────────
 for name, content in PAGES.items():
     with open(os.path.join(HERE, name), "w", encoding="utf-8") as fh:
         fh.write(content)
+
+for name, content in (("robots.txt", ROBOTS), ("sitemap.xml", sitemap())):
+    with open(os.path.join(HERE, name), "w", encoding="utf-8") as fh:
+        fh.write(content)
+
 print(f"  wrote {len(PAGES)} pages: {', '.join(sorted(PAGES))}")
+print("  wrote robots.txt, sitemap.xml")

@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# Nothing here for a search engine: a console that needs signing in, and a
+# smoke-test page.
+Disallow: /admin.html
+Disallow: /test-theme.css
+
+Sitemap: https://aura.lzworth.in/sitemap.xml
