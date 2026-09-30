@@ -41,17 +41,29 @@ SITE_URL = "https://aura.lzworth.in"
 APP_NAME = "Aura Shakti"
 APP_VERSION = "1.2.1"
 AUTHOR = "Vansh Kashyap"
-AUTHOR_URL = "https://vanshkashyap.lzworth.in"
+AUTHOR_URL = "https://vanshkashyap.lzworth.in/"
+
+# The identifier his portfolio already gives itself, reused here rather than
+# minted afresh.
+#
+# A graph that called him https://aura.lzworth.in/#vansh-kashyap was describing
+# a second person who happened to share a name: same details, no stated
+# relationship, and every site starting the case for who he is from nothing.
+# Reusing the portfolio's @id is the explicit way to say these are one node, so
+# what each site knows about him adds up instead of competing.
+PERSON_ID = "https://vanshkashyap.lzworth.in/#vansh-kashyap"
 # sameAs is how a search engine decides that the Vansh Kashyap on this site and
 # the one on those profiles are one person. Every link is one he publishes
 # himself, so they corroborate each other.
 AUTHOR_SAME_AS = [
     AUTHOR_URL,
-    "https://techbyvansh.lzworth.in",
+    "https://techbyvansh.lzworth.in/",
     "https://www.linkedin.com/in/techbyvansh",
-    "https://github.com/Obitouchiha002",
     "https://youtube.com/@techbyvansh",
     "https://instagram.com/vanshkashayp70",
+    "https://github.com/Obitouchiha002",
+    "https://lzworth.in/team/vansh-kashyap",
+    "https://lzworth.in/",
 ]
 AUTHOR_EMAIL = "vk1234888i@gmail.com"
 AUTHOR_ROLE = "AI Automation & Full-Stack Developer"
@@ -80,7 +92,7 @@ APP_SUMMARY = (
 def person_node():
     return {
         "@type": "Person",
-        "@id": f"{SITE_URL}/#vansh-kashyap",
+        "@id": PERSON_ID,
         "name": AUTHOR,
         "url": AUTHOR_URL,
         "jobTitle": AUTHOR_ROLE,
@@ -120,9 +132,9 @@ def app_node():
         "screenshot": f"{SITE_URL}/{OG_IMAGE}",
         # Named three ways on purpose: different consumers read different ones,
         # and the question being answered is always "who made this".
-        "author": {"@id": f"{SITE_URL}/#vansh-kashyap"},
-        "creator": {"@id": f"{SITE_URL}/#vansh-kashyap"},
-        "publisher": {"@id": f"{SITE_URL}/#vansh-kashyap"},
+        "author": {"@id": PERSON_ID},
+        "creator": {"@id": PERSON_ID},
+        "publisher": {"@id": PERSON_ID},
         "offers": {"@type": "Offer", "price": "0", "priceCurrency": "INR"},
     }
 
@@ -135,9 +147,9 @@ def site_node():
         "url": SITE_URL,
         "description": APP_SUMMARY,
         "inLanguage": "en",
-        "author": {"@id": f"{SITE_URL}/#vansh-kashyap"},
-        "creator": {"@id": f"{SITE_URL}/#vansh-kashyap"},
-        "publisher": {"@id": f"{SITE_URL}/#vansh-kashyap"},
+        "author": {"@id": PERSON_ID},
+        "creator": {"@id": PERSON_ID},
+        "publisher": {"@id": PERSON_ID},
         "about": {"@id": f"{SITE_URL}/#app"},
     }
 
@@ -437,7 +449,7 @@ def shell(page, title, description, body, accent=None, schema=None):
         "description": description,
         "isPartOf": {"@id": f"{SITE_URL}/#website"},
         "about": {"@id": f"{SITE_URL}/#app"},
-        "author": {"@id": f"{SITE_URL}/#vansh-kashyap"},
+        "author": {"@id": PERSON_ID},
         "inLanguage": "en",
     }
 
@@ -1228,8 +1240,8 @@ PROFILE_SCHEMA = [{
     "@id": f"{SITE_URL}/developer.html#profile",
     "url": f"{SITE_URL}/developer.html",
     "name": f"{AUTHOR} — developer of {APP_NAME}",
-    "mainEntity": {"@id": f"{SITE_URL}/#vansh-kashyap"},
-    "about": {"@id": f"{SITE_URL}/#vansh-kashyap"},
+    "mainEntity": {"@id": PERSON_ID},
+    "about": {"@id": PERSON_ID},
 }]
 
 PAGES["developer.html"] = shell(
