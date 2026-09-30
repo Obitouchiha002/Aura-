@@ -2,16 +2,20 @@ import { initializeApp } from 'firebase/app';
 import {
   browserLocalPersistence,
   browserPopupRedirectResolver,
+  createUserWithEmailAndPassword,
   getAuth,
   getRedirectResult,
   GoogleAuthProvider,
   indexedDBLocalPersistence,
   inMemoryPersistence,
   initializeAuth,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
   signInWithCredential,
   signOut,
+  updateProfile,
 } from 'firebase/auth';
 import { initializeFirestore } from 'firebase/firestore';
 import { Capacitor } from '@capacitor/core';
@@ -253,6 +257,48 @@ export const loginWithGoogle = async () => {
 
     throw error;
   }
+};
+
+/**
+ * Sign in with an email and a password.
+ *
+ * Nothing about this touches a popup, a redirect or a second origin, so none of
+ * what has broken Google sign-in here can reach it. For someone whose Google
+ * account is not the one they want to use — or who simply prefers a password —
+ * it is also just the shorter route.
+ */
+export const signInWithEmail = async (email: string, password: string) => {
+  const { user } = await signInWithEmailAndPassword(auth, email.trim(), password);
+  return user;
+};
+
+/**
+ * Create an account from an email, a password and a name.
+ *
+ * The name is not decoration. Firestore's rules accept `displayName` as a
+ * string or not at all, and a Google account arrives carrying one while an
+ * email sign-up does not — so an account with no name reaches the rules as
+ * `displayName: null`, which fails the check and takes the whole user document
+ * with it. No document means no plan, no daily allowance, and a person who is
+ * signed in but cannot send anything.
+ *
+ * So it is asked for at sign-up and written to the profile here. AuthContext
+ * also carries it into the first document write directly, because the profile
+ * update and the auth state change race each other and the document must not
+ * be written before the name is known.
+ */
+export const signUpWithEmail = async (name: string, email: string, password: string) => {
+  const { user } = await createUserWithEmailAndPassword(auth, email.trim(), password);
+  const clean = name.trim();
+  if (clean) {
+    await updateProfile(user, { displayName: clean });
+  }
+  return user;
+};
+
+/** Sends the reset link. Resolves the same way whether or not the address exists. */
+export const resetPassword = async (email: string) => {
+  await sendPasswordResetEmail(auth, email.trim());
 };
 
 export const logout = async () => {

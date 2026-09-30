@@ -1,13 +1,21 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, loginWithGoogle, logout as firebaseLogout, completeRedirectSignIn, clearRedirectAttempt } from '../firebase';
+import {
+  auth, db, loginWithGoogle, logout as firebaseLogout,
+  completeRedirectSignIn, clearRedirectAttempt,
+  signInWithEmail, signUpWithEmail, resetPassword,
+} from '../firebase';
 
 interface AuthContextType {
   user: User | null;
   isAdmin: boolean;
   loading: boolean;
   login: () => Promise<void>;
+  /** Email and password, for accounts that are not Google ones. */
+  emailLogin: (email: string, password: string) => Promise<void>;
+  emailSignUp: (name: string, email: string, password: string) => Promise<void>;
+  sendReset: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAndIncrementMessageLimit: () => Promise<{
     allowed: boolean;
@@ -67,6 +75,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  /**
+   * The name given at sign-up, held until the first document write uses it.
+   *
+   * createUserWithEmailAndPassword fires the auth state change immediately,
+   * with a user that has no name on it yet, and setting the profile is a second
+   * round trip that races it. Whichever arrives first, the document gets the
+   * name — which matters because the rules reject a null one.
+   */
+  const pendingNameRef = useRef<string | null>(null);
+
   useEffect(() => {
     // LOCAL TESTING ONLY — see the BYPASS_AUTH note above.
     if (BYPASS_AUTH) {
@@ -112,25 +130,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           const today = new Date().toISOString().split('T')[0];
 
+          /**
+           * A name or a picture the account does not have is left out, not
+           * written as null.
+           *
+           * The rules accept these two as a string or not at all:
+           *
+           *     (!('displayName' in data) || data.displayName is string)
+           *
+           * A Google account arrives carrying both. An email sign-up carries
+           * neither, so writing `displayName: null` fails that check — and
+           * because it fails the whole document, the account ends up with no
+           * record. No record means checkAndIncrementMessageLimit finds nothing
+           * and refuses every send, so the person signs in successfully and
+           * then cannot use the app at all.
+           */
+          const displayName = currentUser.displayName || pendingNameRef.current || null;
+          const optional: Record<string, string> = {};
+          if (displayName) optional.displayName = displayName;
+          if (currentUser.photoURL) optional.photoURL = currentUser.photoURL;
+
           if (!userSnap.exists()) {
             await setDoc(userRef, {
               uid: currentUser.uid,
               email: currentUser.email,
-              displayName: currentUser.displayName,
-              photoURL: currentUser.photoURL,
+              ...optional,
               role: role,
               createdAt: serverTimestamp(),
               lastLoginAt: serverTimestamp(),
               dailyMessageCount: 0,
               lastMessageDate: today
             });
+            pendingNameRef.current = null;
           } else {
-            // Update last login
+            const stored = userSnap.data();
+            // A name that turned up after the document did — the profile update
+            // on an email sign-up lands a moment after the account exists, and
+            // a Google account may gain a picture later. Only ever filled in,
+            // never overwritten: the directory may have been edited by hand.
+            const late: Record<string, string> = {};
+            if (!stored.displayName && displayName) late.displayName = displayName;
+            if (!stored.photoURL && currentUser.photoURL) late.photoURL = currentUser.photoURL;
+
             await setDoc(userRef, {
-              lastLoginAt: serverTimestamp()
+              lastLoginAt: serverTimestamp(),
+              ...late,
             }, { merge: true });
-            
-            role = userSnap.data().role;
+
+            role = stored.role;
           }
           
           setIsAdmin(role === 'admin');
@@ -183,6 +230,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async () => {
     await loginWithGoogle();
+  };
+
+  const emailLogin = async (email: string, password: string) => {
+    await signInWithEmail(email, password);
+  };
+
+  const emailSignUp = async (name: string, email: string, password: string) => {
+    // Set before the account exists, so the listener cannot beat it there.
+    pendingNameRef.current = name.trim() || null;
+    try {
+      await signUpWithEmail(name, email, password);
+    } catch (e) {
+      pendingNameRef.current = null;
+      throw e;
+    }
+  };
+
+  const sendReset = async (email: string) => {
+    await resetPassword(email);
   };
 
   const logout = async () => {
@@ -261,7 +327,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, loading, login, logout, checkAndIncrementMessageLimit }}>
+    <AuthContext.Provider value={{ user, isAdmin, loading, login, emailLogin, emailSignUp, sendReset, logout, checkAndIncrementMessageLimit }}>
       {children}
     </AuthContext.Provider>
   );
