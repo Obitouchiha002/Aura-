@@ -59,40 +59,43 @@ function createAuth() {
 export const auth = createAuth();
 
 /**
- * What this browser actually allows, said once on launch.
+ * What this browser actually allows.
  *
- * Sign-in has now failed here in three different ways, each reported as a
- * sentence with no way to tell which of storage, popups or the redirect was
- * refused — so every fix has been a guess. This prints the answer. One console
- * screenshot names the layer that is broken.
+ * Sign-in has now failed here in three different ways, each reported as one
+ * sentence with no way to tell which of storage, cookies or the cross-site
+ * handshake was refused — so every fix has been a guess, and one of those
+ * guesses made things worse. This answers the question instead.
  *
- * Console only, and every probe is wrapped: this runs in the case where storage
- * throws on being touched, which is the case it exists to describe.
+ * It is logged on launch and, more usefully, appended to the error the login
+ * screen shows: the report that reaches a developer is the message someone read
+ * on screen, not a console they were asked to open.
+ *
+ * Every probe is wrapped, because this runs in the case where touching storage
+ * throws, which is the case it exists to describe.
  */
-(() => {
+export function storageReport(): string {
   const probe = (label: string, fn: () => void) => {
     try { fn(); return `${label}=ok`; } catch (e: any) { return `${label}=BLOCKED(${e?.name || 'error'})`; }
   };
 
-  const lines = [
-    probe('localStorage', () => {
+  return [
+    probe('local', () => {
       localStorage.setItem('aura_probe', '1');
       localStorage.removeItem('aura_probe');
     }),
-    probe('sessionStorage', () => {
+    probe('session', () => {
       sessionStorage.setItem('aura_probe', '1');
       sessionStorage.removeItem('aura_probe');
     }),
-    probe('indexedDB', () => {
+    probe('idb', () => {
       if (!window.indexedDB) throw new Error('absent');
     }),
     `cookies=${navigator.cookieEnabled ? 'ok' : 'BLOCKED'}`,
-    `origin=${window.location.origin}`,
-    `authDomain=${(firebaseConfig as any).authDomain}`,
-  ];
+    `origin=${window.location.hostname}`,
+  ].join(' ');
+}
 
-  console.log('[aura/auth]', lines.join('  '));
-})();
+console.log('[aura/auth]', storageReport(), 'authDomain=' + (firebaseConfig as any).authDomain);
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true
 }, firebaseConfig.firestoreDatabaseId);

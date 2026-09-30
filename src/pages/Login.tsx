@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
+import { storageReport } from '../firebase';
 import { LogIn, Loader2 } from 'lucide-react';
 
 export const Login: React.FC = () => {
@@ -32,7 +33,10 @@ export const Login: React.FC = () => {
           // localStorage and then to a redirect, so reaching this message means
           // the browser refused every one of them.
           : /database|indexeddb|storage|quota/i.test(String(e?.message || ''))
-          ? 'Your browser would not let the app store the sign-in. If this is a private window, or site data is blocked or full, try a normal window.'
+          // The probe rides along with the message. Whoever reports this is
+          // reading a screen, not a console, so the diagnosis has to be in the
+          // sentence they can copy.
+          ? `Your browser would not let the app store the sign-in. If this is a private window, or site data is blocked or full, try a normal window.  [${storageReport()} · ${String(e?.message || '').slice(0, 80)}]`
           // The native picker reports a message rather than a Firebase code, so
           // showing only the code left every Android failure looking identical
           // and unreportable. Whatever detail exists is surfaced.
