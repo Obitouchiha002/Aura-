@@ -35,6 +35,23 @@ const GEMINI_ENDPOINT = (model: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
 
 /**
+ * The Groq model the last-resort fallback asks for.
+ *
+ * This was `llama3-70b-8192`, which Groq decommissioned on 30 August 2025 — and
+ * then its own replacement, `llama-3.3-70b-versatile`, went on 16 August 2026.
+ * So the fallback that exists to catch a spent Gemini quota had been answering
+ * 404 for a year, behind an error message that only said the Council was
+ * "currently unavailable".
+ *
+ * Groq retires models roughly annually, so the name is read from the
+ * environment: the next time this one goes, set GROQ_MODEL on the deployment
+ * and the fallback is alive again without a release. Keep it in step with
+ * GROQ_MODEL in services/geminiService.ts, which is the path taken when the
+ * user has pasted their own gsk_ key.
+ */
+const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
+
+/**
  * The site this request is being made on behalf of.
  *
  * The Gemini key is locked to an HTTP referrer in the Google console. That
@@ -131,12 +148,22 @@ export default async function handler(req: Req, res: Res) {
       const upstream = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'llama3-70b-8192', messages, temperature: temperature ?? 0.7 }),
+        body: JSON.stringify({ model: GROQ_MODEL, messages, temperature: temperature ?? 0.7 }),
       });
 
       const data = await upstream.json().catch(() => ({}));
       if (!upstream.ok) {
-        res.status(upstream.status).json({ error: describe(data, upstream.status) });
+        // Say when the model itself is the problem. A decommissioned name
+        // returns 404 or 400 with `model_not_found`, and reporting that as a
+        // plain outage is what kept this broken for a year.
+        const code = data?.error?.code || '';
+        const gone = upstream.status === 404 || code === 'model_not_found'
+          || code === 'model_decommissioned';
+        res.status(upstream.status).json({
+          error: gone
+            ? `Groq model ${GROQ_MODEL} is not available (${describe(data, upstream.status)}). Set GROQ_MODEL on the deployment to a current one.`
+            : describe(data, upstream.status),
+        });
         return;
       }
       res.status(200).json({ text: data?.choices?.[0]?.message?.content || 'Silence.' });

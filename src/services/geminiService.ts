@@ -28,6 +28,17 @@ import { memoryPrompt, learnFrom } from '../utils/userMemory';
 const API_BASE = (import.meta as any).env?.VITE_API_BASE || '';
 const API = `${API_BASE}/api/generate`;
 
+/**
+ * The Groq model used when the user has pasted their own gsk_ key.
+ *
+ * Kept in step with GROQ_MODEL in api/generate.ts, which serves the same
+ * fallback for everyone else. `llama3-70b-8192` sat here until it had been
+ * decommissioned for a year without anyone noticing, because the only symptom
+ * was the fallback quietly failing at the moment the Gemini quota ran out —
+ * exactly when nothing else was left to answer.
+ */
+const GROQ_MODEL = (import.meta as any).env?.VITE_GROQ_MODEL || 'openai/gpt-oss-120b';
+
 const customClients = new Map<string, GoogleGenAI>();
 
 function clientFor(key: string): GoogleGenAI {
@@ -142,7 +153,7 @@ async function generateWithGroqFallback(
           'Authorization': `Bearer ${ownGroqKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ model: 'llama3-70b-8192', messages, temperature: 0.7 }),
+        body: JSON.stringify({ model: GROQ_MODEL, messages, temperature: 0.7 }),
       });
 
       if (!response.ok) {
