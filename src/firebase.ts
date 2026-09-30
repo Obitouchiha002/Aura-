@@ -34,10 +34,38 @@ const app = initializeApp(firebaseConfig);
  * database, and on a first visit to a new origin — which is exactly what moving
  * the app to its own domain made everybody do.
  *
- * So the persistence is a list. Firebase walks it in order and keeps the first
- * one that works: IndexedDB if it opens, localStorage if it does not, and
- * memory as the last resort — that one does not survive a reload, but being
- * signed in for this visit is far better than not being able to sign in.
+ * So the persistence is a list, and Firebase keeps the first entry that works.
+ *
+ * localStorage goes first, ahead of IndexedDB, and that order is the fix rather
+ * than a preference. Firebase's own IndexedDB persistence closes its connection
+ * whenever the page is hidden:
+ *
+ *     onPageHide = () => {
+ *       this.isHiding = true;
+ *       this.dbPromise.then(db => db.close());
+ *       this.dbPromise = null;
+ *     }
+ *     async _openDb() {
+ *       if (this.isHiding) throw new Error('Database is closing/hidden');
+ *     }
+ *
+ * Opening the Google popup hides this page — on a phone the popup is a whole
+ * new tab, so it is hidden beyond doubt. By the time the account has been
+ * chosen and the session needs writing, the database has been closed and is
+ * refusing to reopen, and sign-in fails with that sentence and no Firebase
+ * code attached to it.
+ *
+ * It is also what made the redirect loop: a redirect writes down where it came
+ * from before it leaves, and that write went to the same closed database — so
+ * it left with nothing, came back to nothing, and showed the login screen
+ * again.
+ *
+ * localStorage has no such lifecycle. It is readable while the page is hidden,
+ * which is exactly when the popup needs it. The cost is Safari capping
+ * localStorage at seven days of inactivity, so someone who does not return
+ * within a week signs in again — a far smaller price than not being able to
+ * sign in at all. IndexedDB stays in the list behind it, for any browser where
+ * localStorage is the one that will not open.
  *
  * `popupRedirectResolver` has to be named here. `getAuth` wires it up on its
  * own; `initializeAuth` does not, and without it signInWithPopup throws before
@@ -46,7 +74,7 @@ const app = initializeApp(firebaseConfig);
 function createAuth() {
   try {
     return initializeAuth(app, {
-      persistence: [indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence],
+      persistence: [browserLocalPersistence, indexedDBLocalPersistence, inMemoryPersistence],
       popupRedirectResolver: browserPopupRedirectResolver,
     });
   } catch {
