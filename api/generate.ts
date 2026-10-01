@@ -51,6 +51,116 @@ const GEMINI_ENDPOINT = (model: string) =>
  */
 const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 
+/* ── who is allowed to spend the quota ──────────────────────────────────── */
+
+/**
+ * This endpoint spends a real, finite quota, and it answered anyone.
+ *
+ * CORS is not a guard: a browser honours it, and nothing else does. The url is
+ * in the shipped JavaScript, so finding it takes one look at the bundle, and a
+ * script could then exhaust the day's Gemini allowance — and the Groq fallback
+ * behind it — before anyone noticed the app had stopped answering.
+ *
+ * So requests now carry the caller's Firebase ID token, and it is checked here
+ * against Google's public keys. No service account and no secret: the token is
+ * signed by Google, the keys that verify it are published, and the claims say
+ * which project it was issued for.
+ */
+const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'techbyvansh-33439';
+const JWK_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
+
+/**
+ * Whether a request without a valid token is refused.
+ *
+ * Off at first, and deliberately. Most of this app reaches phones as a
+ * live-update bundle, so on the day this ships there are installs still running
+ * web code that does not send a token — and refusing them would break chat on
+ * the devices least able to tell anyone why. The clients start sending it now;
+ * set REQUIRE_AUTH=true once the bundles have turned over, and the endpoint is
+ * closed. No deploy, one variable.
+ */
+const REQUIRE_AUTH = process.env.REQUIRE_AUTH === 'true';
+
+/** Google's signing keys, kept between invocations on a warm instance. */
+let jwkCache: { at: number; keys: Record<string, any> } | null = null;
+
+async function signingKeys(): Promise<Record<string, any>> {
+  // Google rotates these daily. An hour is well inside that, and saves a fetch
+  // on every single message.
+  if (jwkCache && Date.now() - jwkCache.at < 3600_000) return jwkCache.keys;
+
+  const res = await fetch(JWK_URL);
+  if (!res.ok) throw new Error(`jwks ${res.status}`);
+  const body: any = await res.json();
+
+  const keys: Record<string, any> = {};
+  for (const k of body?.keys || []) if (k?.kid) keys[k.kid] = k;
+  jwkCache = { at: Date.now(), keys };
+  return keys;
+}
+
+function fromBase64Url(part: string): Uint8Array {
+  const b64 = part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=');
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function jsonPart(part: string): any {
+  return JSON.parse(new TextDecoder().decode(fromBase64Url(part)));
+}
+
+/**
+ * The uid this token belongs to, or null if it does not hold up.
+ *
+ * Every reason to reject returns the same null: the caller only decides whether
+ * to serve the request, and a message naming which claim was wrong would tell a
+ * prober how to get closer.
+ */
+async function callerUid(authHeader: string | undefined): Promise<string | null> {
+  const token = /^Bearer (.+)$/.exec(String(authHeader || ''))?.[1];
+  if (!token) return null;
+
+  const [h, p, sig] = token.split('.');
+  if (!h || !p || !sig) return null;
+
+  try {
+    const header = jsonPart(h);
+    if (header?.alg !== 'RS256' || !header?.kid) return null;
+
+    const jwk = (await signingKeys())[header.kid];
+    if (!jwk) return null;
+
+    const key = await crypto.subtle.importKey(
+      'jwk', jwk,
+      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+      false, ['verify'],
+    );
+
+    const ok = await crypto.subtle.verify(
+      'RSASSA-PKCS1-v1_5', key,
+      fromBase64Url(sig),
+      new TextEncoder().encode(`${h}.${p}`),
+    );
+    if (!ok) return null;
+
+    // A valid signature only proves Google issued it. These say it was issued
+    // for this project, to a real user, and has not expired — without them a
+    // token from any other Firebase project in the world would pass.
+    const claims = jsonPart(p);
+    const now = Math.floor(Date.now() / 1000);
+    if (claims?.aud !== PROJECT_ID) return null;
+    if (claims?.iss !== `https://securetoken.google.com/${PROJECT_ID}`) return null;
+    if (!claims?.sub || typeof claims.sub !== 'string') return null;
+    if (typeof claims?.exp !== 'number' || claims.exp <= now) return null;
+
+    return claims.sub;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The site this request is being made on behalf of.
  *
@@ -99,7 +209,7 @@ function applyCors(req: any, res: any): boolean {
   }
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Max-Age', '86400');
 
   if (req?.method === 'OPTIONS') {
@@ -118,6 +228,12 @@ export default async function handler(req: Req, res: Res) {
 
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  const uid = await callerUid(req?.headers?.authorization);
+  if (!uid && REQUIRE_AUTH) {
+    res.status(401).json({ error: 'Sign in to use this.' });
     return;
   }
 

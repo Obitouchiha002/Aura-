@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { profilePrompt, rosterPrompt } from './characterProfiles';
 import { memoryPrompt, learnFrom } from '../utils/userMemory';
+import { auth } from '../firebase';
 
 /**
  * Runs one generate call against one model.
@@ -38,6 +39,28 @@ const API = `${API_BASE}/api/generate`;
  * exactly when nothing else was left to answer.
  */
 const GROQ_MODEL = (import.meta as any).env?.VITE_GROQ_MODEL || 'openai/gpt-oss-120b';
+
+/**
+ * The headers for a call to our own proxy, carrying who is asking.
+ *
+ * /api/generate spends a shared quota, so it has to know the request came from
+ * someone signed in rather than from anyone who read the url out of the bundle.
+ * The token is Firebase's own, short-lived, and verified there against Google's
+ * public keys.
+ *
+ * getIdToken() returns the cached one until it is close to expiring, so this is
+ * not a round trip per message. A failure is swallowed: the server decides what
+ * to do with a request that has no token, and that decision should not be
+ * pre-empted here by refusing to send the message at all.
+ */
+async function apiHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  try {
+    const token = await auth.currentUser?.getIdToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  } catch {}
+  return headers;
+}
 
 const customClients = new Map<string, GoogleGenAI>();
 
@@ -100,7 +123,7 @@ async function generateOnce(
 
   const res = await fetch(API, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await apiHeaders(),
     body: JSON.stringify({ provider: 'gemini', model: modelName, contents, systemInstruction, relaxSafety }),
   });
 
@@ -167,7 +190,7 @@ async function generateWithGroqFallback(
 
     const res = await fetch(API, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await apiHeaders(),
       body: JSON.stringify({ provider: 'groq', contents, systemInstruction }),
     });
 

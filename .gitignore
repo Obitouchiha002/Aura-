@@ -28,3 +28,8 @@ landing/download/updates/*.zip
 
 # The APK ships with the app's deployment so it can be published by a push.
 !public/download/*.apk
+
+# The published APK lives with the app deployment (public/download), which is
+# where apk.json and the download page point. A second, older copy here was
+# 13MB of repo carrying a build nobody should install.
+landing/download/*.apk
