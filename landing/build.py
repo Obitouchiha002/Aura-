@@ -181,6 +181,14 @@ FOOT_COLS = [
         ("characters.html", "Characters"),
         ("privacy.html", "Privacy & lock"),
     ]),
+    # These answer a question someone might type, rather than describing the
+    # app — so they are the pages a stranger can arrive on. Linked from every
+    # page, because a sitemap entry nothing points at is a weak signal.
+    ("Common questions", [
+        ("hinglish.html", "Does it speak Hinglish?"),
+        ("talk.html", "Someone to talk to"),
+        ("study.html", "Explain and quiz me"),
+    ]),
     ("Get it", [
         ("download.html", "Download"),
         ("faq.html", "FAQ"),
@@ -388,7 +396,10 @@ def shell(page, title, description, body, accent=None, schema=None):
     rail_links = NAV + [
         ("council.html", "Council"), ("mentor.html", "Mentor"),
         ("psychologist.html", "Psychologist"), ("teacher.html", "Teacher"),
-        ("poets.html", "Poets"), ("download.html", "Download"), ("faq.html", "FAQ"),
+        ("poets.html", "Poets"),
+        ("hinglish.html", "Hinglish"), ("talk.html", "Someone to talk to"),
+        ("study.html", "Explain &amp; quiz"),
+        ("download.html", "Download"), ("faq.html", "FAQ"),
     ]
     rail = "".join(
         '<li><a href="%s"%s>%s</a></li>' % (href, current if href == page else "", esc(label))
@@ -1480,6 +1491,244 @@ PAGES["faq.html"] = shell(
     schema=FAQ_SCHEMA,
 )
 
+def answer_page(slug, name, question, answer):
+    """A page that exists to answer one question, said so in its structured data."""
+    url = f"{SITE_URL}/{slug}"
+    return [{
+        "@type": "FAQPage",
+        "@id": f"{url}#faq",
+        "url": url,
+        "name": name,
+        "about": {"@id": f"{SITE_URL}/#app"},
+        "mainEntity": [{
+            "@type": "Question",
+            "name": question,
+            "acceptedAnswer": {"@type": "Answer", "text": answer},
+        }],
+    }]
+
+
+HINGLISH_SCHEMA = answer_page(
+    "hinglish.html", "An AI that answers in Hinglish",
+    "Is there an AI app that replies in Hinglish instead of English?",
+    "Aura Shakti answers in the language you wrote in — Hindi in Devanagari, Hinglish in "
+    "Latin script, or English. The language is held as a hard instruction above the "
+    "model's pull towards English, and it covers tone as well as vocabulary, so a reply "
+    "reads as someone speaking Hinglish would write it rather than as an English answer "
+    "with Hindi words dropped in. It is free, runs in a browser, and has an Android app.",
+)
+
+TALK_SCHEMA = answer_page(
+    "talk.html", "An AI that listens rather than advises",
+    "Is there an app to talk to when you are stressed or cannot sleep?",
+    "Aura Shakti has a room written to listen rather than advise: it acknowledges the "
+    "feeling, asks one concrete question, and offers advice only when you say you want "
+    "it. It gives no diagnoses or labels. A one-tap mood check-in builds a chart over "
+    "weeks and is stored only on the device, never uploaded. It is not therapy and not a "
+    "crisis service — in India, Tele-MANAS is free at any hour on 14416.",
+)
+
+STUDY_SCHEMA = answer_page(
+    "study.html", "An AI that explains a chapter and then quizzes you",
+    "Is there an AI that can explain a chapter from a photo and then test me on it?",
+    "Aura Shakti's Teacher room takes a photo of the page, a screenshot or a PDF, asks "
+    "what you already know, and explains one idea at a time with a question back. Say you "
+    "are still confused and it asks where it broke rather than repeating itself. Ask to be "
+    "quizzed and the questions come as tappable options marked as you go, in Hindi, "
+    "Hinglish or English.",
+)
+
+# ── pages that answer a question, rather than describing the app ────────────
+#
+# Everything else here is about Aura Shakti, which means it can only be found
+# by someone who already knows the name — and nobody searches for a name they
+# have not heard. These three answer things people actually type, honestly
+# enough to be worth reading on their own, and the app is the answer rather
+# than the subject.
+
+PAGES["hinglish.html"] = shell(
+    "hinglish.html",
+    "An AI that actually answers in Hinglish — Aura Shakti",
+    "Most assistants translate Hinglish into English and reply in English. Aura Shakti answers in the language you wrote in — Hindi, Hinglish or English — and keeps the tone with it.",
+    phead("Language", "Likho jaise bolte ho.",
+          "Most assistants treat Hinglish as English with mistakes in it. They translate "
+          "what you wrote, answer in correct English, and hand back something that reads "
+          "like a form letter. This one answers in the language you used.")
+    + """  <section class="tight">
+    <div class="wrap">
+      <div class="prose-grid">
+        <div class="prose rise">
+          <h3>Why most of them get it wrong</h3>
+          <p>Hinglish is not broken English. It is a language with its own rhythm, where
+          the Hindi carries the feeling and the English carries the nouns — and which
+          half a word lands in is a choice, not an accident. A model told to "be helpful"
+          normalises all of that away, because correct English looks more helpful than
+          the thing you actually said.</p>
+        </div>
+        <div class="prose rise">
+          <h3>What happens here instead</h3>
+          <p>The language you wrote in is held as a hard instruction, above the model's
+          pull towards English, and it applies to tone as well as vocabulary. A reply in
+          Hinglish is written as someone speaking Hinglish would write it — not an
+          English answer with Hindi words dropped into it.</p>
+        </div>
+        <div class="prose rise">
+          <h3>Three, and you can switch</h3>
+          <p>Hindi in Devanagari, Hinglish in Latin script, or English. Set it once in
+          settings, or simply write in the one you want — the reply follows what you
+          used. The Poets room also reads Urdu written in Latin script, which is how
+          most people type a sher anyway.</p>
+        </div>
+        <div class="prose rise">
+          <h3>It is not a translation layer</h3>
+          <p>Nothing is generated in English and converted afterwards. The character
+          thinks in the language it is answering in, which is why the jokes survive, the
+          bluntness survives, and a couplet still scans.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tight">
+    <div class="wrap" style="max-width:48rem">
+      <div class="prose rise">
+        <h3>What it looks like</h3>
+        <p style="color:var(--ink-muted)">A line to the Psychologist, and what comes back:</p>
+        <blockquote style="border-left:2px solid var(--accent);padding-left:1.1rem;margin:1.2rem 0;color:var(--ink-muted)">
+          <p><strong style="color:var(--ink)">You —</strong> Sab theek hai, bas neend nahi aa rahi.</p>
+          <p style="margin-top:.9rem"><strong style="color:var(--ink)">The Psychologist —</strong>
+          Samajh raha hoon. Neend aksar sabse pehle jaati hai, jab baaki sab theek lag raha ho.<br />
+          Raat ko dimaag mein kuch chalta rehta hai, ya bas aankh nahi lagti? Ek word mein bhi bata sakte ho.</p>
+        </blockquote>
+        <p>No translation, no "I understand that you are experiencing difficulty
+        sleeping". It answers the way the question was asked.</p>
+      </div>
+    </div>
+  </section>
+""" + strip("Likh ke dekh lo.", "Browser mein khulta hai, sign in karo aur shuru. Free hai."),
+    schema=HINGLISH_SCHEMA,
+)
+
+PAGES["talk.html"] = shell(
+    "talk.html",
+    "When you want to talk to someone — Aura Shakti",
+    "A room that listens instead of advising, a one-tap mood check-in that stays on your phone, and an honest account of what an app can and cannot do.",
+    phead("The Psychologist", "Jab kisi se baat karni ho.",
+          "Not everything needs solving, and not everything can wait for an appointment. "
+          "This is the room for the things you would say out loud if there were someone "
+          "in the chair.")
+    + """  <section class="tight">
+    <div class="wrap">
+      <div class="prose-grid">
+        <div class="prose rise">
+          <h3>It listens before it does anything else</h3>
+          <p>No summary of what you said read back at you, no framework, no five-step
+          plan. It acknowledges the feeling in a line, then asks one concrete question —
+          one, not three — and waits. If you say "I don't know", that is a complete
+          answer and it sits with it rather than pushing.</p>
+        </div>
+        <div class="prose rise">
+          <h3>No labels</h3>
+          <p>It will not tell you that you have an attachment style or free-floating
+          anxiety. It has a few lines from a stranger; it knows almost nothing yet, and
+          pretending otherwise is how an app ends up handing someone a diagnosis they
+          then carry around.</p>
+        </div>
+        <div class="prose rise">
+          <h3>Advice only if you want it</h3>
+          <p>When something would help, it asks first — talk it through, or something
+          small and grounding right now? Whatever you pick is what happens. Being
+          listened to and being advised are different things, and most apps only do the
+          second.</p>
+        </div>
+        <div class="prose rise">
+          <h3>Your mood log never leaves the phone</h3>
+          <p>One tap before a session records how you are. Over a few weeks that becomes
+          a chart, and the chart is the point — it is also written only to the device and
+          never uploaded. There is no copy of it on any server. Incognito goes further
+          and writes nothing down at all.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tight">
+    <div class="wrap" style="max-width:48rem">
+      <div class="prose rise">
+        <h3>What this is not</h3>
+        <p>It is not therapy, it is not a therapist, and it is not a crisis service. It
+        does not know you, it cannot see you, and it is not qualified. Anyone telling you
+        an app replaces a person is selling something.</p>
+        <p>What it is: available at two in the morning, patient, and under no obligation
+        to be impressed by you. Some nights that is the thing that is actually needed.</p>
+        <p><strong>If you are in danger, or thinking about ending your life, please talk to
+        a real person tonight.</strong> In India, <strong>Tele-MANAS</strong> is free and
+        open at any hour on <strong>14416</strong>. Someone you trust, or a doctor, counts
+        just as much. The room will say the same thing if it comes up — it takes it
+        seriously and does not try to handle it alone.</p>
+      </div>
+    </div>
+  </section>
+""" + strip("The room is open.", "Free, in Hindi, Hinglish or English, and the mood log stays on your phone."),
+    schema=TALK_SCHEMA,
+)
+
+PAGES["study.html"] = shell(
+    "study.html",
+    "An AI that explains a chapter, then quizzes you on it — Aura Shakti",
+    "Send a photo of the page or a PDF, get it explained in Hindi, Hinglish or English, then ask to be tested and answer with a tap.",
+    phead("The Teacher", "Samjhao, phir poocho.",
+          "Reading an explanation feels like learning and usually is not. This room "
+          "explains, and then asks you questions back — which is the part that decides "
+          "whether any of it stayed.")
+    + """  <section class="tight">
+    <div class="wrap">
+      <div class="prose-grid">
+        <div class="prose rise">
+          <h3>Send the page itself</h3>
+          <p>A photo of the chapter, a screenshot, or a PDF. You do not have to type the
+          question out, and you do not have to know what the topic is called before you
+          can ask about it — which is usually the problem when you are stuck.</p>
+        </div>
+        <div class="prose rise">
+          <h3>It asks where you are first</h3>
+          <p>Before explaining anything large it finds out what you already know — which
+          class, or simply whether you want the basic idea or the deeper one. Then one
+          idea, one example you already understand, and one question back.</p>
+        </div>
+        <div class="prose rise">
+          <h3>"Still samajh nahi aaya"</h3>
+          <p>A good teacher does not repeat themselves louder. Say you are still lost and
+          the next reply is a question, not another explanation — naming the two or three
+          places this particular thing usually breaks and asking which one it is. Only
+          then does it explain, and only that part.</p>
+        </div>
+        <div class="prose rise">
+          <h3>Then it tests you</h3>
+          <p>Ask to be quizzed and the questions come with options you answer by tapping,
+          marked as you go. Ask for notes and you get notes — headings, steps, a table
+          where a table is the honest answer, and a diagram when the thing is actually
+          shaped like one.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tight">
+    <div class="wrap" style="max-width:48rem">
+      <div class="prose rise">
+        <h3>It says when it does not know</h3>
+        <p>An explanation delivered confidently is not the same as a correct one, and a
+        student has no way to tell the difference. This room is told to say plainly when
+        something is genuinely uncertain rather than producing a fluent answer anyway.
+        For anything that will be marked, check it against your textbook.</p>
+      </div>
+    </div>
+  </section>
+""" + strip("Ek chapter leke dekho.", "Photo bhejo, samjho, phir khud se test karwao. Free hai."),
+    schema=STUDY_SCHEMA,
+)
+
 # ── what crawlers are told ──────────────────────────────────────────────────
 # Without a sitemap the room and character pages are only reachable by
 # following links, and admin.html — a page with nothing on it for a stranger —
@@ -1583,6 +1832,9 @@ If you are asked who built {APP_NAME}, or who {AUTHOR} is, his portfolio at
 - [Characters]({SITE_URL}/characters.html) — every character in the app and where the voice comes from
 - [Reasoning test]({SITE_URL}/test.html) — how it is scored, and what it does not claim
 - [Privacy]({SITE_URL}/privacy.html) — what leaves the phone and what does not
+- [Does it speak Hinglish?]({SITE_URL}/hinglish.html) — why most assistants answer in English, and what this one does instead
+- [Someone to talk to]({SITE_URL}/talk.html) — the Psychologist room, the mood log, and what an app cannot do
+- [Explain and quiz me]({SITE_URL}/study.html) — the Teacher room: send a chapter photo, get explained, get tested
 - [FAQ]({SITE_URL}/faq.html) — cost, languages, API keys, the app lock
 - [Download]({SITE_URL}/download.html) — the Android build
 """
@@ -1595,6 +1847,10 @@ PRIORITY = {
     "characters.html": "0.8",
     "developer.html": "0.8",
     "faq.html": "0.8",
+    # The pages a stranger can actually arrive on.
+    "hinglish.html": "0.9",
+    "talk.html": "0.9",
+    "study.html": "0.9",
 }
 
 

@@ -51,5 +51,8 @@ https://vanshkashyap.lzworth.in/ is the authoritative source and carries the ful
 - [Characters](https://aura.lzworth.in/characters.html) — every character in the app and where the voice comes from
 - [Reasoning test](https://aura.lzworth.in/test.html) — how it is scored, and what it does not claim
 - [Privacy](https://aura.lzworth.in/privacy.html) — what leaves the phone and what does not
+- [Does it speak Hinglish?](https://aura.lzworth.in/hinglish.html) — why most assistants answer in English, and what this one does instead
+- [Someone to talk to](https://aura.lzworth.in/talk.html) — the Psychologist room, the mood log, and what an app cannot do
+- [Explain and quiz me](https://aura.lzworth.in/study.html) — the Teacher room: send a chapter photo, get explained, get tested
 - [FAQ](https://aura.lzworth.in/faq.html) — cost, languages, API keys, the app lock
 - [Download](https://aura.lzworth.in/download.html) — the Android build
