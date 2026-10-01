@@ -81,6 +81,31 @@ const JWK_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@
  */
 const REQUIRE_AUTH = process.env.REQUIRE_AUTH === 'true';
 
+/**
+ * A date after which an unverified caller is refused anyway.
+ *
+ * The grace period exists for one group: installs still running a web layer
+ * that predates the token. They fetch a new bundle on launch and run it on the
+ * one after, so the window is short — but it is not zero, and switching
+ * enforcement on by hand means either doing it too early, which breaks their
+ * next session, or forgetting, which leaves the endpoint open indefinitely.
+ *
+ * A date closes it on its own. Nobody has to remember, and nobody is cut off
+ * before their app has had the chance to update itself.
+ *
+ * REQUIRE_AUTH=true still forces it immediately, and clearing this variable
+ * reopens the endpoint — which is the lever to pull if the day it closes turns
+ * out to be the day something unexpected breaks.
+ */
+const REQUIRE_AUTH_AFTER = process.env.REQUIRE_AUTH_AFTER || '2026-10-04';
+
+function authRequiredNow(): boolean {
+  if (REQUIRE_AUTH) return true;
+  if (!REQUIRE_AUTH_AFTER) return false;
+  const at = Date.parse(`${REQUIRE_AUTH_AFTER}T00:00:00Z`);
+  return Number.isFinite(at) && Date.now() >= at;
+}
+
 /** Google's signing keys, kept between invocations on a warm instance. */
 let jwkCache: { at: number; keys: Record<string, any> } | null = null;
 
@@ -242,9 +267,9 @@ export default async function handler(req: Req, res: Res) {
    * not. This header makes that answerable before the switch is thrown, and
    * afterwards it says how many callers are still arriving without one.
    */
-  res.setHeader('x-aura-auth', uid ? 'verified' : 'anonymous');
+  res.setHeader('x-aura-auth', uid ? 'verified' : (authRequiredNow() ? 'refused' : 'anonymous'));
 
-  if (!uid && REQUIRE_AUTH) {
+  if (!uid && authRequiredNow()) {
     res.status(401).json({ error: 'Sign in to use this.' });
     return;
   }
