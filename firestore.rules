@@ -60,10 +60,6 @@ service cloud.firestore {
              && request.resource.data[field] == resource.data[field];
     }
 
-    function hasRequiredFields(fields) {
-      return request.resource.data.keys().hasAll(fields);
-    }
-    
     function hasOnlyAllowedFields(fields) {
       return request.resource.data.keys().hasOnly(fields);
     }
