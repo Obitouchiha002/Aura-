@@ -51,6 +51,15 @@ service cloud.firestore {
         (request.auth.token.email == "vk1234888i@gmail.com" && request.auth.token.email_verified == true));
     }
     
+    // True when a field is untouched by this write — absent from both the old
+    // and the new document, or present in both and equal. Ordinary writes that
+    // never mention the field therefore pass.
+    function unchangedOrAbsent(field) {
+      return !(field in request.resource.data) && !(field in resource.data)
+          || (field in request.resource.data) && (field in resource.data)
+             && request.resource.data[field] == resource.data[field];
+    }
+
     function hasRequiredFields(fields) {
       return request.resource.data.keys().hasAll(fields);
     }
@@ -68,7 +77,16 @@ service cloud.firestore {
     // ===============================================================
     
     function isValidUser(data) {
-      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt', 'lastLoginAt', 'dailyMessageCount', 'lastMessageDate', 'referredBy', 'invitesSent']) &&
+      return hasOnlyAllowedFields([
+               'uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt', 'lastLoginAt',
+               'dailyMessageCount', 'lastMessageDate', 'referredBy', 'invitesSent',
+               // Moderation and billing, written from the admin directory.
+               // hasOnlyAllowedFields rejects the whole document if a field is
+               // missing from this list — and with merge:true the document
+               // being checked is the merged result, so an unlisted field
+               // fails every write, the admin's included.
+               'plan', 'dailyLimit', 'blocked', 'blockedPermanently', 'blockedReason'
+             ]) &&
              data.uid is string && data.uid.size() > 0 &&
              data.email is string && isValidEmail(data.email) &&
              (!('displayName' in data) || data.displayName is string) &&
@@ -79,7 +97,12 @@ service cloud.firestore {
              (!('dailyMessageCount' in data) || data.dailyMessageCount is number) &&
              (!('lastMessageDate' in data) || data.lastMessageDate is string) &&
              (!('referredBy' in data) || data.referredBy is string) &&
-             (!('invitesSent' in data) || data.invitesSent is number);
+             (!('invitesSent' in data) || data.invitesSent is number) &&
+             (!('plan' in data) || data.plan in ['free', 'plus', 'premium']) &&
+             (!('dailyLimit' in data) || data.dailyLimit == null || (data.dailyLimit is number && data.dailyLimit >= 0)) &&
+             (!('blocked' in data) || data.blocked is bool) &&
+             (!('blockedPermanently' in data) || data.blockedPermanently is bool) &&
+             (!('blockedReason' in data) || (data.blockedReason is string && data.blockedReason.size() <= 300));
     }
     
     function isValidSession(data) {
@@ -93,9 +116,16 @@ service cloud.firestore {
     }
     
     function isValidSetting(data) {
-      return hasOnlyAllowedFields(['maintenanceMode', 'welcomeMessage']) &&
+      return hasOnlyAllowedFields(['maintenanceMode', 'welcomeMessage', 'notice']) &&
              data.maintenanceMode is bool &&
-             (!('welcomeMessage' in data) || data.welcomeMessage is string);
+             (!('welcomeMessage' in data) || data.welcomeMessage is string) &&
+             (!('notice' in data) || (
+               data.notice.keys().hasOnly(['active', 'title', 'body', 'kind'])
+               && (!('active' in data.notice) || data.notice.active is bool)
+               && (!('title' in data.notice) || (data.notice.title is string && data.notice.title.size() <= 120))
+               && (!('body' in data.notice) || (data.notice.body is string && data.notice.body.size() <= 500))
+               && (!('kind' in data.notice) || data.notice.kind in ['info', 'update', 'warning'])
+             ));
     }
 
     function isValidFeedback(data) {
@@ -116,8 +146,20 @@ service cloud.firestore {
       allow read: if isOwner(userId) || isAdmin() || (isAuthenticated() && resource.data.referredBy == request.auth.uid);
       allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && 
                     (request.resource.data.role == 'user' || isAdmin());
-      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
-                    ((isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin());
+      // An account may edit its own profile, but not its own moderation state.
+      // Without these four guards a blocked user could clear their own block
+      // and anyone could raise their own daily limit.
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (
+                      isAdmin()
+                      || (
+                        isOwner(userId)
+                        && request.resource.data.role == resource.data.role
+                        && unchangedOrAbsent('blocked')
+                        && unchangedOrAbsent('blockedPermanently')
+                        && unchangedOrAbsent('blockedReason')
+                        && unchangedOrAbsent('dailyLimit')
+                      )
+                    );
       allow delete: if isAdmin();
       
       match /chatSessions/{sessionId} {
@@ -140,6 +182,8 @@ service cloud.firestore {
     
     match /settings/{settingId} {
       allow read: if isAuthenticated();
+      // The banner is read on launch; keeping it behind auth is fine because
+      // nothing shows before sign-in anyway.
       allow create, update, delete: if isAdmin() && isValidSetting(request.resource.data);
     }
     
@@ -152,6 +196,23 @@ service cloud.firestore {
     match /custom_characters/{charId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
+    }
+
+    // Character portraits for the public site. Anyone may read; only the owner
+    // may write, checked against the signed-in account's verified email.
+    match /site_portraits/{characterId} {
+      allow read: if true;
+
+      allow write: if request.auth != null
+                && request.auth.token.email_verified == true
+                && request.auth.token.email.lower() in ['vk1234888i@gmail.com']
+                && request.resource.data.image is string
+                && request.resource.data.image.size() < 900000
+                && request.resource.data.image.matches('^data:image/(jpeg|png|webp);base64,.*');
+
+      allow delete: if request.auth != null
+                 && request.auth.token.email_verified == true
+                 && request.auth.token.email.lower() in ['vk1234888i@gmail.com'];
     }
   }
 }
