@@ -78,6 +78,10 @@ OG_IMAGE_SIZE = (1100, 560)
 # without it gives a crawler no reason to look again.
 BUILD_DATE = datetime.date.today().isoformat()
 
+# Proves ownership of aura.lzworth.in to Google Search Console. Public by
+# design — it identifies the property, and grants nothing on its own.
+GSC_TOKEN = "UgTCQ0-G0Y5g1uqcyuz951pxOtFfaeA-1VCAG2MvkZg"
+
 APP_SUMMARY = (
     "Aura Shakti is an AI companion app with five rooms — a council that argues, "
     "a mentor with an ego, a psychologist who listens, a teacher who quizzes you "
@@ -473,6 +477,11 @@ def shell(page, title, description, body, accent=None, schema=None):
 <title>{esc(title)}</title>
 <meta name="description" content="{desc}" />
 <link rel="canonical" href="{canonical}" />
+
+<!-- Google Search Console. Verification only reads the property's root, but it
+     is emitted on every page: a token that exists in one place is a token that
+     a later edit can quietly drop, and losing it un-verifies the property. -->
+<meta name="google-site-verification" content="{GSC_TOKEN}" />
 
 <!-- Who made this. The footer says so in words; this says so in a field, which
      is the part a search engine can actually attribute. -->
