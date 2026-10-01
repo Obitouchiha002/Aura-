@@ -1,7 +1,6 @@
 {
-  "version": "1.2.1",
-  "url": "https://aurashakti.vercel.app/download/AuraShakti-1.2.1.apk",
-  "size": 12406861,
-  "sha256": "748fa0caedf1a4a7abc575916af76e9dcc786e80a2c280d05f69c9805cb77886",
-  "notes": "Keyboard: native insets"
+  "version": "1.2.4",
+  "url": "https://aurashakti.vercel.app/download/AuraShakti-1.2.4.apk",
+  "size": 12410169,
+  "sha256": "a859afe0d49900b50382779b63b2c42c12d2d643a6b5364ad276d94f9c612a09"
 }
