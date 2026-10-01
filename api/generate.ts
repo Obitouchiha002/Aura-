@@ -232,6 +232,18 @@ export default async function handler(req: Req, res: Res) {
   }
 
   const uid = await callerUid(req?.headers?.authorization);
+
+  /**
+   * Says whether the token checked out, without acting on it.
+   *
+   * While REQUIRE_AUTH is off a good token and a forged one are served alike,
+   * so there is no way to tell from a response whether the verification works —
+   * and switching enforcement on to find out would lock everyone out if it did
+   * not. This header makes that answerable before the switch is thrown, and
+   * afterwards it says how many callers are still arriving without one.
+   */
+  res.setHeader('x-aura-auth', uid ? 'verified' : 'anonymous');
+
   if (!uid && REQUIRE_AUTH) {
     res.status(401).json({ error: 'Sign in to use this.' });
     return;
