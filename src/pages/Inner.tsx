@@ -1002,6 +1002,7 @@ export default function Inner() {
   };
 
   const startNewChat = () => {
+    pin(true);
     setCurrentSessionId(null);
     setMessages([]);
     window.location.hash = 'chat';
@@ -1027,6 +1028,8 @@ export default function Inner() {
    */
   const loadSession = async (session: ChatSession) => {
     triggerHaptic();
+    // Opening a thread means opening it where you left it, which is the end.
+    pin(true);
     setCurrentSessionId(session.id);
     setMode(session.mode);
     if (session.mode !== 'COUNCIL') {
@@ -1221,14 +1224,60 @@ export default function Inner() {
   /** Kept so the existing Mentor button keeps working. */
   const bringToCouncil = () => moveToRoom('COUNCIL');
 
+  /**
+   * Whether the view is sitting at the end of the thread.
+   *
+   * Two things read it. New messages only scroll when it is true, so a reply
+   * arriving while you are reading something further up no longer yanks you
+   * away from it — and when it is false the jump button appears, because that
+   * is exactly when scrolling back by hand is the only way down.
+   *
+   * Mirrored into a ref because the observer below is installed once and would
+   * otherwise close over the first value forever.
+   */
+  const [atBottom, setAtBottom] = useState(true);
+  const atBottomRef = useRef(true);
+  const pin = (v: boolean) => { atBottomRef.current = v; setAtBottom(v); };
+
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   };
 
+  const handleScroll = () => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    // A little slack, so one pixel of rounding does not count as scrolled away.
+    pin(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+  };
+
+  /**
+   * Holds the view at the end while the thread is still laying itself out.
+   *
+   * Setting scrollTop the moment messages change was not enough, and this is
+   * why a chat opened from history appeared at the top: at that instant nothing
+   * has rendered, so scrollHeight is the height of an empty box. It scrolled to
+   * the bottom of that, the markdown and diagrams and images arrived
+   * afterwards, and the view was left at the beginning of a long thread.
+   *
+   * The observer fires on every one of those later changes, so the end stays
+   * the end — through an opening thread, a streaming reply, and an image that
+   * decodes a second after the message it belongs to.
+   */
   useEffect(() => {
-    scrollToBottom();
+    const el = chatContainerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observed = el.firstElementChild ?? el;
+    const ro = new ResizeObserver(() => {
+      if (atBottomRef.current) el.scrollTop = el.scrollHeight;
+    });
+    ro.observe(observed);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (atBottomRef.current) scrollToBottom();
   }, [messages, isTyping]);
 
   /**
@@ -1762,6 +1811,7 @@ export default function Inner() {
       {/* Chat Area */}
       <div 
         ref={chatContainerRef}
+        onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-4 md:p-6 relative z-10 scrollbar-hide overflow-x-hidden"
       >
         <AnimatePresence mode="wait">
@@ -2116,6 +2166,25 @@ export default function Inner() {
             </AnimatePresence>
             <div ref={messagesEndRef} className="h-4" />
           </motion.div>
+        </AnimatePresence>
+
+        {/* Only while there is something below to go back to. Sticky rather
+            than absolute: it lives inside the scroller, so it needs no
+            positioned ancestor and cannot drift if the shell above it
+            changes. */}
+        <AnimatePresence>
+          {!atBottom && messages.length > 0 && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              onClick={() => { triggerHaptic(); pin(true); scrollToBottom(); }}
+              aria-label={lang === 'en' ? 'Jump to the latest message' : 'नवीनतम संदेश पर जाएँ'}
+              className="sticky bottom-2 ml-auto mr-1 z-30 w-10 h-10 rounded-full bg-surface-2 border border-border text-text-primary shadow-float backdrop-blur-md flex items-center justify-center hover:bg-surface transition-colors"
+            >
+              <ChevronDown size={18} />
+            </motion.button>
+          )}
         </AnimatePresence>
       </div>
 
