@@ -493,8 +493,23 @@ You: "Theek hai. Na jaanna bhi jawab hai.\n\nKuch aur pooch loon, ya bas thodi d
      * The bound is on characters rather than turns, because turns vary from a
      * word to an essay. Older messages are dropped from the front, so the
      * recent conversation always survives.
+     *
+     * 24,000 characters is roughly 6,000 tokens, against a context window of a
+     * million. The app was using well under one percent of the room it had, and
+     * paying for it in the only way that matters here: a thread long enough to
+     * be worth having was a thread the model had started forgetting.
+     *
+     * The ceiling costs nothing extra in the quota that actually binds, which
+     * is counted in requests rather than tokens — a longer prompt is the same
+     * one request. It is set at a tenth of the window rather than all of it so
+     * there is room for an attachment on the final turn, and so a very long
+     * thread degrades by dropping its oldest messages rather than by failing.
+     *
+     * If threads ever run past this, the next step is to roll what falls off
+     * into a running summary rather than raise the number again —
+     * getSessionSummary already writes exactly that.
      */
-    const HISTORY_BUDGET = 24_000;
+    const HISTORY_BUDGET = 240_000;
     const recentHistory: typeof history = [];
     let used = 0;
     for (let i = history.length - 1; i >= 0; i--) {

@@ -17,8 +17,18 @@
 
 const KEY = 'aura_user_memory';
 
-/** Above this the oldest facts are dropped, so the prompt cannot creep. */
-const MAX_FACTS = 24;
+/**
+ * Above this the oldest facts are dropped, so the prompt cannot creep.
+ *
+ * Twenty-four was chosen when this was a handful of regex matches and the whole
+ * list went into every prompt. It meant the twenty-fifth thing someone told the
+ * app silently pushed out the first — and the first is usually their name.
+ *
+ * Two hundred short lines is a few tens of kilobytes in storage and a few
+ * thousand tokens in the prompt, which is nothing against the budget the
+ * conversation itself now gets.
+ */
+const MAX_FACTS = 200;
 const MAX_FACT_LENGTH = 200;
 
 export interface Fact {
