@@ -288,6 +288,21 @@ export const Login: React.FC = () => {
             </motion.p>
           )}
 
+          {/* Shown where the account is actually created, not buried in a
+              footer. Plain links rather than a checkbox: a checkbox that
+              everyone ticks without reading proves nothing, and the two
+              sentences that matter — the answers can be wrong, and the
+              Psychologist room is not therapy — are on the other side of
+              these. */}
+          {mode !== 'reset' && (
+            <p className="text-[11px] text-text-faint text-center leading-relaxed px-2">
+              {mode === 'signup' ? 'Creating an account means you accept the ' : 'Signing in means you accept the '}
+              <a href="https://aura.lzworth.in/terms.html" target="_blank" rel="noopener noreferrer" className="underline decoration-border hover:text-text-muted">terms of use</a>
+              {' and the '}
+              <a href="https://aura.lzworth.in/privacy-policy.html" target="_blank" rel="noopener noreferrer" className="underline decoration-border hover:text-text-muted">privacy policy</a>.
+            </p>
+          )}
+
           <div className="pt-1 text-center text-xs text-text-muted space-y-2">
             {mode === 'signin' && (
               <>

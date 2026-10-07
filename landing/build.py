@@ -192,6 +192,8 @@ FOOT_COLS = [
     ("Get it", [
         ("download.html", "Download"),
         ("faq.html", "FAQ"),
+        ("terms.html", "Terms of use"),
+        ("privacy-policy.html", "Privacy policy"),
     ]),
     ("The developer", [
         # The anchor text is the full name, not "About Vansh". An internal
@@ -400,6 +402,7 @@ def shell(page, title, description, body, accent=None, schema=None):
         ("hinglish.html", "Hinglish"), ("talk.html", "Someone to talk to"),
         ("study.html", "Explain &amp; quiz"),
         ("download.html", "Download"), ("faq.html", "FAQ"),
+        ("terms.html", "Terms"), ("privacy-policy.html", "Privacy policy"),
     ]
     rail = "".join(
         '<li><a href="%s"%s>%s</a></li>' % (href, current if href == page else "", esc(label))
@@ -1729,6 +1732,172 @@ PAGES["study.html"] = shell(
     schema=STUDY_SCHEMA,
 )
 
+# ── the legal pair ──────────────────────────────────────────────────────────
+# Written from what the code does rather than from a template: which third
+# parties actually receive something, what never leaves the device, and what
+# incognito really means here. A policy that describes a different app is worse
+# than none, because people rely on it.
+
+LEGAL_UPDATED = BUILD_DATE
+
+PAGES["privacy-policy.html"] = shell(
+    "privacy-policy.html",
+    "Privacy policy — Aura Shakti",
+    "What Aura Shakti collects, what never leaves your device, which companies receive what, and how to get your data out or delete it.",
+    phead("Privacy policy", "What is kept, and who sees it.",
+          f"Last updated {LEGAL_UPDATED}. This describes the app as it actually "
+          "behaves. The shorter, friendlier version of the same thing is on the "
+          "privacy page.")
+    + """  <section class="tight">
+    <div class="wrap" style="max-width:52rem">
+      <div class="prose rise">
+        <h3>Who is responsible</h3>
+        <p>Aura Shakti is made and run by Vansh Kashyap, New Delhi, India. For anything
+        in this policy — a question, a correction, or a request to delete your data —
+        write to <a href="mailto:vk1234888i@gmail.com">vk1234888i@gmail.com</a>.</p>
+
+        <h3>No cookies, and no tracking</h3>
+        <p>The app and this site set no cookies at all, and there is no analytics, no
+        advertising and no tracking of any kind. What is stored in your browser is your
+        own: your settings, your theme, your app lock, and the things you asked the app
+        to remember.</p>
+
+        <h3>What is kept on a server</h3>
+        <ul>
+          <li><strong>Your account</strong> — the email address you signed in with, and
+          the display name and picture if you used Google. Held in Firebase
+          Authentication.</li>
+          <li><strong>Your conversations</strong> — the messages in a normal chat, so
+          your history survives reinstalling, stored against your account in Firestore.</li>
+          <li><strong>Counters</strong> — how many messages you sent today, and when you
+          last signed in, so the daily limit works.</li>
+          <li><strong>Feedback</strong> — only if you send some.</li>
+        </ul>
+
+        <h3>What never leaves your device</h3>
+        <ul>
+          <li><strong>Mood check-ins.</strong> Written to the device and never uploaded.
+          There is no copy on any server.</li>
+          <li><strong>What the app remembers about you</strong> — the facts shown under
+          Memory in settings.</li>
+          <li><strong>Your app lock.</strong> A PIN, passcode or pattern is salted and
+          hashed; only the salt and hash are stored, locally. Biometrics are handled by
+          your device and never reach us.</li>
+          <li><strong>Reasoning test results.</strong></li>
+          <li><strong>Files you attach.</strong> Kept in your browser's storage so the
+          conversation can keep referring to them. They are sent to the model to be read,
+          but not stored on our servers.</li>
+        </ul>
+
+        <h3>Incognito</h3>
+        <p>An incognito thread is not written down anywhere — no history entry, no
+        summary, nothing synced. It is still sent to the model to be answered, because
+        that is the only way to answer it.</p>
+
+        <h3>Who else receives what</h3>
+        <p>To answer you at all, what you write has to go to a model. These are the only
+        companies involved, and what each one gets:</p>
+        <ul>
+          <li><strong>Google</strong> — your messages, for the Gemini model to answer.
+          Also Firebase, which holds your account and your history, and Google Fonts on
+          this website.</li>
+          <li><strong>Groq</strong> — your messages, but only when Google's daily quota
+          has run out and the app falls back.</li>
+          <li><strong>Pollinations</strong> — when you ask for a picture, the description
+          of that picture is sent there to be drawn. Your conversation is not.</li>
+          <li><strong>Vercel</strong> — hosts the app and the site, so it handles the
+          requests in transit.</li>
+        </ul>
+        <p>Nothing is sold, and nothing is shared with anyone for advertising.</p>
+
+        <h3>Children</h3>
+        <p>This is not intended for children under 13. If you believe a child has made an
+        account, write to the address above and it will be removed.</p>
+
+        <h3>How long it is kept, and getting it out</h3>
+        <p>Your conversations stay until you delete them — a chat deleted in the app is
+        deleted from the server. You can export any conversation as Markdown or PDF from
+        inside the app. To have your whole account and everything in it deleted, write to
+        the address above.</p>
+
+        <h3>Changes</h3>
+        <p>If this policy changes, the date at the top changes with it.</p>
+      </div>
+    </div>
+  </section>
+""" + strip("Read the terms too.", "What the app promises, what it does not, and what it asks of you.", "terms.html", "Terms of use"),
+)
+
+PAGES["terms.html"] = shell(
+    "terms.html",
+    "Terms of use — Aura Shakti",
+    "What Aura Shakti is, what it is not, what the app asks of you, and the limits of what an AI answer can be relied on for.",
+    phead("Terms of use", "What this is, and what it is not.",
+          f"Last updated {LEGAL_UPDATED}. Using Aura Shakti means accepting these.")
+    + """  <section class="tight">
+    <div class="wrap" style="max-width:52rem">
+      <div class="prose rise">
+        <h3>What the service is</h3>
+        <p>Aura Shakti is an app in which AI characters answer you. It is made and run by
+        Vansh Kashyap, New Delhi. It is free; there is a daily limit on the faster models,
+        past which the app continues on a slower one.</p>
+
+        <h3>Your account</h3>
+        <p>You need an account to use it, with Google or with an email and a password.
+        Keep your password to yourself — anything done from your account is treated as
+        done by you. You must be 13 or older.</p>
+
+        <h3>The answers can be wrong</h3>
+        <p>Everything an AI character says is generated, and generated text is confidently
+        wrong sometimes. Do not rely on it for anything that matters without checking:
+        not for medical, legal, financial or academic decisions. The Teacher room can look
+        things up and will show its sources; check them before an exam.</p>
+
+        <h3>The characters are characters</h3>
+        <p>The Council, the Mentors and the Poets are written as fiction. They are not the
+        real people or estates they are named after, are not endorsed by them, and their
+        opinions are not advice from anyone. They are deliberately blunt and amoral,
+        because that is the point of them.</p>
+
+        <h3>The Psychologist room is not therapy</h3>
+        <p>It is not therapy, not a therapist, and not a crisis service. It cannot
+        diagnose you and it does not know you. If you are in danger or thinking about
+        ending your life, please reach a person — someone you trust, a doctor, or in India
+        <strong>Tele-MANAS, free at any hour on 14416</strong>.</p>
+
+        <h3>What you may not do</h3>
+        <ul>
+          <li>Use it to produce material that is illegal, or that sexualises children.</li>
+          <li>Harass, impersonate or endanger anyone, including yourself.</li>
+          <li>Automate it, resell it, or work around the daily limits.</li>
+          <li>Attempt to reach another person's account or data.</li>
+        </ul>
+        <p>Accounts doing these things can be stopped without warning.</p>
+
+        <h3>What you write stays yours</h3>
+        <p>Your conversations are yours. They are not used to train anything and they are
+        not sold. They are sent to a model to be answered, and stored against your account
+        so your history survives — see the
+        <a href="privacy-policy.html">privacy policy</a> for the detail.</p>
+
+        <h3>No guarantee that it works</h3>
+        <p>It is free and provided as it is. It may be unavailable, it may lose data, and
+        the models behind it are not ours and can change or stop. As far as the law
+        allows, there is no liability for loss arising from using it. Keep your own copy
+        of anything you would mind losing — the app can export any conversation.</p>
+
+        <h3>Changes, and the law</h3>
+        <p>These terms can change; the date at the top changes with them. They are
+        governed by the law of India, and the courts of Delhi have jurisdiction.</p>
+
+        <h3>Contact</h3>
+        <p><a href="mailto:vk1234888i@gmail.com">vk1234888i@gmail.com</a></p>
+      </div>
+    </div>
+  </section>
+""" + strip("And the privacy policy.", "What is kept, what never leaves your phone, and who else receives anything.", "privacy-policy.html", "Privacy policy"),
+)
+
 # ── what crawlers are told ──────────────────────────────────────────────────
 # Without a sitemap the room and character pages are only reachable by
 # following links, and admin.html — a page with nothing on it for a stranger —
@@ -1851,6 +2020,8 @@ PRIORITY = {
     "hinglish.html": "0.9",
     "talk.html": "0.9",
     "study.html": "0.9",
+    "terms.html": "0.4",
+    "privacy-policy.html": "0.4",
 }
 
 
