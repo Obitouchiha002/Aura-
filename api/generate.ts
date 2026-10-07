@@ -276,7 +276,7 @@ export default async function handler(req: Req, res: Res) {
 
   // Vercel parses JSON bodies; the local express server does too.
   const body = typeof req.body === 'string' ? safeParse(req.body) : req.body;
-  const { provider = 'gemini', model, contents, systemInstruction, temperature, relaxSafety } = body || {};
+  const { provider = 'gemini', model, contents, systemInstruction, temperature, relaxSafety, grounded } = body || {};
 
   if (!Array.isArray(contents) || contents.length === 0) {
     res.status(400).json({ error: 'contents is required' });
@@ -353,6 +353,16 @@ export default async function handler(req: Req, res: Res) {
         // become cautious. ONLY_HIGH still blocks severe content. The
         // Psychologist never sets this.
         ...(relaxSafety ? { safetySettings: RELAXED_SAFETY } : {}),
+        /**
+         * Let the model look things up.
+         *
+         * Asked for per request rather than switched on everywhere. A room
+         * built on a character should not stop mid-sentence to cite a web
+         * page — but a room that explains a chapter to someone revising for an
+         * exam should not be inventing dates either, and until now it had no
+         * way to check one.
+         */
+        ...(grounded ? { tools: [{ googleSearch: {} }] } : {}),
         generationConfig: { temperature: temperature ?? 0.7 },
       }),
     });
@@ -385,7 +395,32 @@ export default async function handler(req: Req, res: Res) {
       return;
     }
 
-    res.status(200).json({ text });
+    /**
+     * Where the answer came from.
+     *
+     * Returned as the title and url of each source rather than as the HTML
+     * blob Google also sends back, because that blob would have to be injected
+     * into the page unescaped. Links the client renders itself cannot carry a
+     * script with them.
+     *
+     * Note for whoever turns this on more widely: Google's terms require the
+     * search-suggestions entry point to be displayed alongside a grounded
+     * answer, and these citations are not that. It is passed through below so
+     * the UI can render it when someone has read those terms.
+     */
+    const grounding = data?.candidates?.[0]?.groundingMetadata;
+    const sources = (grounding?.groundingChunks || [])
+      .map((c: any) => c?.web)
+      .filter((w: any) => w?.uri)
+      .map((w: any) => ({ title: String(w.title || w.uri), uri: String(w.uri) }));
+
+    res.status(200).json({
+      text,
+      ...(sources.length ? { sources } : {}),
+      ...(grounding?.searchEntryPoint?.renderedContent
+        ? { searchSuggestions: grounding.searchEntryPoint.renderedContent }
+        : {}),
+    });
   } catch (err: any) {
     res.status(502).json({ error: err?.message || 'Upstream request failed' });
   }

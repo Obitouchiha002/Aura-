@@ -9,6 +9,7 @@ import { collection, doc, getDoc, getDocs, setDoc, deleteDoc, query, orderBy } f
 import { db } from '../firebase';
 import { Send, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as SettingsIcon, RefreshCcw, Download, Users, Sparkles, Target, Gamepad2, Mic, Ghost, Copy, Check, Search, Menu, Eye, Paperclip, Camera, ImagePlus, FileText, FileDown, Printer, ClipboardList, HeartPulse, GraduationCap } from 'lucide-react';
 import { Settings } from '../components/Settings';
+import { saveAsset, getAsset } from '../utils/db';
 import Focus from './Focus';
 import Simulator from './Simulator';
 
@@ -72,7 +73,7 @@ const ROOM_NAME: Record<Mode, string> = {
   EMOTION: 'The Poets',
 };
 
-function HistoryDrawerComponent({ onClose, sessions, loadSession, currentSessionId, deleteSession, lang }: any) {
+function HistoryDrawerComponent({ onClose, sessions, loadSession, currentSessionId, deleteSession, lang, liveMessages }: any) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<'ALL' | 'COUNCIL' | 'MENTOR' | 'PSYCHOLOGY' | 'TEACHER' | 'EMOTION'>('ALL');
 
@@ -85,12 +86,26 @@ function HistoryDrawerComponent({ onClose, sessions, loadSession, currentSession
 
   // Newest first, whatever room it happened in. Sorting here rather than where
   // the array is written means the order holds however a session got updated.
+  /**
+   * The messages to search inside a thread.
+   *
+   * A session only carries them once it has been read from Firestore — at
+   * launch, or when it was opened. The thread being had right now has never
+   * been either, and it is the one most likely to be searched for, so the live
+   * list stands in for it.
+   */
+  const body = (s: any) => (s.id === currentSessionId ? liveMessages : s.messages) || [];
+
   const filteredSessions = sessions
     .filter((s: any) => {
       const q = searchQuery.toLowerCase();
+      // The title is the first thirty characters of the opening message, so
+      // searching it finds a thread only by how it started. What someone
+      // remembers is usually something said in the middle of it.
       const matchesQuery = !q
         || s.title?.toLowerCase().includes(q)
-        || s.character?.toLowerCase().includes(q);
+        || s.character?.toLowerCase().includes(q)
+        || body(s).some((m: any) => m?.text?.toLowerCase().includes(q));
       const matchesFilter = selectedFilter === 'ALL' || s.mode === selectedFilter;
       return matchesQuery && matchesFilter;
     })
@@ -656,7 +671,7 @@ export default function Inner() {
   const [mode, setMode] = useState<Mode>('COUNCIL');
   const [customCharacters, setCustomCharacters] = useState<any[]>([]);
   const [selectedCharacter, setSelectedCharacter] = useState(CHARACTERS.MENTOR[0]);
-  const [messages, setMessages] = useState<{ id: string; text: string; isAi: boolean; character?: string; imageUrl?: string; attachments?: string[]; mode?: Mode; handoff?: Handoff }[]>([]);
+  const [messages, setMessages] = useState<{ id: string; text: string; isAi: boolean; character?: string; imageUrl?: string; attachments?: string[]; attachmentKeys?: string[]; mode?: Mode; handoff?: Handoff }[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [isIncognito, setIsIncognito] = useState(false);
   // Only a reply that just arrived should type itself out. Without this, every
@@ -1324,11 +1339,65 @@ export default function Inner() {
     }
 
     const userMessage = draft;
-    const outgoing: Attachment[] = pending.map(({ name, mimeType, data }) => ({ name, mimeType, data }));
     const attachmentNames = pending.map(p => p.name);
     setPending([]);
     const userMsgId = Date.now().toString();
-    const newMessages = [...currentMessages, { id: userMsgId, text: userMessage, isAi: false, attachments: attachmentNames.length ? attachmentNames : undefined }];
+
+    /**
+     * A file stays with the thread, not with the one message that carried it.
+     *
+     * The data used to travel with a single request and then be dropped — only
+     * the filename was kept — so uploading a chapter and asking a second
+     * question about it meant asking about nothing. The bytes go to IndexedDB
+     * and the message keeps the key, so every later turn can send them again.
+     *
+     * IndexedDB rather than the session document because Firestore caps a
+     * document at a megabyte and a 3MB file is four of those once it is base64.
+     * The cost is that the files live on the device that uploaded them: open
+     * the same thread on another phone and the text is there and the file is
+     * not.
+     *
+     * ponytail: nothing deletes these when a chat is deleted. Bounded by how
+     * much anyone actually uploads; sweep them in deleteSession if it grows.
+     */
+    const stored = await Promise.all(pending.map(async (p, i) => {
+      const key = `att_${userMsgId}_${i}`;
+      try {
+        await saveAsset(key, { name: p.name, mimeType: p.mimeType, data: p.data });
+        return key;
+      } catch { return null; }
+    }));
+    const attachmentKeys = stored.filter((k): k is string => !!k);
+
+    /**
+     * Everything the thread has been given, newest first, up to what will fit.
+     *
+     * The budget is not a preference. Vercel refuses a request body over about
+     * 4.5MB, base64 makes a file a third larger again, and the conversation
+     * itself is in the same body — so a thread with three photos in it has to
+     * send the recent ones and leave the oldest behind rather than fail
+     * outright and look broken.
+     */
+    const CARRY_BUDGET = 3_000_000;
+    const carried: Attachment[] = [];
+    let carriedBytes = 0;
+    for (let i = currentMessages.length - 1; i >= 0; i--) {
+      for (const key of (currentMessages[i] as any).attachmentKeys || []) {
+        try {
+          const a = await getAsset(key);
+          if (!a?.data || carriedBytes + a.data.length > CARRY_BUDGET) continue;
+          carriedBytes += a.data.length;
+          carried.unshift({ name: a.name, mimeType: a.mimeType, data: a.data });
+        } catch {}
+      }
+    }
+
+    const outgoing: Attachment[] = [
+      ...carried,
+      ...pending.map(({ name, mimeType, data }) => ({ name, mimeType, data })),
+    ];
+
+    const newMessages = [...currentMessages, { id: userMsgId, text: userMessage, isAi: false, attachments: attachmentNames.length ? attachmentNames : undefined, attachmentKeys: attachmentKeys.length ? attachmentKeys : undefined }];
     setMessages(newMessages);
     setInput('');
     setIsTyping(true);
@@ -1800,6 +1869,7 @@ export default function Inner() {
           <HistoryDrawerComponent
             onClose={closeModals}
             sessions={sessions}
+            liveMessages={messages}
             loadSession={loadSession}
             currentSessionId={currentSessionId}
             deleteSession={deleteSession}

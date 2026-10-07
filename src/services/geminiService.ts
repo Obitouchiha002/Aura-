@@ -99,12 +99,31 @@ const RELAXED_SAFETY = [
   'HARM_CATEGORY_DANGEROUS_CONTENT',
 ].map(category => ({ category, threshold: 'BLOCK_ONLY_HIGH' })) as any[];
 
+/**
+ * Puts the sources underneath the answer, as links.
+ *
+ * Appended to the text rather than carried beside it: the markdown renderer
+ * already draws links, the whole thing is one string so every caller and the
+ * stored history keep working untouched, and a reply read back out of history
+ * still shows where it came from.
+ */
+function withSources(text: string, sources?: { title: string; uri: string }[]): string {
+  if (!sources?.length) return text;
+  const seen = new Set<string>();
+  const links = sources
+    .filter(s => !seen.has(s.uri) && seen.add(s.uri))
+    .slice(0, 5)
+    .map(s => `[${s.title.replace(/[\[\]]/g, '')}](${s.uri})`);
+  return `${text}\n\n---\n*Sources:* ${links.join(' · ')}`;
+}
+
 async function generateOnce(
   modelName: string,
   contents: any[],
   systemInstruction: string,
   customApiKey?: string | null,
   relaxSafety = false,
+  grounded = false,
 ): Promise<string> {
   const own = ownGeminiKey(customApiKey);
 
@@ -116,20 +135,26 @@ async function generateOnce(
         systemInstruction,
         temperature: 0.7,
         ...(relaxSafety ? { safetySettings: RELAXED_SAFETY } : {}),
+        ...(grounded ? { tools: [{ googleSearch: {} }] } : {}),
       },
     });
-    return response.text || "Silence.";
+    const chunks = (response as any)?.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const own_sources = chunks
+      .map((c: any) => c?.web)
+      .filter((w: any) => w?.uri)
+      .map((w: any) => ({ title: String(w.title || w.uri), uri: String(w.uri) }));
+    return withSources(response.text || "Silence.", own_sources);
   }
 
   const res = await fetch(API, {
     method: 'POST',
     headers: await apiHeaders(),
-    body: JSON.stringify({ provider: 'gemini', model: modelName, contents, systemInstruction, relaxSafety }),
+    body: JSON.stringify({ provider: 'gemini', model: modelName, contents, systemInstruction, relaxSafety, grounded }),
   });
 
   const data = await res.json().catch(() => ({} as any));
   if (!res.ok) throw new Error(data?.error || `${res.status}`);
-  return data?.text || "Silence.";
+  return withSources(data?.text || "Silence.", data?.sources);
 }
 
 const exhaustedModels: Record<string, number> = {};
@@ -217,6 +242,7 @@ async function generateWithFallback(
   customApiKey?: string | null,
   fastMode: boolean = true,
   relaxSafety = false,
+  grounded = false,
 ): Promise<string> {
   const retry = async <T>(fn: () => Promise<T>): Promise<T> => {
     return await fn();
@@ -257,7 +283,7 @@ async function generateWithFallback(
     }
 
     try {
-      const text = await retry(() => generateOnce(modelName, contents, systemInstruction, customApiKey, relaxSafety));
+      const text = await retry(() => generateOnce(modelName, contents, systemInstruction, customApiKey, relaxSafety, grounded));
       return text;
     } catch (error: any) {
       lastError = error;
@@ -550,7 +576,20 @@ You: "Theek hai. Na jaanna bhi jawab hai.\n\nKuch aur pooch loon, ya bas thodi d
 
     // The character rooms only. The Psychologist keeps the default filter.
     const relaxSafety = mode === 'COUNCIL' || mode === 'MENTOR' || mode === 'EMOTION';
-    return await generateWithFallback(contents, systemInstruction, mode === 'TEACHER' ? "The Professor" : mode === 'PSYCHOLOGY' ? "The Psychologist" : mode === 'EMOTION' ? "The Council of Emotions" : "The Council", customApiKey, isFreeTier, relaxSafety);
+
+    /**
+     * The Teacher looks things up. Nobody else does.
+     *
+     * This is the room where being wrong has a cost someone else pays — a
+     * student revising from an invented date finds out in an exam — and it is
+     * the only room whose voice is not damaged by citing a source. Tywin
+     * Lannister does not link to Wikipedia, and a nazm with footnotes is not a
+     * nazm. The Psychologist stays out of it too: looking things up is not what
+     * that room is for.
+     */
+    const grounded = mode === 'TEACHER';
+
+    return await generateWithFallback(contents, systemInstruction, mode === 'TEACHER' ? "The Professor" : mode === 'PSYCHOLOGY' ? "The Psychologist" : mode === 'EMOTION' ? "The Council of Emotions" : "The Council", customApiKey, isFreeTier, relaxSafety, grounded);
   } catch (error: any) {
     console.error("Unexpected Gemini API Error:", error);
     return `[System Error] An unexpected error occurred. (${error?.message || "Unknown error"})`;
