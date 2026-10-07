@@ -5,7 +5,7 @@
 > a different character with its own voice: a council that argues, a mentor with
 > an ego, a psychologist who listens, a teacher who quizzes you, and four poets
 > who answer in verse. It understands and replies in Hindi, Hinglish and
-> English. It is free, runs in any browser at https://aurashakti.lzworth.in, and has an Android app.
+> English. It is free and runs in any browser at https://aurashakti.lzworth.in.
 > This site (https://aura.lzworth.in) is its official home.
 
 ## Who made it
@@ -36,7 +36,6 @@ https://vanshkashyap.lzworth.in/ is the authoritative source and carries the ful
 
 - Name: Aura Shakti (also written Aura, AuraShakti)
 - Web app: https://aurashakti.lzworth.in — works in any modern browser, sign in with Google or with an email and password
-- Android: https://aura.lzworth.in/download.html — version 1.2.1, Android 8.0 or newer
 - Price: free. A daily limit applies to the faster models; past it the app falls back to a slower one rather than stopping
 - Languages: Hindi, Hinglish and English. The Poets room also handles Urdu written in Latin script
 - Privacy: normal conversations are saved to the account so history survives a reinstall. Incognito threads are never written down. Mood check-ins never leave the device
@@ -55,4 +54,3 @@ https://vanshkashyap.lzworth.in/ is the authoritative source and carries the ful
 - [Someone to talk to](https://aura.lzworth.in/talk.html) — the Psychologist room, the mood log, and what an app cannot do
 - [Explain and quiz me](https://aura.lzworth.in/study.html) — the Teacher room: send a chapter photo, get explained, get tested
 - [FAQ](https://aura.lzworth.in/faq.html) — cost, languages, API keys, the app lock
-- [Download](https://aura.lzworth.in/download.html) — the Android build

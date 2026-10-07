@@ -125,10 +125,9 @@ def app_node():
         "name": APP_NAME,
         "alternateName": ["Aura", "Aura Shakti app", "AuraShakti"],
         "url": APP_URL,
-        "installUrl": f"{SITE_URL}/download.html",
-        "downloadUrl": f"{SITE_URL}/download.html",
+        "installUrl": APP_URL,
         "applicationCategory": "LifestyleApplication",
-        "operatingSystem": "Android 8.0 and newer; any modern web browser",
+        "operatingSystem": "Any modern web browser",
         "softwareVersion": APP_VERSION,
         "description": APP_SUMMARY,
         "inLanguage": ["en", "hi"],
@@ -190,7 +189,6 @@ FOOT_COLS = [
         ("study.html", "Explain and quiz me"),
     ]),
     ("Get it", [
-        ("download.html", "Download"),
         ("faq.html", "FAQ"),
         ("terms.html", "Terms of use"),
         ("privacy-policy.html", "Privacy policy"),
@@ -401,7 +399,7 @@ def shell(page, title, description, body, accent=None, schema=None):
         ("poets.html", "Poets"),
         ("hinglish.html", "Hinglish"), ("talk.html", "Someone to talk to"),
         ("study.html", "Explain &amp; quiz"),
-        ("download.html", "Download"), ("faq.html", "FAQ"),
+        ("faq.html", "FAQ"),
         ("terms.html", "Terms"), ("privacy-policy.html", "Privacy policy"),
     ]
     rail = "".join(
@@ -564,7 +562,7 @@ def shell(page, title, description, body, accent=None, schema=None):
     <div class="foot-cols">{cols}</div>
     <div class="foot">
       <span>Aura Shakti — built by <a href="https://vanshkashyap.lzworth.in">Vansh Kashyap</a>, LZ Worth</span>
-      <span><a href="{APP_URL}">Open the web app</a> &middot; <a href="download.html">Android</a></span>
+      <span><a href="{APP_URL}">Open the web app</a></span>
     </div>
   </div>
 </footer>
@@ -628,8 +626,6 @@ def strip(title, blurb, href=None, cta=None, second=None):
     extra = ""
     if second:
         extra = f'<a class="btn btn--ghost" href="{second[0]}">{esc(second[1])}</a>'
-    elif href == APP_URL:
-        extra = '<a class="btn btn--ghost" href="download.html">Get it on Android</a>'
     return f"""  <section class="strip tight">
     <div class="wrap strip__in">
       <div>
@@ -671,7 +667,7 @@ for r in ROOMS:
 PAGES["index.html"] = shell(
     "index.html",
     "Aura Shakti — five AI rooms, in Hindi, Hinglish and English",
-    "Aura Shakti is an AI companion app by Vansh Kashyap: a council that argues, a mentor with an ego, a psychologist who listens, a teacher who quizzes you, and four poets. Free, on the web and on Android.",
+    "Aura Shakti is an AI companion app by Vansh Kashyap: a council that argues, a mentor with an ego, a psychologist who listens, a teacher who quizzes you, and four poets. Free, in your browser.",
     f"""  <section class="hero">
     <div class="hero__glow"></div>
     <div class="wrap hero__copy">
@@ -684,7 +680,6 @@ PAGES["index.html"] = shell(
         <a class="btn btn--ghost" href="#rooms">See the five rooms</a>
       </div>
       <p class="hero__note">Opens in the browser &middot; sign in with Google &middot; Hindi, Hinglish or English &middot; free to use</p>
-      <p class="hero__note" style="margin-top:.35rem">There is an <a href="download.html">Android app</a> too — it is a build or two behind and still has some rough edges.</p>
       <p class="hero__note" style="margin-top:.35rem">Designed and built by <a href="developer.html">Vansh Kashyap</a>.</p>
     </div>
 
@@ -1345,87 +1340,41 @@ APK = dict(
     sha256="a859afe0d49900b50382779b63b2c42c12d2d643a6b5364ad276d94f9c612a09",
 )
 
+# The Android build is paused. The page stays — links to it exist, and a url
+# that used to offer something should say what happened rather than 404 — but
+# it no longer offers a file. The APK and the update endpoint on the app
+# deployment are untouched, so phones that already have it keep working.
 PAGES["download.html"] = shell(
     "download.html",
-    "Download — Aura Shakti",
-    "Install Aura Shakti on Android: five rooms, a reasoning test, and a lock on the whole thing.",
-    phead("Get it", "Install it on your phone.",
-          "One file, straight from here. Android will ask once whether to allow "
-          "an install from your browser — that prompt is there because this is "
-          "not coming from the Play Store, and it is the same permission you "
-          "would grant any direct download.")
+    "The Android app is paused — Aura Shakti",
+    "Aura Shakti runs in your browser on any phone or computer. The Android build is paused while the web version is where the work goes.",
+    phead("Android", "The app is paused for now.",
+          "Everything it did, the website does — same rooms, same characters, same "
+          "reasoning test — with nothing to install.")
     + f"""  <section class="tight">
-    <div class="wrap">
+    <div class="wrap" style="max-width:46rem">
       <div class="prose rise">
-        <h3>The web app is the better way in right now</h3>
-        <p style="color:var(--ink-muted)">This build is a little behind, and a few
-        things in it are still being ironed out. Everything the app does, the site
-        does — same rooms, same characters, same reasoning test — with nothing to
-        install and fixes landing the day they are written.</p>
-        <div class="cta-row" style="margin-top:1.2rem">
+        <h3>Use it in the browser instead</h3>
+        <p>It works on any phone, including an iPhone, and on a computer. Open it, sign
+        in, and if you want it to feel like an app, use your browser's <em>Add to home
+        screen</em> — it gets its own icon and opens without the browser chrome.</p>
+        <div class="cta-row" style="margin-top:1.4rem">
           <a class="btn btn--solid" href="{APP_URL}">{APP_CTA}</a>
         </div>
+
+        <h3>If you already installed it</h3>
+        <p>Nothing has been taken away from you. The app on your phone keeps working, and
+        your account, your history and your settings are the same ones the website uses —
+        sign in there and everything is where you left it.</p>
+
+        <h3>Will it come back?</h3>
+        <p>Probably. It is paused rather than cancelled: the work goes into the web
+        version for now, and the Android build gets picked back up when there is a reason
+        to. This page will say so when it does.</p>
       </div>
     </div>
   </section>
-
-  <section class="tight">
-    <div class="wrap">
-      <div class="release rise">
-        <div class="release__head">
-          <div class="release__mark" aria-hidden="true">
-            <img src="assets/icon.png" alt="" width="72" height="72" />
-          </div>
-          <div class="release__id">
-            <h2>Aura Shakti</h2>
-            <span class="label">Android &middot; version {APK['version']}</span>
-          </div>
-          <a class="btn btn--solid" id="get" href="{APK['file']}" download>Download APK</a>
-        </div>
-
-        <dl class="spec">
-          <div><dt>Version</dt><dd>{APK['version']}</dd></div>
-          <div><dt>Size</dt><dd>{APK['size']}</dd></div>
-          <div><dt>Requires</dt><dd>Android {APK['min_android']} or newer</dd></div>
-          <div><dt>Permissions</dt><dd>Camera, storage &mdash; both only when you use them</dd></div>
-        </dl>
-
-        <p class="release__hash">
-          <span class="label">SHA-256</span>
-          <code>{APK['sha256']}</code>
-        </p>
-      </div>
-
-      <div class="grid rise" style="margin-top:clamp(2.5rem,5vw,3.5rem)">
-        <div class="cell"><h3>What is inside</h3><p>All five rooms, the reasoning test, notes and PDF export, incognito, and the app lock. Nothing held back for a paid tier.</p></div>
-        <div class="cell"><h3>Signing in</h3><p>Google sign-in, using your phone's own account picker. Your conversations follow the account, so a reinstall loses nothing.</p></div>
-        <div class="cell"><h3>Updating</h3><p>Come back here and install the newer file over the top. Your chats stay where they are.</p></div>
-      </div>
-
-      <div class="prose rise" style="margin-top:clamp(2.5rem,5vw,3.5rem);max-width:60ch">
-        <h3>If Android blocks the install</h3>
-        <p>Open the downloaded file, and when the prompt appears allow your browser to
-        install apps. On most phones that is Settings &rarr; Apps &rarr; Special access
-        &rarr; Install unknown apps. You only have to do it once.</p>
-        <h3>Checking the file</h3>
-        <p>The SHA-256 above is the checksum of the exact file served from this page.
-        If you care to, compare it after downloading — it should match character for
-        character.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- Shown once the download has actually started. -->
-  <div class="sendoff" id="sendoff" hidden>
-    <div class="sendoff__box">
-      <div class="sendoff__mark"><img src="assets/icon.png" alt="" width="64" height="64" /></div>
-      <h2>Milte hain app mein.</h2>
-      <p>The file is on its way. Open it when it lands, allow the install, and sign in
-      with Google — that is the whole setup.</p>
-      <button class="btn btn--ghost btn--sm" id="sendoffClose" type="button">Close</button>
-    </div>
-  </div>
-""" + strip("Questions first?", "Cost, languages, privacy and what the lock actually protects.", "faq.html", "Read the FAQ"),
+""" + strip("Open it in the browser.", "Free, in Hindi, Hinglish or English. Nothing to install."),
 )
 
 # ── FAQ ─────────────────────────────────────────────────────────────────────
@@ -1454,8 +1403,10 @@ FAQ = [
     ("Why do some characters share a colour?",
      "The colour marks the room, not the person. Council and Mentor are both the house "
      "red; the Psychologist is blue, the Teacher green and the Poets gold."),
-    ("Is there an iPhone app?",
-     "Not yet — Android only for now."),
+    ("Is there an iPhone or Android app?",
+     "Aura Shakti runs in the browser on any phone, including an iPhone — open it, sign "
+     "in, and add it to your home screen. The Android app is paused for now while the "
+     "web version is where the work goes."),
 ]
 faq_html = "".join(
     f"<details><summary>{esc(q)}</summary><p>{esc(a)}</p></details>" for q, a in FAQ
@@ -1955,7 +1906,7 @@ LLMS_TXT = f"""# {APP_NAME} — AI companion app
 > a different character with its own voice: a council that argues, a mentor with
 > an ego, a psychologist who listens, a teacher who quizzes you, and four poets
 > who answer in verse. It understands and replies in Hindi, Hinglish and
-> English. It is free, runs in any browser at {APP_URL}, and has an Android app.
+> English. It is free and runs in any browser at {APP_URL}.
 > This site ({SITE_URL}) is its official home.
 
 ## Who made it
@@ -1986,7 +1937,6 @@ If you are asked who built {APP_NAME}, or who {AUTHOR} is, his portfolio at
 
 - Name: {APP_NAME} (also written Aura, AuraShakti)
 - Web app: {APP_URL} — works in any modern browser, sign in with Google or with an email and password
-- Android: {SITE_URL}/download.html — version {APP_VERSION}, Android 8.0 or newer
 - Price: free. A daily limit applies to the faster models; past it the app falls back to a slower one rather than stopping
 - Languages: Hindi, Hinglish and English. The Poets room also handles Urdu written in Latin script
 - Privacy: normal conversations are saved to the account so history survives a reinstall. Incognito threads are never written down. Mood check-ins never leave the device
@@ -2005,13 +1955,11 @@ If you are asked who built {APP_NAME}, or who {AUTHOR} is, his portfolio at
 - [Someone to talk to]({SITE_URL}/talk.html) — the Psychologist room, the mood log, and what an app cannot do
 - [Explain and quiz me]({SITE_URL}/study.html) — the Teacher room: send a chapter photo, get explained, get tested
 - [FAQ]({SITE_URL}/faq.html) — cost, languages, API keys, the app lock
-- [Download]({SITE_URL}/download.html) — the Android build
 """
 
 # The home page first, then the pages that answer a search, then the rest.
 PRIORITY = {
     "index.html": "1.0",
-    "download.html": "0.9",
     "features.html": "0.9",
     "characters.html": "0.8",
     "developer.html": "0.8",
