@@ -340,6 +340,71 @@ export interface Attachment {
   data: string;
 }
 
+/** A thread this person has had before, for the running context below. */
+export interface PastThread {
+  title: string;
+  mode: string;
+  character?: string;
+  updatedAt: number;
+}
+
+const ROOM_LABEL: Record<string, string> = {
+  COUNCIL: 'the Council', MENTOR: 'the Mentor', PSYCHOLOGY: 'the Psychologist',
+  TEACHER: 'the Teacher', EMOTION: 'the Poets',
+};
+
+/** "yesterday", "3 days ago" — a date tells you less than a distance does. */
+function whenish(at: number): string {
+  const days = Math.floor((Date.now() - at) / 86_400_000);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days} days ago`;
+  if (days < 14) return 'last week';
+  if (days < 60) return `${Math.floor(days / 7)} weeks ago`;
+  return `${Math.floor(days / 30)} months ago`;
+}
+
+/**
+ * What this person has been talking about, before today.
+ *
+ * The durable facts said who they are — a name, a city, a job. They said
+ * nothing about what has been going on, so every new chat opened as though it
+ * were the first one ever, from someone whose name you happened to know. That
+ * is the thing that gives an app away: continuity of fact without continuity of
+ * attention.
+ *
+ * Each thread is already titled with the opening line that started it, and that
+ * turns out to be the most useful sentence in the whole conversation — it is
+ * what the person actually came in with. So the recent ones go in, with which
+ * room heard them and how long ago, and no message bodies: enough to know what
+ * has been running in their life, cheap enough to send every time, and no
+ * second model call to produce it.
+ */
+function threadsPrompt(threads: PastThread[] = []): string {
+  const recent = threads
+    .filter(t => t?.title && t?.updatedAt)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .slice(0, 8);
+  if (!recent.length) return '';
+
+  const lines = recent.map(t => {
+    const where = t.mode === 'MENTOR' && t.character ? t.character : (ROOM_LABEL[t.mode] || 'a room');
+    return `- "${t.title}" — with ${where}, ${whenish(t.updatedAt)}`;
+  });
+
+  return `
+WHAT THEY HAVE BEEN TALKING ABOUT
+This is not their first conversation here. These are the threads they have had
+recently, each shown by the line they opened it with:
+${lines.join('\n')}
+Use this the way you would use knowing someone: it tells you what has been going
+on in their life and what they keep coming back to. If what they say now follows
+from one of these, treat it as continuing rather than starting — you may ask how
+that thing went, once, if it is genuinely what this reminds you of. Never list
+these back at them, never say you have been reading their history, and never
+assume the detail: you know the subject came up, not how it ended.`;
+}
+
 export async function getInnerVoiceResponse(
   userMessage: string,
   mode: 'COUNCIL' | 'MENTOR' | 'EMOTION' | 'TEACHER' | 'PSYCHOLOGY', 
@@ -348,7 +413,8 @@ export async function getInnerVoiceResponse(
   customApiKey?: string | null,
   language: string = 'en',
   isFreeTier: boolean = false,
-  attachments: Attachment[] = []
+  attachments: Attachment[] = [],
+  pastThreads: PastThread[] = []
 ): Promise<string> {
   const langPrompt = language === 'hinglish' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in Hinglish (a natural mix of Hindi and English written in Latin script). Do NOT respond in pure English.' :
                      language === 'hi' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in Hindi (using Devanagari script). Do NOT respond in English.' :
@@ -513,7 +579,7 @@ You: "Theek hai. Na jaanna bhi jawab hai.\n\nKuch aur pooch loon, ya bas thodi d
   // Anything durable the person has said before, in every room. A mentor who
   // has been told about your business should not ask what you do.
   learnFrom(userMessage, mode);
-  const systemInstruction = baseInstruction + memoryPrompt();
+  const systemInstruction = baseInstruction + memoryPrompt() + threadsPrompt(pastThreads);
 
   try {
     /**

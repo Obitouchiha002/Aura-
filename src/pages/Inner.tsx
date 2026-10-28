@@ -1432,7 +1432,14 @@ export default function Inner() {
 
     console.log("Submitting message:", userMessage);
     try {
-      const response = await getInnerVoiceResponse(userMessage, mode, selectedCharacter, newMessages.slice(0, -1), userApiKey, language, isFreeTier, outgoing);
+      const response = await getInnerVoiceResponse(
+        userMessage, mode, selectedCharacter, newMessages.slice(0, -1),
+        userApiKey, language, isFreeTier, outgoing,
+        // Everything except the thread being had right now, which the model is
+        // already reading in full. Incognito contributes nothing and is told
+        // nothing — a hidden chat that quietly shapes the next one is not hidden.
+        isIncognito ? [] : sessions.filter(x => x.id !== currentSessionId),
+      );
       const aiMsgId = (Date.now() + 1).toString();
       setStreamingMsgId(aiMsgId);
       haptic('success');
