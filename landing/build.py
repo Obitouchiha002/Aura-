@@ -265,7 +265,7 @@ CREDITS = [
 
 CHARACTERS = [
     ("On screen", "red",
-     "Operators and courtiers — people whose advice comes with a plan attached.", [
+     "Operators, courtiers and a mentalist — people whose advice comes with a plan attached.", [
          ("Thomas Shelby", "Peaky Blinders",
           "You can change what you do, but you can't change what you want."),
          ("Harvey Specter", "Suits",
@@ -280,6 +280,8 @@ CHARACTERS = [
           "A mind needs books as a sword needs a whetstone."),
          ("Petyr Baelish", "Game of Thrones",
           "Chaos isn't a pit. Chaos is a ladder."),
+         ("Patrick Jane", "The Mentalist",
+          "There is no such thing as psychics, only people who pay attention."),
      ]),
     ("Anime & manga", "blue",
      "Strategists who think several moves past the question you asked.", [
@@ -723,7 +725,7 @@ PAGES["index.html"] = shell(
           <a class="btn btn--ghost btn--sm" href="test.html">How it is scored</a>
         </div>
         <div class="card">
-          <span class="label">Twenty-five voices</span>
+          <span class="label">Twenty-six voices</span>
           <h3>Choose who advises you</h3>
           <p>From Shelby and Ayanokoji to Chanakya, Sun Tzu, Ghalib and Jaun Elia — each answers in their own register.</p>
           <a class="btn btn--ghost btn--sm" href="characters.html">Meet them</a>
@@ -769,9 +771,9 @@ ROOM_DETAIL = {
         lede="Pick who is sitting across the table. The advice arrives in their voice, "
              "with their conviction and their blind spots — which is the point.",
         sections=[
-            ("Nineteen people to choose from",
+            ("Twenty people to choose from",
              "Operators like Thomas Shelby, Harvey Specter and Gustavo Fring. "
-             "Strategists like Ayanokoji, Itachi and Johan Liebert. And three books "
+             "Strategists like Ayanokoji, Itachi and Johan Liebert. A mentalist, Patrick Jane, who reads people before he reads their question. And three books "
              "that outlasted their authors — Chanakya, Sun Tzu, Machiavelli. Each "
              "answers as themselves, not as a neutral assistant wearing a name."),
             ("Why a biased advisor is useful",
@@ -955,8 +957,8 @@ for heading, tint, blurb, people in CHARACTERS:
 PAGES["characters.html"] = shell(
     "characters.html",
     "Characters — Aura Shakti",
-    f"All {total} voices in Aura Shakti: operators, strategists, three books on strategy, and the poets.",
-    phead("The roster", "Twenty-five voices.",
+    f"All {total} voices in Aura Shakti: operators, a mentalist, strategists, three books on strategy, and the poets.",
+    phead("The roster", "Twenty-six voices.",
           "Every character in the app, and where each one comes from. Pick one in "
           "Mentor and the advice arrives in their register — the vocabulary, the "
           "temperament and the blind spots included.")
