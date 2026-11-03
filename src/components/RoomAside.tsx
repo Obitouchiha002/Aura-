@@ -1,17 +1,16 @@
 import React, { useState } from 'react';
-import { Users, ChevronRight } from 'lucide-react';
+import { MessagesSquare, ChevronRight } from 'lucide-react';
 
 /**
- * The room talking among themselves.
+ * Why the Council answered the way it did.
  *
- * The Council answers the person directly — that is the meeting, and it stays
- * on screen. This is the other half: the five seconds where they argue with
- * each other rather than with you, which is the part that makes it a room and
- * not a panel of narrators.
+ * The room argues in private and one of them brings out the conclusion. This
+ * is the argument — folded, because a person who came with a problem wants an
+ * answer, not a transcript to read through before they get one.
  *
- * Folded away, because it is not addressed to the person and interrupting the
- * answer with it would bury the answer. Open it when you want to know whether
- * they are really talking to each other.
+ * It opens for the one question that makes it worth keeping: why. Who
+ * disagreed, who was overruled, and what the room thought of them while they
+ * were not listening.
  *
  * Rendered from a ```room fence, the same mechanism the mermaid diagrams use —
  * react-markdown escapes raw HTML, so <details> would arrive as text, and
@@ -42,9 +41,9 @@ export const RoomAside: React.FC<{ source: string }> = ({ source }) => {
         aria-expanded={open}
         className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-surface-2 transition-colors"
       >
-        <Users size={14} className="text-text-faint shrink-0" />
+        <MessagesSquare size={14} className="text-text-faint shrink-0" />
         <span className="text-[12.5px] text-text-muted flex-1">
-          {open ? 'The room, among themselves' : `The room is also talking to each other (${lines.length})`}
+          {open ? 'How the room got there' : `Why — the room argued about this (${lines.length})`}
         </span>
         <ChevronRight
           size={14}
