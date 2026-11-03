@@ -52,15 +52,18 @@ export const RoomAside: React.FC<{ source: string }> = ({ source }) => {
       </button>
 
       {open && (
-        <div className="px-3 pb-3 pt-1 space-y-2 border-t border-border">
+        <div className="px-3 pb-3 pt-2 space-y-3 border-t border-border">
           {lines.map((l, i) => (
-            <p key={i} className="text-[13.5px] leading-relaxed text-text-body">
+            <div key={i} className="pl-2.5 border-l border-border">
               {l.who && (
-                <span className="text-text-primary font-medium">{l.who}</span>
+                <div className="text-[12px] font-semibold uppercase tracking-wide text-text-muted mb-0.5">
+                  {l.who}
+                </div>
               )}
-              {l.who && <span className="text-text-faint"> — </span>}
-              {l.said}
-            </p>
+              <p className="text-[14px] leading-[1.6] text-text-body break-words">
+                {l.said}
+              </p>
+            </div>
           ))}
         </div>
       )}
