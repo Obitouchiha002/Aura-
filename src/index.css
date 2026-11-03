@@ -381,10 +381,21 @@ html, body {
   background: var(--accent);
 }
 
-/* Selection */
+/* Selection
+   The highlight is neutral, not the brand colour. It used to be --accent, and
+   the app's own red text — headings, links, the mark — then sat on a red
+   background, which is the one combination where you cannot see what you have
+   selected. A highlight has one job: to be legible under every colour the page
+   puts on top of it, including its own.
+   --text-primary is the furthest thing from the page in either theme, so the
+   forced --bg on top of it is a guaranteed contrast rather than a hopeful one. */
 ::selection {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--text-primary);
+  color: var(--bg);
+}
+::-moz-selection {
+  background: var(--text-primary);
+  color: var(--bg);
 }
 
 /* Keyboard focus — visible in both themes, never on mouse clicks.
