@@ -288,9 +288,16 @@ ${p.never}`;
  * every request would be most of the prompt. The first sentence of how someone
  * sees things and the first of how they talk is enough to tell them apart.
  */
-export function rosterPrompt(names: string[]): string {
+export function rosterPrompt(names: string[], limit?: number): string {
   const first = (t: string) => t.split(/(?<=\.)\s/)[0].trim();
-  const rows = names
+  /**
+   * `limit` trims the room for a provider that charges by the token.
+   *
+   * Twenty introductions is most of the instruction, and on a tier capped at
+   * eight thousand tokens a minute that is the difference between an answer
+   * and a refusal. Fewer people in the room beats no room.
+   */
+  const rows = (typeof limit === 'number' ? names.slice(0, limit) : names)
     .map(n => {
       const p = profileFor(n);
       if (!p) return null;

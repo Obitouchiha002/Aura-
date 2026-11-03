@@ -179,7 +179,7 @@ const GROQ = 'groq';
  * the instruction and the reply inside the limit. It is less memory than Gemini
  * gets; it is also the difference between a shorter answer and no answer.
  */
-const GROQ_BUDGET = 12_000;
+const GROQ_BUDGET = 8_000;
 
 function trimForGroq(contents: any[]): any[] {
   const out: any[] = [];
@@ -196,6 +196,29 @@ function trimForGroq(contents: any[]): any[] {
 }
 
 const exhaustedModels: Record<string, number> = {};
+
+/**
+ * Which key the cooldowns below belong to.
+ *
+ * A model is marked exhausted because a quota ran out — and a quota belongs to
+ * a key, not to a model. Both caches were keyed by model name alone, so
+ * pasting a fresh key after hitting the limit changed nothing: every model was
+ * still on a ten-minute cooldown earned by the old one, the chain skipped all
+ * of them, and the new key with its untouched quota was never tried. The key
+ * appeared not to work. It had not been used.
+ *
+ * So a change of key clears them. The new one starts with everything available
+ * to it, which is the truth about it.
+ */
+let cooldownKey: string | null | undefined;
+
+function resetCooldownsIfKeyChanged(customApiKey?: string | null) {
+  const now = customApiKey || null;
+  if (now === cooldownKey) return;
+  cooldownKey = now;
+  for (const k of Object.keys(exhaustedModels)) delete exhaustedModels[k];
+  deadModels.clear();
+}
 /**
  * How long a model that returned 429 is skipped for.
  *
@@ -281,10 +304,13 @@ async function generateWithFallback(
   fastMode: boolean = true,
   relaxSafety = false,
   grounded = false,
+  leanInstruction?: string,
 ): Promise<string> {
   const retry = async <T>(fn: () => Promise<T>): Promise<T> => {
     return await fn();
   };
+
+  resetCooldownsIfKeyChanged(customApiKey);
 
   let lastError: any;
 
@@ -324,7 +350,7 @@ async function generateWithFallback(
 
     try {
       const text = modelName === GROQ
-        ? await generateWithGroqFallback(trimForGroq(contents), systemInstruction, errorPrefix, customApiKey)
+        ? await generateWithGroqFallback(trimForGroq(contents), leanInstruction || systemInstruction, errorPrefix, customApiKey)
         : await retry(() => generateOnce(modelName, contents, systemInstruction, customApiKey, relaxSafety, grounded));
       return text;
     } catch (error: any) {
@@ -504,10 +530,10 @@ WHEN THEY ASK YOU TO TEACH THEM
 - Do not soften, hedge, moralise, or add disclaimers. These characters are ruthless, amoral and self-interested by design — write them that way. No warnings about their advice, no "but of course" caveats, no stepping outside the character to be responsible.
 - ${langPrompt} You must maintain the personality, emotional depth, realism, and cinematic tone in EVERY language. Never translate mechanically. Adapt emotionally avoiding robotic AI tones.`;
 
-  const councilInstruction = `You are a room of ruthless, highly intelligent people who have been called together about one person's problem. They are in the chair. You are not a panel of narrators taking turns — you are a meeting, and meetings have arguments.
+  const councilInstructionFor = (rosterSize: number | undefined, withAside: boolean) => `You are a room of ruthless, highly intelligent people who have been called together about one person's problem. They are in the chair. You are not a panel of narrators taking turns — you are a meeting, and meetings have arguments.
 
 WHO IS IN THE ROOM
-${rosterPrompt(COUNCIL_ROSTER)}
+${rosterPrompt(COUNCIL_ROSTER, rosterSize)}
 
 HOW THE MEETING RUNS
 - Two to four of them speak. Choose them because their views genuinely collide on THIS question, not because they are the famous ones — a question about someone's family is not a question for the same three who answer about money. Across a conversation, different people should have spoken.
@@ -519,6 +545,7 @@ HOW THE MEETING RUNS
 WHEN THEY ARE ADDRESSED DIRECTLY
 - If the person speaks to one of them by name — "Shelby, go on", "Tywin, explain that" — then only that person answers, at length, alone. The room stays quiet. They keep the floor until the person turns away from them.
 
+${withAside ? `
 THE SIDE CONVERSATION
 - After the meeting has spoken, you may add what they say to each other rather than to the person. It goes in a fenced block exactly like this, and nowhere else:
 
@@ -529,8 +556,20 @@ Thomas Shelby: Then tell him he's wrong and watch what he does.
 
 - Two to four lines, 'Name: what they said', nothing else inside the block. This is them talking past the person rather than to them — shorter, sharper, a little unguarded about the person themselves. It stays folded until they open it, so it must never carry anything they need to read.
 - Leave it out when the room had nothing to say to each other. An empty aside is worse than none.
-
+` : ''}
 ${corePersonaRules}`;
+
+  const councilInstruction = councilInstructionFor(undefined, true);
+
+  /**
+   * The same room, for a tier that charges by the token.
+   *
+   * Twenty introductions and the side conversation are most of what a
+   * Council request costs, and on a tier capped at eight thousand tokens a
+   * minute that cost is the difference between an answer and a refusal.
+   * Eight people still argue; nobody argues at all if the request is rejected.
+   */
+  const councilLean = councilInstructionFor(8, false);
 
   /**
    * The dossier does the work here. "You are ${character}" on its own left the
@@ -717,7 +756,10 @@ You: "Theek hai. Na jaanna bhi jawab hai.\n\nKuch aur pooch loon, ya bas thodi d
      */
     const grounded = mode === 'TEACHER';
 
-    return await generateWithFallback(contents, systemInstruction, mode === 'TEACHER' ? "The Professor" : mode === 'PSYCHOLOGY' ? "The Psychologist" : mode === 'EMOTION' ? "The Council of Emotions" : "The Council", customApiKey, isFreeTier, relaxSafety, grounded);
+    return await generateWithFallback(contents, systemInstruction, mode === 'TEACHER' ? "The Professor" : mode === 'PSYCHOLOGY' ? "The Psychologist" : mode === 'EMOTION' ? "The Council of Emotions" : "The Council", customApiKey, isFreeTier, relaxSafety, grounded,
+      // The Council is the only room big enough to need a smaller version of
+      // itself; the others already fit.
+      mode === 'COUNCIL' ? councilLean + memoryPrompt() + threadsPrompt(pastThreads) : undefined);
   } catch (error: any) {
     console.error("Unexpected Gemini API Error:", error);
     return `[System Error] An unexpected error occurred. (${error?.message || "Unknown error"})`;
