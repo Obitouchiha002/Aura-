@@ -157,6 +157,44 @@ async function generateOnce(
   return withSources(data?.text || "Silence.", data?.sources);
 }
 
+/**
+ * Groq's place in the model chain.
+ *
+ * Not a Gemini model name, so the loop hands it to the Groq path instead. It
+ * sits in the list rather than behind a special case, which is the whole point:
+ * it is now reached whenever the models before it fail, for any reason.
+ */
+const GROQ = 'groq';
+
+/**
+ * How much conversation Groq is sent.
+ *
+ * Its free tier allows 8,000 tokens a minute — generous in requests, tight in
+ * tokens — and the budget everywhere else is 240,000 characters, which is about
+ * sixty thousand tokens. One ordinary message would be seven times the entire
+ * minute's allowance and simply fail.
+ *
+ * So the thread is cut to its most recent part before it goes there. Twelve
+ * thousand characters is roughly three thousand tokens, which leaves room for
+ * the instruction and the reply inside the limit. It is less memory than Gemini
+ * gets; it is also the difference between a shorter answer and no answer.
+ */
+const GROQ_BUDGET = 12_000;
+
+function trimForGroq(contents: any[]): any[] {
+  const out: any[] = [];
+  let used = 0;
+  for (let i = contents.length - 1; i >= 0; i--) {
+    const size = (contents[i]?.parts?.[0]?.text || '').length;
+    if (used + size > GROQ_BUDGET && out.length >= 2) break;
+    out.unshift(contents[i]);
+    used += size;
+  }
+  // A conversation that starts on a model turn is rejected; drop it.
+  while (out.length && out[0]?.role === 'model') out.shift();
+  return out.length ? out : contents.slice(-1);
+}
+
 const exhaustedModels: Record<string, number> = {};
 /**
  * How long a model that returned 429 is skipped for.
@@ -264,6 +302,7 @@ async function generateWithFallback(
     "gemini-3-flash-preview",
     "gemini-2.5-flash",
     "gemini-3.1-pro-preview",
+    GROQ,
   ] : [
     // Pro is the better answer when the quota allows it, but it is also the
     // first to run out, so the flash models sit behind it rather than the
@@ -273,6 +312,7 @@ async function generateWithFallback(
     "gemini-3-flash-preview",
     "gemini-3.1-flash-lite-preview",
     "gemini-2.5-flash",
+    GROQ,
   ];
 
   for (const modelName of modelsToTry) {
@@ -283,7 +323,9 @@ async function generateWithFallback(
     }
 
     try {
-      const text = await retry(() => generateOnce(modelName, contents, systemInstruction, customApiKey, relaxSafety, grounded));
+      const text = modelName === GROQ
+        ? await generateWithGroqFallback(trimForGroq(contents), systemInstruction, errorPrefix, customApiKey)
+        : await retry(() => generateOnce(modelName, contents, systemInstruction, customApiKey, relaxSafety, grounded));
       return text;
     } catch (error: any) {
       lastError = error;
@@ -316,15 +358,11 @@ async function generateWithFallback(
   console.error("All models failed or fatal error:", lastError);
   const finalErrorMessage = lastError?.message || "";
   
-  if (finalErrorMessage.includes('429') || finalErrorMessage.includes('quota') || finalErrorMessage.includes('limit exceeded')) {
-    console.warn("Gemini quota exhausted. Falling back to Groq API...");
-    try {
-      return await generateWithGroqFallback(contents, systemInstruction, errorPrefix, customApiKey);
-    } catch (groqError: any) {
-      return groqError.message;
-    }
-  }
-
+  // Groq is in the chain above now, so by this point it has been tried too.
+  // It used to be called only when the LAST model happened to fail with a 429 —
+  // so four models exhausting their quota and a fifth answering 503 produced
+  // "overwhelmed across all tiers" while the thousand-a-day fallback sat
+  // untouched. That sentence was true about the tier it never reached.
   if (finalErrorMessage.includes('503') || finalErrorMessage.includes('high demand') || finalErrorMessage.includes('overloaded')) {
     return `[System Error] ${errorPrefix} is currently overwhelmed with requests across all tiers. Please wait a moment and try again.`;
   }
