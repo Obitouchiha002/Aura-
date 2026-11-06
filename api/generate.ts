@@ -186,11 +186,17 @@ const REQUIRE_AUTH = process.env.REQUIRE_AUTH === 'true';
  * A date closes it on its own. Nobody has to remember, and nobody is cut off
  * before their app has had the chance to update itself.
  *
- * REQUIRE_AUTH=true still forces it immediately, and clearing this variable
- * reopens the endpoint — which is the lever to pull if the day it closes turns
- * out to be the day something unexpected breaks.
+ * REQUIRE_AUTH=true still forces it immediately, and setting this variable to
+ * an empty value reopens the endpoint — which is the lever to pull if the day
+ * it closes turns out to be the day something unexpected breaks, and the one
+ * to put in .env.local to work on this app without signing in to it.
+ *
+ * It reads `??` and not `||`, which is the whole difference between the lever
+ * existing and not: with `||`, setting it empty fell straight back to the
+ * default date, so the documented way to reopen the endpoint quietly did
+ * nothing at all.
  */
-const REQUIRE_AUTH_AFTER = process.env.REQUIRE_AUTH_AFTER || '2026-10-04';
+const REQUIRE_AUTH_AFTER = process.env.REQUIRE_AUTH_AFTER ?? '2026-10-04';
 
 function authRequiredNow(): boolean {
   if (REQUIRE_AUTH) return true;

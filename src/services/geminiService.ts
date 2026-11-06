@@ -397,6 +397,21 @@ async function generateWithFallback(
         continue;
       }
       
+      /**
+       * Not signed in is not an outage, and it is not worth twelve attempts.
+       *
+       * The endpoint refuses an unverified caller, so every model and every
+       * provider refuses identically — and the chain dutifully asked all of
+       * them before reporting the last one's words: "The connection is
+       * temporarily severed. (cloudflare: Sign in to use this.)" Twelve
+       * round trips to be told something the first one knew, phrased as a
+       * network fault and attributed to whichever provider happened to be
+       * last in the list.
+       */
+      if (errorMessage.includes('Sign in to use this') || errorMessage.includes('401')) {
+        return `[System Error] You are signed out. Sign in again and the room will answer.`;
+      }
+
       if (errorMessage.includes('not configured')) {
         // No key for it on this deployment. Asking again would only cost
         // another round trip to our own server, every message, forever.
