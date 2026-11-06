@@ -2805,6 +2805,7 @@ export default function Inner() {
               onDelete={removeCouncil}
               onClose={() => setIsCouncilSheetOpen(false)}
               displayName={displayName}
+              initials={initials}
             />
           </Suspense>
         )}
