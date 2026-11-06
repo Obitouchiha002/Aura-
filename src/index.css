@@ -63,8 +63,12 @@
   --surface: #141414;
   --surface-2: #1C1C1C;
   --elevated: #101010;
-  --border-color: #2A2A2A;
-  --border-strong: #3A3A3A;
+  /* A line is the loudest thing on a quiet screen. These sit one step back
+     from where they were: still a boundary where one is genuinely needed —
+     the composer, a menu's edge — and no longer a drawn frame around things
+     that spacing had already separated. */
+  --border-color: #212121;
+  --border-strong: #303030;
   --scrim: rgba(0, 0, 0, .72);
 
   /* text — solid hex only, never opacity */
@@ -127,8 +131,8 @@
   --surface: #FFFFFF;
   --surface-2: #F4F5F7;
   --elevated: #FFFFFF;
-  --border-color: #E7E9EE;
-  --border-strong: #CDD2DB;
+  --border-color: #EDEFF3;
+  --border-strong: #D8DCE4;
   --scrim: rgba(16, 24, 40, .32);
 
   --text-primary: #0F1114;   /* 18.5:1 on --bg */

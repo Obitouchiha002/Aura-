@@ -67,6 +67,23 @@ const STARTERS: [string, string][] = [
   ['Make notes on a topic', 'एक विषय पर नोट्स बनाइए'],
 ];
 
+/**
+ * The room's name as the header says it — one word, no article.
+ *
+ * The header used to carry a four-tab segmented control that wrapped onto its
+ * own full-width row on a phone: a loud tinted pill taking a whole line of a
+ * screen whose entire job is reading what someone wrote back to you. The room
+ * is chosen rarely and read constantly, which is exactly the shape of thing
+ * every assistant worth copying puts behind one quiet label.
+ */
+const ROOM_LABEL: Record<Mode, [string, string]> = {
+  COUNCIL: ['Council', 'परिषद'],
+  MENTOR: ['Mentor', 'गुरु'],
+  PSYCHOLOGY: ['Psychologist', 'मनोविज्ञानी'],
+  TEACHER: ['Teacher', 'शिक्षक'],
+  EMOTION: ['Poets', 'कवि'],
+};
+
 const ROOM_NAME: Record<Mode, string> = {
   COUNCIL: 'The Council',
   MENTOR: 'The Mentor',
@@ -1550,8 +1567,8 @@ export default function Inner() {
               else moved into the menu sheet — seven icon buttons plus tabs in
               one bar was the main thing making this screen feel busy. */}
           <div className="w-full flex flex-wrap items-center max-w-4xl mx-auto gap-y-3 gap-x-2">
-            {/* Left: wordmark */}
-            <div className="flex items-center gap-2.5 shrink-0 order-1">
+            {/* Left: wordmark, then the room */}
+            <div className="flex items-center gap-2 shrink-0 order-1 min-w-0">
               <span className="flex items-baseline gap-[3px] select-none">
                 <span className="font-display font-bold text-[20px] sm:text-[22px] leading-none tracking-[0.09em] uppercase text-text-primary">
                   Aura
@@ -1575,90 +1592,48 @@ export default function Inner() {
                   </motion.button>
                 )}
               </AnimatePresence>
-            </div>
 
-            {/* Center: Mode Toggle */}
-            <div className="order-3 sm:order-2 w-full sm:flex-1 flex justify-center min-w-0">
-            {/* Segmented control. Labels are sentence case at a readable size —
-                the old 9px all-caps at 0.2em tracking was the least legible
-                type in the app, and it sat on the primary navigation. */}
-            <div className="flex items-stretch gap-0.5 p-1 bg-surface rounded-2xl border border-border shadow-soft w-full sm:w-auto max-w-full relative">
-              {(['COUNCIL', 'MENTOR', 'PSYCHOLOGY'] as const).map((m) => {
-                const isActive = mode === m;
-                return (
-                <button
-                    key={m}
-                    onClick={() => { if (mode !== m) { triggerHaptic(); switchChat(m); } }}
-                    aria-pressed={isActive}
-                    className={`relative min-h-[40px] shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-[12.5px] font-medium tracking-[0.01em] transition-colors duration-200 ${isActive ? 'text-on-accent' : 'text-text-muted hover:text-text-primary'}`}
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeMode"
-                        className="absolute inset-0 bg-mode-tint rounded-xl shadow-soft"
-                        transition={{ type: "spring", bounce: 0.15, duration: 0.45 }}
-                      />
-                    )}
-                    <span className="relative z-10 whitespace-nowrap">
-                      {lang === 'en'
-                        ? (m === 'COUNCIL' ? 'Council' : m === 'MENTOR' ? 'Mentor' : 'Psychologist')
-                        : (m === 'COUNCIL' ? 'परिषद' : m === 'MENTOR' ? 'गुरु' : 'मनोविज्ञानी')}
-                    </span>
-                  </button>
-                );
-              })}
+              {/* The room. One word, a chevron, and a menu holding all five. */}
               <div className="relative">
                 <button
                   onClick={() => setIsMoreOpen(!isMoreOpen)}
                   aria-expanded={isMoreOpen}
-                  className={`relative min-h-[40px] shrink-0 w-auto px-3.5 sm:px-4 py-2 rounded-xl text-[12.5px] font-medium tracking-[0.01em] transition-colors duration-200 flex items-center justify-center gap-1 ${(mode === 'TEACHER' || mode === 'EMOTION') ? 'text-on-accent' : 'text-text-muted hover:text-text-primary'}`}
+                  aria-haspopup="menu"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[13.5px] text-text-muted hover:text-text-primary hover:bg-surface-2 transition-colors"
                 >
-                  {(mode === 'TEACHER' || mode === 'EMOTION') && (
-                    <motion.div
-                      layoutId="activeMode"
-                      className="absolute inset-0 bg-mode-tint rounded-xl shadow-soft"
-                      transition={{ type: "spring", bounce: 0.15, duration: 0.45 }}
-                    />
-                  )}
-                  <span className="relative z-10 whitespace-nowrap flex items-center gap-1">
-                    {lang === 'en' ? ((mode === 'TEACHER' || mode === 'EMOTION') ? (mode === 'TEACHER' ? 'Teacher' : 'Poets') : 'More') : ((mode === 'TEACHER' || mode === 'EMOTION') ? (mode === 'TEACHER' ? 'शिक्षक' : 'कवि') : 'अन्य')}
-                    <ChevronDown size={13} className={`transition-transform ${isMoreOpen ? 'rotate-180' : ''}`} />
-                  </span>
+                  <span className="whitespace-nowrap">{ROOM_LABEL[mode][lang === 'en' ? 0 : 1]}</span>
+                  <ChevronDown size={14} className={`shrink-0 transition-transform ${isMoreOpen ? 'rotate-180' : ''}`} />
                 </button>
-                
+
                 <AnimatePresence>
                   {isMoreOpen && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setIsMoreOpen(false)} />
-                      {/* Anchored to the button's centre so it reads as coming
-                          out of "More" rather than floating off to one side. */}
                       <motion.div
-                        initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                        initial={{ opacity: 0, y: -6, scale: 0.97 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -6, scale: 0.96 }}
-                        transition={{ duration: 0.15, ease: 'easeOut' }}
+                        exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                        transition={{ duration: 0.14, ease: 'easeOut' }}
                         role="menu"
-                        /* Centred under "More", but "More" sits at the right of
-                           a phone screen, so the sheet was touching the edge.
-                           right-0 on small screens keeps a margin. */
-                        className="absolute top-full right-0 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 mt-3 mr-1 sm:mr-0 w-40 bg-surface border border-border rounded-2xl p-1.5 shadow-float z-50 origin-top"
+                        className="absolute top-full left-0 mt-2 w-44 bg-surface border border-border rounded-2xl p-1.5 shadow-float z-50 origin-top-left"
                       >
-                        {([
-                          { id: 'TEACHER', en: 'Teacher', hi: 'शिक्षक' },
-                          { id: 'EMOTION', en: 'Poets', hi: 'कवि' },
-                        ] as const).map(item => (
+                        {(['COUNCIL', 'MENTOR', 'PSYCHOLOGY', 'TEACHER', 'EMOTION'] as const).map(item => (
                           <button
-                            key={item.id}
+                            key={item}
                             role="menuitem"
-                            onClick={() => { triggerHaptic(); switchChat(item.id); setIsMoreOpen(false); }}
-                            className={`w-full flex items-center justify-between gap-2 text-left px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors ${
-                              mode === item.id
-                                ? 'bg-mode-wash text-mode-tint'
+                            onClick={() => {
+                              triggerHaptic();
+                              if (mode !== item) switchChat(item);
+                              setIsMoreOpen(false);
+                            }}
+                            className={`w-full flex items-center justify-between gap-2 text-left px-3 py-2.5 rounded-xl text-[13px] transition-colors ${
+                              mode === item
+                                ? 'text-text-primary font-medium'
                                 : 'text-text-muted hover:text-text-primary hover:bg-surface-2'
                             }`}
                           >
-                            {lang === 'en' ? item.en : item.hi}
-                            {mode === item.id && <Check size={13} className="shrink-0" />}
+                            {ROOM_LABEL[item][lang === 'en' ? 0 : 1]}
+                            {mode === item && <Check size={13} className="shrink-0 text-mode-tint" />}
                           </button>
                         ))}
                       </motion.div>
@@ -1666,7 +1641,6 @@ export default function Inner() {
                   )}
                 </AnimatePresence>
               </div>
-            </div>
             </div>
 
             {/* Right: mentor avatar (when relevant) + new chat + one menu */}
@@ -1904,7 +1878,7 @@ export default function Inner() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: mode === 'COUNCIL' || mode === 'EMOTION' ? 20 : -20 }}
             transition={{ duration: 0.3, ease: "easeOut" }}
-            className="w-full max-w-3xl mx-auto min-h-full flex flex-col space-y-4"
+            className="w-full max-w-3xl mx-auto min-h-full flex flex-col space-y-7"
           >
             {messages.length === 0 && (
               <div className="flex-1 flex flex-col items-center justify-center text-center px-2 py-6 sm:py-10">
@@ -2031,7 +2005,7 @@ export default function Inner() {
                   <div className={`flex flex-col min-w-0 ${
                     /* Formatted answers — headings, steps, tables — need room;
                        your own messages read better kept narrow. */
-                    msg.isAi ? 'max-w-[92%] md:max-w-[78%] items-start' : 'max-w-[85%] md:max-w-[70%] items-end'
+                    msg.isAi ? 'w-full items-start' : 'max-w-[85%] md:max-w-[75%] items-end'
                   }`}>
                     {msg.isAi && !isError && !isNotice && (() => {
                       const speaker = speakerOf(msg.text, msg.character);
@@ -2062,18 +2036,33 @@ export default function Inner() {
                         </span>
                       );
                     })()}
+                    {/*
+                      The answer has no bubble.
+
+                      It used to sit in a surface-coloured box with a border and
+                      a shadow, which cost three things at once: a frame drawn
+                      around every reply whether or not it needed one, a column
+                      narrower than the screen it was on, and a container for
+                      anything the reply contained to nest inside — the room
+                      block arrived as a box within a box within a box.
+
+                      Nobody who does this well boxes the answer. The reply is
+                      the page. What stays in a container is your own message,
+                      because that one is a thing you said and wants to look
+                      like it, and a notice, because it is neither.
+                    */}
                     <div
-                      className={`px-4 py-3 text-[14.5px] leading-[1.65] min-w-0 max-w-full ${
+                      className={`text-[15px] leading-[1.7] min-w-0 max-w-full ${
                         isError
-                          ? 'bg-accent-wash text-text-body rounded-2xl rounded-tl-md border border-aura-red/30'
+                          ? 'px-4 py-3 bg-accent-wash text-text-body rounded-2xl rounded-tl-md border border-aura-red/30'
                           : isNotice
-                          ? 'bg-surface-2 text-text-muted rounded-2xl border border-border text-[13px]'
+                          ? 'px-4 py-3 bg-surface-2 text-text-muted rounded-2xl border border-border text-[13px]'
                           : msg.isAi
-                          ? 'bg-surface text-text-primary rounded-2xl rounded-tl-md border border-border shadow-soft'
-                          /* Your bubble takes the colour of the room you are
+                          ? 'text-text-primary'
+                          /* Your message takes the colour of the room you are
                              in — gold with the Poets, blue with the
                              Psychologist, red in Council and Mentor. */
-                          : 'bg-mode-tint text-on-accent font-medium rounded-2xl rounded-br-md whitespace-pre-wrap shadow-soft'
+                          : 'px-4 py-3 bg-mode-tint text-on-accent font-medium rounded-2xl rounded-br-md whitespace-pre-wrap'
                       }`}
                     >
                       {msg.isAi ? (
@@ -2163,7 +2152,7 @@ export default function Inner() {
                         text. Your own messages get Copy too — you often want
                         to reuse a prompt you already wrote. */}
                     {!isNotice && (
-                      <div className={`flex items-center gap-1 mt-1.5 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 transition-opacity ${msg.isAi ? 'ml-1' : 'mr-1'}`}>
+                      <div className={`flex items-center gap-1 mt-1.5 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 transition-opacity ${msg.isAi ? '-ml-2' : 'mr-1'}`}>
                         <button
                           onClick={async () => {
                             try {
@@ -2222,7 +2211,7 @@ export default function Inner() {
                   animate={{ opacity: 1, y: 0 }}
                   className="flex justify-start"
                 >
-                  <div className="bg-surface px-5 py-3 rounded-2xl rounded-bl-none border border-border flex items-center gap-3 w-fit max-w-[80%]">
+                  <div className="flex items-center gap-3 w-fit max-w-[80%] py-1">
                     <div className="flex gap-1.5">
                       <span className="w-1.5 h-1.5 bg-mode-tint rounded-full animate-bounce [animation-delay:-0.3s]" />
                       <span className="w-1.5 h-1.5 bg-mode-tint rounded-full animate-bounce [animation-delay:-0.15s]" />
