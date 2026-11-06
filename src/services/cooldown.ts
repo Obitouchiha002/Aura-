@@ -50,8 +50,19 @@ function msUntilPacificMidnight(now: Date = new Date()): number {
  * neither, the old ten minutes still stands.
  */
 export function cooldownFor(message: string, now: Date = new Date()): number {
-  const told = /retry[-_ ]?delay\D{0,12}(\d+)\s*s/i.exec(message);
-  if (told) return Math.min(Number(told[1]) + 5, 3600) * 1000;
+  // Google says it two ways. The structured field — retryDelay: "26s" — and,
+  // in the human sentence underneath, "Please retry in 39m28.12s". Both are
+  // worth more than any rule we could infer: a daily quota that returns in
+  // forty minutes should not be benched until midnight because the words
+  // "per day" appeared in the same paragraph.
+  const delay = /retry[-_ ]?delay\D{0,12}(\d+)\s*s/i.exec(message);
+  if (delay) return Math.min(Number(delay[1]) + 5, 3600) * 1000;
+
+  const human = /retry in (?:(\d+)\s*h)?\s*(?:(\d+)\s*m)?\s*(?:([\d.]+)\s*s)?/i.exec(message);
+  if (human && (human[1] || human[2] || human[3])) {
+    const secs = Number(human[1] || 0) * 3600 + Number(human[2] || 0) * 60 + Math.ceil(Number(human[3] || 0));
+    if (secs > 0) return Math.min(secs + 5, 24 * 3600) * 1000;
+  }
   if (/per[\s_-]*day|perday|daily/i.test(message)) return msUntilPacificMidnight(now);
   if (/per[\s_-]*minute|perminute/i.test(message)) return 65 * 1000;
   return EXHAUST_COOLDOWN;

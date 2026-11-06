@@ -369,6 +369,19 @@ async function generateWithFallback(
     ...FALLBACKS,
   ];
 
+  /**
+   * What went wrong, rather than what went wrong last.
+   *
+   * The loop kept only `lastError`, and the last thing tried is the least
+   * informative thing in the chain — the final fallback, which on most
+   * deployments has no key. So a spent Gemini quota was reported as
+   * "Cloudflare Workers AI is not configured", which is true, irrelevant, and
+   * tells the person nothing they can act on.
+   */
+  let sawQuota = false;
+  let attempted = 0;
+  const unconfigured: string[] = [];
+
   for (const modelName of modelsToTry) {
     if (deadModels.has(modelName)) continue;
     if (exhaustedModels[modelName] && Date.now() < exhaustedModels[modelName]) {
@@ -376,6 +389,7 @@ async function generateWithFallback(
       continue;
     }
 
+    attempted++;
     try {
       const text = FALLBACKS.includes(modelName)
         ? await generateViaProvider(modelName, trimForFallback(contents), leanInstruction || systemInstruction, errorPrefix, customApiKey)
@@ -386,6 +400,7 @@ async function generateWithFallback(
       const errorMessage = error?.message || "";
       
       if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('limit exceeded')) {
+        sawQuota = true;
         const wait = cooldownFor(errorMessage);
         console.warn(`Quota exceeded for ${modelName}. Benching it for ${Math.round(wait / 1000)}s and falling back to the next model...`);
         exhaustedModels[modelName] = Date.now() + wait;
@@ -413,6 +428,7 @@ async function generateWithFallback(
       }
 
       if (errorMessage.includes('not configured')) {
+        unconfigured.push(modelName);
         // No key for it on this deployment. Asking again would only cost
         // another round trip to our own server, every message, forever.
         console.warn(`${modelName} has no key here. Dropping it for this session.`);
@@ -442,10 +458,39 @@ async function generateWithFallback(
   // fifth answering 503 produced "overwhelmed across all tiers" while the
   // untouched fallback sat there. That sentence was true about a tier it never
   // reached. It is only allowed to be said down here, where it is earned.
+  if (sawQuota) {
+    /**
+     * Say when, because the model told us.
+     *
+     * Google's refusal carries how long to wait, and the chain has already
+     * parsed it to decide how long to bench each name. The soonest of those
+     * is the soonest this can work again, and it is the only thing a person
+     * reading this actually wants to know.
+     */
+    const soonest = modelsToTry
+      .map(m => exhaustedModels[m])
+      .filter(Boolean)
+      .sort((a, b) => a - b)[0];
+    const mins = soonest ? Math.max(1, Math.round((soonest - Date.now()) / 60_000)) : 0;
+    const when = !mins ? ''
+      : mins < 90 ? ` Try again in about ${mins} minute${mins === 1 ? '' : 's'}.`
+      : ` The day's allowance resets after midnight in California.`;
+    const spare = unconfigured.length
+      ? ` ${unconfigured.length} spare provider${unconfigured.length === 1 ? ' has' : 's have'} no key on this deployment — adding one would have answered this.`
+      : '';
+    return `[System Error] Today's free quota is gone on every model this key can reach.${when}${spare}`;
+  }
+
+  // Only when every single thing tried was "no key here". Anything else in
+  // the mix means something real failed and that is the news.
+  if (attempted > 0 && unconfigured.length === attempted) {
+    return `[System Error] Nothing on this deployment is configured to answer. Add a provider key.`;
+  }
+
   if (finalErrorMessage.includes('503') || finalErrorMessage.includes('high demand') || finalErrorMessage.includes('overloaded')) {
     return `[System Error] ${errorPrefix} is currently overwhelmed with requests across all tiers. Please wait a moment and try again.`;
   }
-  
+
   return `[System Error] The connection is temporarily severed. (${finalErrorMessage || "Unknown error"})`;
 }
 

@@ -33,4 +33,13 @@ assert.strictEqual(s(cooldownFor(withDelay)), 31);
 // Told nothing, fall back to what the app did before.
 assert.strictEqual(s(cooldownFor(vague)), 600);
 
-console.log('cooldownFor: 4 checks passed');
+// Google's own sentence wins over the words around it: this message says
+// "per day" and "retry in 39m" in the same breath, and forty minutes is the
+// true answer — benching it until midnight throws away the rest of the day.
+const perDayButSoon =
+  '429 Quota exceeded for metric: generate_content_free_tier_requests, limit: 20, ' +
+  'description: Generate content requests per day limit exceeded on Free Tier. ' +
+  'Please retry in 39m28.120444632s.';
+assert.strictEqual(s(cooldownFor(perDayButSoon)), 39 * 60 + 29 + 5);
+
+console.log('cooldownFor: 5 checks passed');
