@@ -766,6 +766,20 @@ export default function Inner() {
   const [hasText, setHasText] = useState(false);
   /** Only to tell typing from deleting, for the haptic tick. */
   const lastLenRef = useRef(0);
+  /**
+   * The draft, for the moments its own node does not exist.
+   *
+   * Moving the text into the DOM stopped every keystroke re-rendering the
+   * chat, and cost something nobody noticed until it was gone: Focus and
+   * Simulator replace the whole chat subtree, so opening either destroyed
+   * the textarea and three paragraphs with it. `hasText` lives on `Inner`,
+   * which does not unmount, so Send stayed lit over an empty box and did
+   * nothing when pressed.
+   *
+   * A ref, not state — written on every keystroke, and writing a ref costs
+   * no render, which was the entire point of the change this repairs.
+   */
+  const draftRef = useRef('');
   
   const { isListening, toggleListening } = useMicrophone(language, (text) => setDraft(text));
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -908,6 +922,10 @@ export default function Inner() {
     el.style.height = `${Math.min(el.scrollHeight, 150)}px`;
   };
 
+  // Coming back from Focus or Simulator mounts a fresh textarea holding the
+  // restored draft at its one-line default height.
+  useEffect(() => { if (view === 'chat') autosize(); }, [view]);
+
   const activeCouncilId = mode === 'COUNCIL' && isCouncilId(selectedCharacter) ? selectedCharacter : '';
   const activeCouncil = councilById(councils, activeCouncilId);
 
@@ -985,6 +1003,11 @@ export default function Inner() {
       el.value = text;
       autosize();
     }
+    draftRef.current = text;
+    // Without this, clearing the box after a send left the counter at the old
+    // message's length and the typing tick stayed dead until the next message
+    // grew past it.
+    lastLenRef.current = text.length;
     setHasText(Boolean(text.trim()));
   };
 
@@ -2732,12 +2755,16 @@ export default function Inner() {
           <textarea
             id="chat-input"
             ref={inputRef}
+            /* Uncontrolled, so this is read once per mount — which is exactly
+               when a draft needs restoring. */
+            defaultValue={draftRef.current}
             onChange={(e) => {
               const text = e.target.value;
               // A light tick per keystroke, throttled — an unthrottled
               // vibrate() on every key reads as one continuous rattle.
               if (text.length > lastLenRef.current) haptic('tap', 90);
               lastLenRef.current = text.length;
+              draftRef.current = text;
               autosize();
               // The only state change typing can cause, and it happens twice
               // in a message rather than once a character.
