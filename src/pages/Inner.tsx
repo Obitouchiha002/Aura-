@@ -7,9 +7,10 @@ import { useLang } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { collection, doc, getDoc, getDocs, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Send, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as SettingsIcon, RefreshCcw, Download, Users, Sparkles, Target, Gamepad2, Mic, Ghost, Copy, Check, Search, Menu, Eye, Paperclip, Camera, ImagePlus, FileText, FileDown, Printer, ClipboardList, HeartPulse, GraduationCap } from 'lucide-react';
+import { Send, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as SettingsIcon, RefreshCcw, Download, Users, Sparkles, Target, Gamepad2, Mic, Ghost, Copy, Check, Search, Menu, Eye, Paperclip, Camera, ImagePlus, FileText, FileDown, Printer, ClipboardList, HeartPulse, GraduationCap, Pin } from 'lucide-react';
 import { Settings } from '../components/Settings';
 import { saveAsset, getAsset } from '../utils/db';
+import { gistOf } from '../services/threads';
 import Focus from './Focus';
 import Simulator from './Simulator';
 
@@ -82,6 +83,15 @@ const ROOM_LABEL: Record<Mode, [string, string]> = {
   PSYCHOLOGY: ['Psychologist', 'मनोविज्ञानी'],
   TEACHER: ['Teacher', 'शिक्षक'],
   EMOTION: ['Poets', 'कवि'],
+};
+
+/** What each room is for — the menu is where someone finds out. */
+const ROOM_WHAT: Record<Mode, [string, string]> = {
+  COUNCIL: ['They argue, one answers', 'वो बहस करते हैं, एक जवाब देता है'],
+  MENTOR: ['One person, in character', 'एक शख़्स, अपने अंदाज़ में'],
+  PSYCHOLOGY: ['Someone who listens', 'कोई जो सुनता है'],
+  TEACHER: ['Explains, then tests you', 'समझाते हैं, फिर पूछते हैं'],
+  EMOTION: ['When it wants a couplet', 'जब बात शेर माँगे'],
 };
 
 const ROOM_NAME: Record<Mode, string> = {
@@ -542,11 +552,14 @@ function AppMenu({ lang, onClose, items, handoff }: {
   );
 }
 
-function CharacterPicker({ mode, lang, options, selected, onSelect, onClose }: {
+function CharacterPicker({ mode, lang, options, selected, pinned, onPin, onSelect, onClose }: {
   mode: 'MENTOR' | 'EMOTION';
   lang: string;
   options: string[];
   selected: string;
+  /** Who a new conversation in this room opens with. */
+  pinned?: string;
+  onPin: (char: string) => void;
   onSelect: (char: string) => void;
   onClose: () => void;
 }) {
@@ -558,7 +571,11 @@ function CharacterPicker({ mode, lang, options, selected, onSelect, onClose }: {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const filtered = options.filter(c => c.toLowerCase().includes(q.trim().toLowerCase()));
+  // Whoever is pinned sits at the top. They are the one this room opens with,
+  // and twenty-five names deep is not where that belongs.
+  const filtered = options
+    .filter(c => c.toLowerCase().includes(q.trim().toLowerCase()))
+    .sort((a, b) => (b === pinned ? 1 : 0) - (a === pinned ? 1 : 0));
   const showSearch = options.length > 8;
 
   return (
@@ -632,7 +649,7 @@ function CharacterPicker({ mode, lang, options, selected, onSelect, onClose }: {
                   <button
                     key={char}
                     onClick={() => onSelect(char)}
-                    className={`flex items-center gap-3 p-2.5 rounded-2xl border text-left transition-all ${
+                    className={`group flex items-center gap-3 p-2.5 rounded-2xl border text-left transition-all ${
                       isActive
                         ? 'bg-mode-wash border-mode-tint/40'
                         : 'bg-transparent border-transparent hover:bg-surface-2 hover:border-border'
@@ -652,6 +669,35 @@ function CharacterPicker({ mode, lang, options, selected, onSelect, onClose }: {
                       {source && (
                         <span className="text-[11px] text-text-faint leading-tight truncate mt-0.5">{source}</span>
                       )}
+                    </span>
+                    {/*
+                      Pinning, not "last used".
+
+                      Every new conversation opened with whoever happened to be
+                      first in the array — Thomas Shelby, for everyone, forever,
+                      however many times you chose someone else. Last-used would
+                      have fixed the symptom and introduced a worse one: a room
+                      whose occupant changes behind your back. So it is said out
+                      loud, once, and then it holds.
+                    */}
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => { e.stopPropagation(); onPin(char); }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onPin(char); }
+                      }}
+                      title={pinned === char
+                        ? (lang === 'en' ? 'Opens new chats — tap to unpin' : 'नई बातचीत इन्हीं से — हटाने के लिए टैप करें')
+                        : (lang === 'en' ? 'Open new chats with them' : 'नई बातचीत इन्हीं से शुरू करें')}
+                      aria-label={pinned === char ? `Unpin ${name}` : `Pin ${name}`}
+                      className={`shrink-0 p-1.5 rounded-lg transition-colors ${
+                        pinned === char
+                          ? 'text-mode-tint'
+                          : 'text-text-faint opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-text-primary'
+                      }`}
+                    >
+                      <Pin size={14} className={pinned === char ? 'fill-current' : ''} />
                     </span>
                     {isActive && <Check size={16} className="text-mode-tint shrink-0" />}
                   </button>
@@ -689,7 +735,48 @@ export default function Inner() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>('COUNCIL');
   const [customCharacters, setCustomCharacters] = useState<any[]>([]);
-  const [selectedCharacter, setSelectedCharacter] = useState(CHARACTERS.MENTOR[0]);
+  /**
+   * Who each of the two peopled rooms opens with.
+   *
+   * Nothing read the chosen mentor back. It was written to localStorage on
+   * every change and then every new conversation started at CHARACTERS.MENTOR[0]
+   * regardless — Thomas Shelby, for everyone, however many times they had
+   * picked somebody else.
+   */
+  const [pinned, setPinned] = useState<Record<'MENTOR' | 'EMOTION', string>>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('aura_pinned') || '{}');
+      return {
+        MENTOR: typeof saved?.MENTOR === 'string' ? saved.MENTOR : '',
+        EMOTION: typeof saved?.EMOTION === 'string' ? saved.EMOTION : '',
+      };
+    } catch {
+      return { MENTOR: '', EMOTION: '' };
+    }
+  });
+
+  /** The pinned one if there is one, otherwise the head of the roster. */
+  const opensWith = (m: 'MENTOR' | 'EMOTION') =>
+    (pinned[m] && CHARACTERS[m].includes(pinned[m]) ? pinned[m] : CHARACTERS[m][0]);
+
+  const togglePin = (m: 'MENTOR' | 'EMOTION', char: string) => {
+    setPinned(prev => {
+      const next = { ...prev, [m]: prev[m] === char ? '' : char };
+      try { localStorage.setItem('aura_pinned', JSON.stringify(next)); } catch {}
+      return next;
+    });
+    triggerHaptic();
+  };
+
+  const [selectedCharacter, setSelectedCharacter] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('aura_pinned') || '{}');
+      if (typeof saved?.MENTOR === 'string' && CHARACTERS.MENTOR.includes(saved.MENTOR)) {
+        return saved.MENTOR;
+      }
+    } catch {}
+    return CHARACTERS.MENTOR[0];
+  });
   const [messages, setMessages] = useState<{ id: string; text: string; isAi: boolean; character?: string; imageUrl?: string; attachments?: string[]; attachmentKeys?: string[]; mode?: Mode; handoff?: Handoff }[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [isIncognito, setIsIncognito] = useState(false);
@@ -1136,7 +1223,7 @@ export default function Inner() {
     if (newChar) {
       setSelectedCharacter(newChar);
     } else if (newMode === 'MENTOR' || newMode === 'EMOTION') {
-      setSelectedCharacter(CHARACTERS[newMode][0]);
+      setSelectedCharacter(opensWith(newMode));
     }
     
     if (isSelectorOpen) {
@@ -1457,7 +1544,18 @@ export default function Inner() {
         // Everything except the thread being had right now, which the model is
         // already reading in full. Incognito contributes nothing and is told
         // nothing — a hidden chat that quietly shapes the next one is not hidden.
-        isIncognito ? [] : sessions.filter(x => x.id !== currentSessionId),
+        // Not the raw sessions: each carries how its conversation actually
+        // ended, so the room knows where a thing got to and not merely that it
+        // came up. See services/threads.ts.
+        isIncognito ? [] : sessions
+          .filter(x => x.id !== currentSessionId)
+          .map(x => ({
+            title: x.title,
+            mode: x.mode,
+            character: x.character,
+            updatedAt: x.updatedAt,
+            gist: gistOf(x.messages),
+          })),
       );
       const aiMsgId = (Date.now() + 1).toString();
       setStreamingMsgId(aiMsgId);
@@ -1595,14 +1693,29 @@ export default function Inner() {
 
               {/* The room. One word, a chevron, and a menu holding all five. */}
               <div className="relative">
+                {/*
+                  A chip, not bare text.
+
+                  Plain text with a chevron is how this reads once you already
+                  know the app has rooms. Someone opening it for the first time
+                  does not know that, and a word beside the wordmark looks like
+                  part of the wordmark. The border and the fill say "control";
+                  the dot carries the room's own colour, so changing it is
+                  visibly changing something rather than editing a label.
+
+                  Still one chip where there were four tabs on a line of their
+                  own, which was the thing worth fixing.
+                */}
                 <button
                   onClick={() => setIsMoreOpen(!isMoreOpen)}
                   aria-expanded={isMoreOpen}
                   aria-haspopup="menu"
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[13.5px] text-text-muted hover:text-text-primary hover:bg-surface-2 transition-colors"
+                  aria-label={lang === 'en' ? 'Change room' : 'कक्ष बदलें'}
+                  className="flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 rounded-full bg-surface border border-border text-[13px] font-medium text-text-primary hover:bg-surface-2 hover:border-border-strong transition-colors"
                 >
+                  <span className="w-[6px] h-[6px] rounded-full bg-mode-tint shrink-0" />
                   <span className="whitespace-nowrap">{ROOM_LABEL[mode][lang === 'en' ? 0 : 1]}</span>
-                  <ChevronDown size={14} className={`shrink-0 transition-transform ${isMoreOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={14} className={`shrink-0 text-text-faint transition-transform ${isMoreOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 <AnimatePresence>
@@ -1615,8 +1728,11 @@ export default function Inner() {
                         exit={{ opacity: 0, y: -6, scale: 0.97 }}
                         transition={{ duration: 0.14, ease: 'easeOut' }}
                         role="menu"
-                        className="absolute top-full left-0 mt-2 w-44 bg-surface border border-border rounded-2xl p-1.5 shadow-float z-50 origin-top-left"
+                        className="absolute top-full left-0 mt-2 w-56 bg-surface border border-border rounded-2xl p-1.5 shadow-float z-50 origin-top-left"
                       >
+                        <p className="px-3 pt-1.5 pb-2 text-[11px] uppercase tracking-[0.1em] font-mono text-text-faint">
+                          {lang === 'en' ? 'Rooms' : 'कक्ष'}
+                        </p>
                         {(['COUNCIL', 'MENTOR', 'PSYCHOLOGY', 'TEACHER', 'EMOTION'] as const).map(item => (
                           <button
                             key={item}
@@ -1632,7 +1748,12 @@ export default function Inner() {
                                 : 'text-text-muted hover:text-text-primary hover:bg-surface-2'
                             }`}
                           >
-                            {ROOM_LABEL[item][lang === 'en' ? 0 : 1]}
+                            <span className="flex flex-col min-w-0">
+                              <span className="truncate">{ROOM_LABEL[item][lang === 'en' ? 0 : 1]}</span>
+                              <span className="text-[11px] text-text-faint leading-tight mt-0.5 truncate">
+                                {ROOM_WHAT[item][lang === 'en' ? 0 : 1]}
+                              </span>
+                            </span>
                             {mode === item && <Check size={13} className="shrink-0 text-mode-tint" />}
                           </button>
                         ))}
@@ -1838,6 +1959,8 @@ export default function Inner() {
                 ...customCharacters.filter(c => c.category === mode).map(c => c.name),
               ]}
               selected={selectedCharacter}
+              pinned={pinned[mode as 'MENTOR' | 'EMOTION'] || undefined}
+              onPin={(char) => togglePin(mode as 'MENTOR' | 'EMOTION', char)}
               onSelect={(char) => {
                 if (selectedCharacter !== char) switchChat(mode, char);
                 window.location.hash = 'chat';

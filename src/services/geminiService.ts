@@ -4,6 +4,8 @@ import { memoryPrompt, learnFrom } from '../utils/userMemory';
 import { auth } from '../firebase';
 import { cooldownFor } from './cooldown';
 import { GROQ, FALLBACKS } from './providers';
+import { threadsPrompt, type PastThread } from './threads';
+export type { PastThread } from './threads';
 
 /**
  * Runs one generate call against one model.
@@ -439,30 +441,6 @@ export interface Attachment {
   data: string;
 }
 
-/** A thread this person has had before, for the running context below. */
-export interface PastThread {
-  title: string;
-  mode: string;
-  character?: string;
-  updatedAt: number;
-}
-
-const ROOM_LABEL: Record<string, string> = {
-  COUNCIL: 'the Council', MENTOR: 'the Mentor', PSYCHOLOGY: 'the Psychologist',
-  TEACHER: 'the Teacher', EMOTION: 'the Poets',
-};
-
-/** "yesterday", "3 days ago" — a date tells you less than a distance does. */
-function whenish(at: number): string {
-  const days = Math.floor((Date.now() - at) / 86_400_000);
-  if (days <= 0) return 'today';
-  if (days === 1) return 'yesterday';
-  if (days < 7) return `${days} days ago`;
-  if (days < 14) return 'last week';
-  if (days < 60) return `${Math.floor(days / 7)} weeks ago`;
-  return `${Math.floor(days / 30)} months ago`;
-}
-
 /**
  * Read the whole thing.
  *
@@ -486,46 +464,6 @@ WHAT THEY SENT YOU
 - If they asked several things, answer several things. Answering one and falling silent on the rest is the most common way to leave someone feeling unheard.
 - Where the reply is verse, this is satisfied by holding all of it, not by enumerating it. A poem that covers everything by listing it has stopped being a poem.`;
 
-/**
- * What this person has been talking about, before today.
- *
- * The durable facts said who they are — a name, a city, a job. They said
- * nothing about what has been going on, so every new chat opened as though it
- * were the first one ever, from someone whose name you happened to know. That
- * is the thing that gives an app away: continuity of fact without continuity of
- * attention.
- *
- * Each thread is already titled with the opening line that started it, and that
- * turns out to be the most useful sentence in the whole conversation — it is
- * what the person actually came in with. So the recent ones go in, with which
- * room heard them and how long ago, and no message bodies: enough to know what
- * has been running in their life, cheap enough to send every time, and no
- * second model call to produce it.
- */
-function threadsPrompt(threads: PastThread[] = []): string {
-  const recent = threads
-    .filter(t => t?.title && t?.updatedAt)
-    .sort((a, b) => b.updatedAt - a.updatedAt)
-    .slice(0, 8);
-  if (!recent.length) return '';
-
-  const lines = recent.map(t => {
-    const where = t.mode === 'MENTOR' && t.character ? t.character : (ROOM_LABEL[t.mode] || 'a room');
-    return `- "${t.title}" — with ${where}, ${whenish(t.updatedAt)}`;
-  });
-
-  return `
-WHAT THEY HAVE BEEN TALKING ABOUT
-This is not their first conversation here. These are the threads they have had
-recently, each shown by the line they opened it with:
-${lines.join('\n')}
-Use this the way you would use knowing someone: it tells you what has been going
-on in their life and what they keep coming back to. If what they say now follows
-from one of these, treat it as continuing rather than starting — you may ask how
-that thing went, once, if it is genuinely what this reminds you of. Never list
-these back at them, never say you have been reading their history, and never
-assume the detail: you know the subject came up, not how it ended.`;
-}
 
 export async function getInnerVoiceResponse(
   userMessage: string,
@@ -749,7 +687,7 @@ You: "Theek hai. Na jaanna bhi jawab hai.\n\nKuch aur pooch loon, ya bas thodi d
   // Anything durable the person has said before, in every room. A mentor who
   // has been told about your business should not ask what you do.
   learnFrom(userMessage, mode);
-  const systemInstruction = baseInstruction + wholeMessageRule + memoryPrompt() + threadsPrompt(pastThreads);
+  const systemInstruction = baseInstruction + wholeMessageRule + memoryPrompt() + threadsPrompt(pastThreads, userMessage, mode, character);
 
   try {
     /**
@@ -830,7 +768,7 @@ You: "Theek hai. Na jaanna bhi jawab hai.\n\nKuch aur pooch loon, ya bas thodi d
     return await generateWithFallback(contents, systemInstruction, mode === 'TEACHER' ? "The Professor" : mode === 'PSYCHOLOGY' ? "The Psychologist" : mode === 'EMOTION' ? "The Council of Emotions" : "The Council", customApiKey, isFreeTier, relaxSafety, grounded,
       // The Council is the only room big enough to need a smaller version of
       // itself; the others already fit.
-      mode === 'COUNCIL' ? councilLean + wholeMessageRule + memoryPrompt() + threadsPrompt(pastThreads) : undefined);
+      mode === 'COUNCIL' ? councilLean + wholeMessageRule + memoryPrompt() + threadsPrompt(pastThreads, userMessage, mode, character) : undefined);
   } catch (error: any) {
     console.error("Unexpected Gemini API Error:", error);
     return `[System Error] An unexpected error occurred. (${error?.message || "Unknown error"})`;
