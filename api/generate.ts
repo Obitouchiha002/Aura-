@@ -82,6 +82,7 @@ interface ProviderSpec {
   label: string;
   /** null when the provider needs more configuration than a key. */
   url: () => string | null;
+  /** Empty for a provider that needs no key — a model you are hosting. */
   keyEnv: string;
   modelEnv: string;
   model: string;
@@ -119,6 +120,28 @@ export const PROVIDERS: Record<string, ProviderSpec> = {
     url: () => 'https://api.together.xyz/v1/chat/completions',
     keyEnv: 'TOGETHER_API_KEY', modelEnv: 'TOGETHER_MODEL',
     model: 'meta-llama/Llama-3.3-70B-Instruct-Turbo-Free',
+  },
+  /**
+   * A model you are running yourself.
+   *
+   * Every other row is somebody's free tier, and a free tier is a loan: the
+   * free allowances moved in one direction through 2026, and the one that
+   * matters here is twenty requests a day per model. This row has no quota at
+   * all, because there is nobody to ration it — Ollama on the machine the
+   * server is running on, answering until the machine is turned off.
+   *
+   * Off unless OLLAMA_URL is set, rather than defaulting to localhost: on a
+   * serverless deployment localhost is nothing, and a row that is always
+   * present and always refuses costs a round trip on every message forever.
+   *
+   * The URL is a variable and not a constant because this is also where a
+   * model of your own goes once it is hosted somewhere — the endpoint changes,
+   * nothing else does.
+   */
+  ollama: {
+    label: 'your own model',
+    url: () => process.env.OLLAMA_URL || null,
+    keyEnv: '', modelEnv: 'OLLAMA_MODEL', model: 'qwen3.6',
   },
   cloudflare: {
     // The only one whose address is not fixed: the account is part of the URL.
@@ -385,14 +408,15 @@ export default async function handler(req: Req, res: Res) {
   try {
     const spec = PROVIDERS[provider];
     if (spec) {
-      const key = process.env[spec.keyEnv];
+      // A model you host needs no key; everyone else's needs one.
+      const key = spec.keyEnv ? process.env[spec.keyEnv] : 'none';
       const url = spec.url();
 
       // Not configured is not a failure. The chain simply moves on, and the
       // client remembers so it does not ask this one again today.
       if (!key || !url) {
         res.status(503).json({
-          error: `${spec.label} is not configured on this server (set ${spec.keyEnv}${url ? '' : ' and CLOUDFLARE_ACCOUNT_ID'}).`,
+          error: `${spec.label} is not configured on this server (set ${spec.keyEnv || 'OLLAMA_URL'}${url || !spec.keyEnv ? '' : ' and its URL'}).`,
           unconfigured: true,
         });
         return;
@@ -401,7 +425,10 @@ export default async function handler(req: Req, res: Res) {
       const modelName = process.env[spec.modelEnv] || spec.model;
       const upstream = await fetch(url, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(spec.keyEnv ? { Authorization: `Bearer ${key}` } : {}),
+        },
         body: JSON.stringify({
           model: modelName,
           messages: asMessages(contents, systemInstruction),

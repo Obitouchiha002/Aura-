@@ -26,8 +26,10 @@ export const GROQ = 'groq';
  *
  * Ordered by what they are worth when they answer: Groq first because it is
  * already configured and fast, the big open-weight models next, the rest
- * behind them. A provider the server has no key for answers immediately and
+ * behind them, and a model you host yourself last — slower than any of them
+ * and the only one that cannot run out, which is exactly where a safety net
+ * belongs. A provider the server has no key for answers immediately and
  * is struck off for the session, so an unconfigured name costs one round trip
  * to our own server, once, and nothing after that.
  */
-export const FALLBACKS = [GROQ, 'cerebras', 'openrouter', 'together', 'nvidia', 'mistral', 'cloudflare'];
+export const FALLBACKS = [GROQ, 'cerebras', 'openrouter', 'together', 'nvidia', 'mistral', 'cloudflare', 'ollama'];
