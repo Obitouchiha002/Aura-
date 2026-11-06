@@ -10,7 +10,10 @@ dotenv.config();
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  // 3000 by default, PORT to move it — another project of this machine's
+  // lives on 3000, and a dev server that dies on startup is harder to debug
+  // than a dev server on a different number.
+  const PORT = Number(process.env.PORT) || 3000;
 
   // Attached documents travel as base64 inside the JSON body, so the default
   // 100kb cap is far too small. 6mb matches the ceiling Vercel allows.
