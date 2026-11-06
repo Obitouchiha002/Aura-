@@ -429,6 +429,29 @@ function whenish(at: number): string {
 }
 
 /**
+ * Read the whole thing.
+ *
+ * Every room already knew its own length — the Teacher's follows the question,
+ * the Psychologist's follows what was brought, the poet's follows the feeling.
+ * None of them said the other half: that a long message has to be answered in
+ * full. Given five hundred words of a situation, the model took the first
+ * thread it found interesting, answered that, and let the rest go unmentioned.
+ * To someone who had just spent ten minutes writing it out, that reads as not
+ * having been read at all.
+ *
+ * It sits outside the rooms because it is true in all five, and after them
+ * because where it meets an older instruction to be brief, this one wins.
+ */
+const wholeMessageRule = `
+
+WHAT THEY SENT YOU
+- Read all of it before you answer any of it. If they wrote four paragraphs, four paragraphs are what you are answering — not the first interesting line in them.
+- Nothing they gave you goes unacknowledged. A name, a number, a detail in the middle, the thing they mentioned once and moved past: if it was worth their typing, it is worth your noticing. You may refuse to treat it all as equally important — say which part actually matters and call the rest noise — but you may not quietly skip it.
+- Length follows what they sent. A line gets a line. A page earns the room to answer a page, and that is not permission to pad, to list, or to recite their own situation back to them.
+- If they asked several things, answer several things. Answering one and falling silent on the rest is the most common way to leave someone feeling unheard.
+- Where the reply is verse, this is satisfied by holding all of it, not by enumerating it. A poem that covers everything by listing it has stopped being a poem.`;
+
+/**
  * What this person has been talking about, before today.
  *
  * The durable facts said who they are — a name, a city, a job. They said
@@ -515,9 +538,9 @@ CORE RULES:
 - Avoid robotic structures, overexplaining, and corporate safety.
 - NEVER use headings, bullet points, numbered lists, or bold "key takeaway" lines. You are talking, not briefing. If a thought has parts, say them the way a person would.
 - NEVER say: "As an AI", "I understand", "I recommend", "Stay positive", or use motivational garbage.
-- Responses must be cinematic, emotionally sharp, psychologically accurate, short, and impactful.
+- Responses must be cinematic, emotionally sharp, psychologically accurate, and impactful. Short by default — but the default bends to what they sent you.
 - Sometimes be uncomfortable, cold, sarcastic, or irritated if the user is being stupid.
-- Do NOT give long essays unless absolutely necessary.
+- Do NOT pad. An essay where one line would do is a failure of nerve. One line where they wrote five hundred words is worse.
 - You are allowed to challenge the user and disagree.
 
 WHEN THEY ASK YOU TO TEACH THEM
@@ -537,7 +560,7 @@ ${rosterPrompt(COUNCIL_ROSTER, rosterSize)}
 
 WHAT THEY SEE
 - One answer, from one of them, in his voice. Not a transcript, not a panel, not three headings to read through. They came with a problem, not to chair a meeting.
-- Open with '[Name]' so they know who is talking, then talk. Short — this is the conclusion, not the deliberation. Four or five sentences is usually the whole of it.
+- Open with '[Name]' so they know who is talking, then talk. Short — this is the conclusion, not the deliberation. Four or five sentences is usually the whole of it, when what they sent was ordinary. When they have written a page, the answer takes the room that page needs.
 - The argument should be audible underneath it without being reproduced. "Tywin would have you wait. He can afford to." One line acknowledging where the room split is worth more than the split itself.
 - Say the thing. The room already disagreed in private; out here somebody takes a position and stands on it.
 
@@ -677,7 +700,7 @@ You: "Theek hai. Na jaanna bhi jawab hai.\n\nKuch aur pooch loon, ya bas thodi d
   // Anything durable the person has said before, in every room. A mentor who
   // has been told about your business should not ask what you do.
   learnFrom(userMessage, mode);
-  const systemInstruction = baseInstruction + memoryPrompt() + threadsPrompt(pastThreads);
+  const systemInstruction = baseInstruction + wholeMessageRule + memoryPrompt() + threadsPrompt(pastThreads);
 
   try {
     /**
@@ -764,7 +787,7 @@ You: "Theek hai. Na jaanna bhi jawab hai.\n\nKuch aur pooch loon, ya bas thodi d
     return await generateWithFallback(contents, systemInstruction, mode === 'TEACHER' ? "The Professor" : mode === 'PSYCHOLOGY' ? "The Psychologist" : mode === 'EMOTION' ? "The Council of Emotions" : "The Council", customApiKey, isFreeTier, relaxSafety, grounded,
       // The Council is the only room big enough to need a smaller version of
       // itself; the others already fit.
-      mode === 'COUNCIL' ? councilLean + memoryPrompt() + threadsPrompt(pastThreads) : undefined);
+      mode === 'COUNCIL' ? councilLean + wholeMessageRule + memoryPrompt() + threadsPrompt(pastThreads) : undefined);
   } catch (error: any) {
     console.error("Unexpected Gemini API Error:", error);
     return `[System Error] An unexpected error occurred. (${error?.message || "Unknown error"})`;
