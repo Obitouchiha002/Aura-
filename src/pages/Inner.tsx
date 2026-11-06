@@ -11,6 +11,8 @@ import { Send, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as
 const Settings = lazy(() => import('../components/Settings').then(m => ({ default: m.Settings })));
 import { saveAsset, getAsset } from '../utils/db';
 import { gistOf } from '../services/threads';
+import { loadCouncils, saveCouncils, councilById, isCouncilId, type Council } from '../services/councils';
+const CouncilSheet = lazy(() => import('../components/CouncilSheet').then(m => ({ default: m.CouncilSheet })));
 /**
  * Three screens that are not the chat.
  *
@@ -747,6 +749,20 @@ export default function Inner() {
    * of the screen actually needs to know: whether Send is allowed to be
    * pressed. That flips twice per message instead of once per character.
    */
+  /**
+   * Councils the person assembled, and which one they are in.
+   *
+   * The council rides in `selectedCharacter` for Council mode, which is the
+   * field a session already records and the thread picker already reads — so
+   * sessions, history and Firestore learned this by not changing at all.
+   */
+  const [councils, setCouncils] = useState<Council[]>(() => loadCouncils());
+  const [isCouncilSheetOpen, setIsCouncilSheetOpen] = useState(false);
+  /** The council to come back to. See pickCouncil. */
+  const lastCouncilRef = useRef<string>((() => {
+    try { return localStorage.getItem('aura_last_council') || ''; } catch { return ''; }
+  })());
+
   const [hasText, setHasText] = useState(false);
   /** Only to tell typing from deleting, for the haptic tick. */
   const lastLenRef = useRef(0);
@@ -891,6 +907,73 @@ export default function Inner() {
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 150)}px`;
   };
+
+  const activeCouncilId = mode === 'COUNCIL' && isCouncilId(selectedCharacter) ? selectedCharacter : '';
+  const activeCouncil = councilById(councils, activeCouncilId);
+
+  /**
+   * Changing council starts a new thread, always.
+   *
+   * A council is a room with its own conversations. Carrying the open one
+   * across would put a thread in a room it was not had in, and the next
+   * message would read the wrong history — which is the one thing a project
+   * exists to prevent.
+   */
+  const pickCouncil = (id: string) => {
+    setIsCouncilSheetOpen(false);
+    if (id === activeCouncilId) return;
+    triggerHaptic();
+    setCurrentSessionId(null);
+    setMessages([]);
+    setSelectedCharacter(id);
+    // So leaving the room and coming back puts you where you were, rather
+    // than in the house because the Mentor borrowed the same field.
+    lastCouncilRef.current = id;
+    try { localStorage.setItem('aura_last_council', id); } catch {}
+  };
+
+  const saveCouncil = (c: Council) => {
+    setCouncils(prev => {
+      const next = prev.some(x => x.id === c.id)
+        ? prev.map(x => (x.id === c.id ? c : x))
+        : [...prev, c];
+      saveCouncils(next);
+      return next;
+    });
+    if (!councils.some(x => x.id === c.id)) pickCouncil(c.id);
+  };
+
+  const removeCouncil = (id: string) => {
+    setCouncils(prev => {
+      const next = prev.filter(x => x.id !== id);
+      saveCouncils(next);
+      return next;
+    });
+    if (activeCouncilId === id) pickCouncil('');
+  };
+
+  /**
+   * What a thread records as its character.
+   *
+   * For the peopled rooms it is the person. For the Council it was the literal
+   * string "The Council" on every thread, which said nothing the mode did not
+   * already say — and once councils exist it is actively wrong, because this
+   * field is how a thread knows which room it was had in. A business thread
+   * recorded as "The Council" matches no council and leaks into all of them.
+   *
+   * The Poets had the same shape of bug for a different reason: a thread
+   * stored "The Poets", and reopening it restored that as the chosen poet,
+   * which is nobody.
+   *
+   * This is a thread's own record, not the name shown on a message — the
+   * export header still says "The Council", because that is a label for a
+   * person to read.
+   */
+  const sessionCharacter = () =>
+    mode === 'COUNCIL' ? activeCouncilId
+    : mode === 'PSYCHOLOGY' ? 'The Psychologist'
+    : mode === 'TEACHER' ? 'The Teacher'
+    : selectedCharacter;
 
   /** Whatever is in the composer right now. */
   const draftText = () => inputRef.current?.value ?? '';
@@ -1098,7 +1181,7 @@ export default function Inner() {
         id: sessionId!,
         title: promptText.length > 30 ? promptText.substring(0, 30) + '...' : promptText,
         mode,
-        character: mode === 'COUNCIL' ? 'The Council' : mode === 'EMOTION' ? 'The Poets' : mode === 'PSYCHOLOGY' ? 'The Psychologist' : mode === 'TEACHER' ? 'The Teacher' : selectedCharacter,
+        character: sessionCharacter(),
         updatedAt: Date.now(),
       }, ...prev]);
     }
@@ -1189,9 +1272,12 @@ export default function Inner() {
     pin(true);
     setCurrentSessionId(session.id);
     setMode(session.mode);
-    if (session.mode !== 'COUNCIL') {
-      setSelectedCharacter(session.character);
-    }
+    // The Council used to have nothing worth restoring here — every thread
+    // recorded the same string. Now the field carries which council, so
+    // reopening a thread has to put you back in the room it was had in, or
+    // the next message is answered by the wrong people out of the wrong
+    // history. An empty value is the house, which is correct as it stands.
+    setSelectedCharacter(session.character || '');
     window.location.hash = 'chat';
 
     if (session.messages) {
@@ -1260,6 +1346,8 @@ export default function Inner() {
       setSelectedCharacter(newChar);
     } else if (newMode === 'MENTOR' || newMode === 'EMOTION') {
       setSelectedCharacter(opensWith(newMode));
+    } else if (newMode === 'COUNCIL') {
+      setSelectedCharacter(lastCouncilRef.current);
     }
     
     if (isSelectorOpen) {
@@ -1559,14 +1647,14 @@ export default function Inner() {
           id: sessionId!,
           title: userMessage.length > 30 ? userMessage.substring(0, 30) + '...' : userMessage,
           mode,
-          character: mode === 'COUNCIL' ? 'The Council' : mode === 'EMOTION' ? 'The Poets' : mode === 'PSYCHOLOGY' ? 'The Psychologist' : mode === 'TEACHER' ? 'The Teacher' : selectedCharacter,
+          character: sessionCharacter(),
           updatedAt: Date.now()
         }, ...prev];
       } else {
         return prev.map(s => s.id === sessionId ? { 
           ...s, 
           mode, 
-          character: mode === 'COUNCIL' ? 'The Council' : mode === 'EMOTION' ? 'The Poets' : mode === 'PSYCHOLOGY' ? 'The Psychologist' : mode === 'TEACHER' ? 'The Teacher' : selectedCharacter, 
+          character: sessionCharacter(), 
           updatedAt: Date.now() 
         } : s).sort((a, b) => b.updatedAt - a.updatedAt);
       }
@@ -1592,6 +1680,7 @@ export default function Inner() {
             updatedAt: x.updatedAt,
             gist: gistOf(x.messages),
           })),
+        activeCouncil,
       );
       const aiMsgId = (Date.now() + 1).toString();
       setStreamingMsgId(aiMsgId);
@@ -1813,6 +1902,23 @@ export default function Inner() {
                   )}
                 </AnimatePresence>
               </div>
+
+              {/* Which council, when there is more than the house. Only in the
+                  room it belongs to, and only as a word — a second chip of the
+                  same weight as the first would read as two halves of one
+                  control. */}
+              {mode === 'COUNCIL' && (
+                <button
+                  onClick={() => { triggerHaptic(); setIsCouncilSheetOpen(true); }}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[12.5px] text-text-muted hover:text-text-primary hover:bg-surface-2 transition-colors min-w-0"
+                  title={lang === 'en' ? 'Choose or build a council' : 'परिषद चुनें या बनाएँ'}
+                >
+                  <span className="text-text-faint">/</span>
+                  <span className="truncate max-w-[9rem]">
+                    {activeCouncil ? activeCouncil.name : (lang === 'en' ? 'House' : 'सदन')}
+                  </span>
+                </button>
+              )}
             </div>
 
             {/* Right: mentor avatar (when relevant) + new chat + one menu */}
@@ -2682,6 +2788,27 @@ export default function Inner() {
       ) : (
         <Suspense fallback={null}><Simulator /></Suspense>
       )}
+
+      <AnimatePresence>
+        {isCouncilSheetOpen && (
+          <Suspense fallback={null}>
+            <CouncilSheet
+              lang={lang}
+              roster={[
+                ...CHARACTERS.MENTOR,
+                ...customCharacters.filter(c => c.category === 'MENTOR').map(c => c.name),
+              ]}
+              councils={councils}
+              current={activeCouncilId || undefined}
+              onPick={pickCouncil}
+              onSave={saveCouncil}
+              onDelete={removeCouncil}
+              onClose={() => setIsCouncilSheetOpen(false)}
+              displayName={displayName}
+            />
+          </Suspense>
+        )}
+      </AnimatePresence>
 
       {/* Settings Modal */}
       {isSettingsOpen && <Suspense fallback={null}><Settings onClose={closeModals} /></Suspense>}
