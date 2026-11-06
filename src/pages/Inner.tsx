@@ -1785,13 +1785,13 @@ export default function Inner() {
       {/* Header / Mode Selection — chat only; Focus and Simulator carry their own */}
       {view === 'chat' && (
         // pt clears the notch / dynamic island when installed as a PWA
-        <div className="chat-header relative z-20 px-4 sm:px-6 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] border-b border-border bg-bg/85 backdrop-blur-xl shadow-soft">
+        <div className="chat-header relative z-20 px-3 sm:px-6 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] border-b border-border bg-bg/85 backdrop-blur-xl shadow-soft">
           {/* Three zones only: wordmark, mode switcher, one menu. Everything
               else moved into the menu sheet — seven icon buttons plus tabs in
               one bar was the main thing making this screen feel busy. */}
-          <div className="w-full flex flex-wrap items-center max-w-4xl mx-auto gap-y-3 gap-x-2">
+          <div className="w-full flex items-center max-w-4xl mx-auto gap-x-2">
             {/* Left: wordmark, then the room */}
-            <div className="flex items-center gap-2 shrink-0 order-1 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
               <span className="flex items-baseline gap-[3px] select-none">
                 <span className="font-display font-bold text-[20px] sm:text-[22px] leading-none tracking-[0.09em] uppercase text-text-primary">
                   Aura
@@ -1914,7 +1914,7 @@ export default function Inner() {
                   title={lang === 'en' ? 'Choose or build a council' : 'परिषद चुनें या बनाएँ'}
                 >
                   <span className="text-text-faint">/</span>
-                  <span className="truncate max-w-[9rem]">
+                  <span className="truncate max-w-[5.5rem] sm:max-w-[9rem]">
                     {activeCouncil ? activeCouncil.name : (lang === 'en' ? 'House' : 'सदन')}
                   </span>
                 </button>
@@ -1922,7 +1922,7 @@ export default function Inner() {
             </div>
 
             {/* Right: mentor avatar (when relevant) + new chat + one menu */}
-            <div className="flex items-center justify-end gap-1 shrink-0 ml-auto order-2 sm:order-3">
+            <div className="flex items-center justify-end gap-1 shrink-0 ml-auto">
               {(mode === 'MENTOR' || mode === 'EMOTION') && (
                 <button
                   onClick={() => { triggerHaptic(); window.location.hash = isSelectorOpen ? 'chat' : 'selector'; }}
@@ -1961,7 +1961,10 @@ export default function Inner() {
               >
                 <Plus size={19} strokeWidth={1.6} />
               </button>
-              <ThemeToggle />
+              {/* Hidden on phones: the 44px it costs is what pushed this
+                  toolbar onto a second row, and Settings already carries a
+                  full light/dark picker. */}
+              <div className="hidden sm:block"><ThemeToggle /></div>
               <button
                 onClick={() => { triggerHaptic(); setIsMenuOpen(true); }}
                 aria-expanded={isMenuOpen}
@@ -1987,8 +1990,8 @@ export default function Inner() {
             transition={{ duration: 0.2, ease: 'easeOut' }}
             role="status"
             aria-live="polite"
-            /* Above the composer, not under the header — the header is two rows
-               tall on phones and the toast landed on the mode tabs. */
+            /* Above the composer, not under the header — a toast under the
+               header lands on the room chip, which is what you just used. */
             className="fixed bottom-[max(6rem,calc(env(safe-area-inset-bottom)+5.5rem))] left-1/2 -translate-x-1/2 z-[120] flex items-center gap-2.5 max-w-[92vw] px-4 py-2.5 rounded-full bg-elevated border border-border shadow-float"
           >
             {toast.icon === 'on'

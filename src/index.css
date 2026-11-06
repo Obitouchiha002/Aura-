@@ -446,6 +446,21 @@ html, body {
   }
 }
 
+/*
+ * A placeholder is one line of hint, not a paragraph.
+ *
+ * The composer is a one-row textarea about 160px wide on a phone. Its mentor
+ * placeholder is built from the mentor's name — "Message Thomas Shelby..." —
+ * which wrapped onto a second line the one-row box then cut in half. Longer
+ * names (Niccolo Machiavelli, Kiyotaka Ayanokoji) and the Hindi strings are
+ * worse. Keep it on one line and let it end in an ellipsis instead.
+ */
+textarea::placeholder {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
 /* Respect the device safe area (iOS home indicator) */
 @utility safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
