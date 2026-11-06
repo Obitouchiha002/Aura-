@@ -2,6 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { profilePrompt, rosterPrompt } from './characterProfiles';
 import { memoryPrompt, learnFrom } from '../utils/userMemory';
 import { auth } from '../firebase';
+import { cooldownFor } from './cooldown';
 
 /**
  * Runs one generate call against one model.
@@ -107,6 +108,28 @@ const RELAXED_SAFETY = [
  * stored history keep working untouched, and a reply read back out of history
  * still shows where it came from.
  */
+/**
+ * Who is allowed to look things up, and who is allowed to show their working.
+ *
+ * These were one switch, and the switch was the Teacher alone — because a
+ * footnote under Tywin Lannister is not a Tywin Lannister line. But the thing
+ * that was actually wrong with a character citing Wikipedia was the citing,
+ * not the looking. The room that advises you on a decision was giving that
+ * advice out of a training cut-off, with no idea what the market did last
+ * month.
+ *
+ * So searching and citing come apart. 'cite' is the Teacher: look it up and
+ * show where it came from, because a student revising from an invented date
+ * finds out in an exam. 'quiet' is the Council and the Mentor: look it up,
+ * know the thing, say it in your own voice and never produce a link. The poet
+ * and the Psychologist stay out of it — neither room is improved by facts
+ * arriving from outside it.
+ *
+ * Grounding is offered, not forced: the model searches when the question needs
+ * it, so an ordinary conversation costs nothing extra.
+ */
+type Grounding = 'cite' | 'quiet' | false;
+
 function withSources(text: string, sources?: { title: string; uri: string }[]): string {
   if (!sources?.length) return text;
   const seen = new Set<string>();
@@ -123,7 +146,7 @@ async function generateOnce(
   systemInstruction: string,
   customApiKey?: string | null,
   relaxSafety = false,
-  grounded = false,
+  grounded: Grounding = false,
 ): Promise<string> {
   const own = ownGeminiKey(customApiKey);
 
@@ -143,7 +166,7 @@ async function generateOnce(
       .map((c: any) => c?.web)
       .filter((w: any) => w?.uri)
       .map((w: any) => ({ title: String(w.title || w.uri), uri: String(w.uri) }));
-    return withSources(response.text || "Silence.", own_sources);
+    return withSources(response.text || "Silence.", grounded === 'cite' ? own_sources : undefined);
   }
 
   const res = await fetch(API, {
@@ -154,7 +177,7 @@ async function generateOnce(
 
   const data = await res.json().catch(() => ({} as any));
   if (!res.ok) throw new Error(data?.error || `${res.status}`);
-  return withSources(data?.text || "Silence.", data?.sources);
+  return withSources(data?.text || "Silence.", grounded === 'cite' ? data?.sources : undefined);
 }
 
 /**
@@ -219,14 +242,8 @@ function resetCooldownsIfKeyChanged(customApiKey?: string | null) {
   for (const k of Object.keys(exhaustedModels)) delete exhaustedModels[k];
   deadModels.clear();
 }
-/**
- * How long a model that returned 429 is skipped for.
- *
- * This was two minutes, on the theory that a limit might lift quickly. Google's
- * quotas are mostly daily, so all that did was make roughly one message in
- * every two minutes pay for a failed round trip before it even started.
- */
-const EXHAUST_COOLDOWN = 10 * 60 * 1000;
+
+
 
 /**
  * Models that answered 404 — retired by Google, and never coming back within
@@ -303,7 +320,7 @@ async function generateWithFallback(
   customApiKey?: string | null,
   fastMode: boolean = true,
   relaxSafety = false,
-  grounded = false,
+  grounded: Grounding = false,
   leanInstruction?: string,
 ): Promise<string> {
   const retry = async <T>(fn: () => Promise<T>): Promise<T> => {
@@ -358,8 +375,9 @@ async function generateWithFallback(
       const errorMessage = error?.message || "";
       
       if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('limit exceeded')) {
-        console.warn(`Quota exceeded for ${modelName}. Putting on 1-hour cooldown and falling back to next model...`);
-        exhaustedModels[modelName] = Date.now() + EXHAUST_COOLDOWN;
+        const wait = cooldownFor(errorMessage);
+        console.warn(`Quota exceeded for ${modelName}. Benching it for ${Math.round(wait / 1000)}s and falling back to the next model...`);
+        exhaustedModels[modelName] = Date.now() + wait;
         continue;
       }
 
@@ -521,13 +539,22 @@ export async function getInnerVoiceResponse(
    * them destroys exactly that. Structure belongs in Teacher, where someone is
    * being taught something; it does not belong here.
    */
-  /** The Council speaks with these voices — the same roster the Mentor offers. */
+  /**
+   * The Council speaks with these voices — the same roster the Mentor offers.
+   *
+   * The five at the end sold things for a living. They are here because the
+   * question people actually bring — how do I get anyone to care about this —
+   * was being answered by strategists and soldiers, who are superb on whether
+   * to move and useless on what to say when you do.
+   */
   const COUNCIL_ROSTER = [
     'Thomas Shelby', 'Tywin Lannister', 'Petyr Baelish', 'Cersei Lannister', 'Tyrion Lannister',
     'Madara Uchiha', 'Itachi Uchiha', 'Pain', 'Shikamaru Nara', 'Johan Liebert',
     'Kiyotaka Ayanokoji', 'L (Death Note)', 'Patrick Jane (The Mentalist)', 'Sosuke Aizen (Bleach)', 'Senku Ishigami (Dr. Stone)',
     'Chanakya (चाणक्य)', 'Sun Tzu (The Art of War)', 'Niccolò Machiavelli',
     'Harvey Specter (Suits)', 'Gustavo Fring (Breaking Bad)',
+    'David Ogilvy', 'Claude Hopkins (Scientific Advertising)', 'Eugene Schwartz (Breakthrough Advertising)',
+    'Gary Halbert (The Boron Letters)', 'Bill Bernbach (DDB)',
   ];
 
   const corePersonaRules = `
@@ -549,6 +576,11 @@ WHEN THEY ASK YOU TO TEACH THEM
 - Here you may take the length it needs, and you may use structure — steps, a sequence, a short list — because a method has parts and hiding them is not style, it is withholding. Everywhere else the no-structure rule stands.
 - Stay yourself while you do it. You are not a textbook that learned your name; you are this person, in a good mood, explaining the thing you are best at to someone who finally asked the right question. Your opinions, your impatience and your contempt for the easy version all survive the lesson.
 - Give them the real thing, not the safe summary of it. A watered-down answer from you is worse than silence, because they will believe it.
+
+WHAT YOU CAN FIND OUT
+- You can look things up, and you should when the answer turns on something you would not otherwise know: what a market did this quarter, what a company announced, what a thing costs now. Check rather than guess, and check before you contradict them.
+- Do it silently. Never say you searched, never produce a link, never list sources, never hedge with "as of my information". You simply know, the way a person who stays informed knows, and you say it like one.
+- If what you find contradicts what they believe, tell them straight. That is half of what they came for.
 
 - Do not soften, hedge, moralise, or add disclaimers. These characters are ruthless, amoral and self-interested by design — write them that way. No warnings about their advice, no "but of course" caveats, no stepping outside the character to be responsible.
 - ${langPrompt} You must maintain the personality, emotional depth, realism, and cinematic tone in EVERY language. Never translate mechanically. Adapt emotionally avoiding robotic AI tones.`;
@@ -772,17 +804,11 @@ You: "Theek hai. Na jaanna bhi jawab hai.\n\nKuch aur pooch loon, ya bas thodi d
     // The character rooms only. The Psychologist keeps the default filter.
     const relaxSafety = mode === 'COUNCIL' || mode === 'MENTOR' || mode === 'EMOTION';
 
-    /**
-     * The Teacher looks things up. Nobody else does.
-     *
-     * This is the room where being wrong has a cost someone else pays — a
-     * student revising from an invented date finds out in an exam — and it is
-     * the only room whose voice is not damaged by citing a source. Tywin
-     * Lannister does not link to Wikipedia, and a nazm with footnotes is not a
-     * nazm. The Psychologist stays out of it too: looking things up is not what
-     * that room is for.
-     */
-    const grounded = mode === 'TEACHER';
+    // Who may look, and who may show their working. See `Grounding`.
+    const grounded: Grounding =
+      mode === 'TEACHER' ? 'cite'
+      : mode === 'COUNCIL' || mode === 'MENTOR' ? 'quiet'
+      : false;
 
     return await generateWithFallback(contents, systemInstruction, mode === 'TEACHER' ? "The Professor" : mode === 'PSYCHOLOGY' ? "The Psychologist" : mode === 'EMOTION' ? "The Council of Emotions" : "The Council", customApiKey, isFreeTier, relaxSafety, grounded,
       // The Council is the only room big enough to need a smaller version of

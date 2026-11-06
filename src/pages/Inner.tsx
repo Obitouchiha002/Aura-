@@ -18,7 +18,9 @@ const CHARACTERS: Record<'MENTOR' | 'EMOTION', string[]> = {
     "Thomas Shelby", "Tywin Lannister", "Petyr Baelish", "Cersei Lannister", "Tyrion Lannister",
     "Madara Uchiha", "Itachi Uchiha", "Pain", "Shikamaru Nara", "Johan Liebert", "Kiyotaka Ayanokoji",
     "L (Death Note)", "Patrick Jane (The Mentalist)", "Sosuke Aizen (Bleach)", "Senku Ishigami (Dr. Stone)", "Chanakya (चाणक्य)",
-    "Sun Tzu (The Art of War)", "Niccolò Machiavelli", "Harvey Specter (Suits)", "Gustavo Fring (Breaking Bad)"
+    "Sun Tzu (The Art of War)", "Niccolò Machiavelli", "Harvey Specter (Suits)", "Gustavo Fring (Breaking Bad)",
+    "David Ogilvy", "Claude Hopkins (Scientific Advertising)", "Eugene Schwartz (Breakthrough Advertising)",
+    "Gary Halbert (The Boron Letters)", "Bill Bernbach (DDB)"
   ],
   EMOTION: [
     "Mirza Ghalib", "Jaun Elia", "Faiz Ahmed Faiz", "Ahmad Faraz", "Gulzar", "William Shakespeare"

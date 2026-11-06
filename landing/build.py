@@ -313,6 +313,19 @@ CHARACTERS = [
          ("Niccolò Machiavelli", "The Prince",
           "It is far safer to be feared than loved, if you cannot be both."),
      ]),
+    ("The ones who sold things", "green",
+     "Five men who spent their lives finding out what makes a stranger care.", [
+         ("David Ogilvy", "Ogilvy & Mather",
+          "The consumer isn't a moron; she is your wife."),
+         ("Claude Hopkins", "Scientific Advertising · 1923",
+          "Platitudes roll off the understanding like water from a duck."),
+         ("Eugene Schwartz", "Breakthrough Advertising · 1966",
+          "You do not create desire. You take hold of the one that is already there."),
+         ("Gary Halbert", "The Boron Letters",
+          "The only advantage I want is a starving crowd."),
+         ("Bill Bernbach", "Doyle Dane Bernbach",
+          "Persuasion is not a science. It is an art."),
+     ]),
     ("The poets", "gold",
      "The room you enter when the thing does not want solving.", [
          ("Mirza Ghalib", "Urdu · 1797–1869",
@@ -725,7 +738,7 @@ PAGES["index.html"] = shell(
           <a class="btn btn--ghost btn--sm" href="test.html">How it is scored</a>
         </div>
         <div class="card">
-          <span class="label">Twenty-six voices</span>
+          <span class="label">Thirty-one voices</span>
           <h3>Choose who advises you</h3>
           <p>From Shelby and Ayanokoji to Chanakya, Sun Tzu, Ghalib and Jaun Elia — each answers in their own register.</p>
           <a class="btn btn--ghost btn--sm" href="characters.html">Meet them</a>
@@ -771,10 +784,13 @@ ROOM_DETAIL = {
         lede="Pick who is sitting across the table. The advice arrives in their voice, "
              "with their conviction and their blind spots — which is the point.",
         sections=[
-            ("Twenty people to choose from",
+            ("Twenty-five people to choose from",
              "Operators like Thomas Shelby, Harvey Specter and Gustavo Fring. "
-             "Strategists like Ayanokoji, Itachi and Johan Liebert. A mentalist, Patrick Jane, who reads people before he reads their question. And three books "
-             "that outlasted their authors — Chanakya, Sun Tzu, Machiavelli. Each "
+             "Strategists like Ayanokoji, Itachi and Johan Liebert. A mentalist, Patrick Jane, who reads people before he reads their question. Three books "
+             "that outlasted their authors — Chanakya, Sun Tzu, Machiavelli. And five "
+             "advertising men — Ogilvy, Hopkins, Schwartz, Halbert, Bernbach — for the "
+             "question the strategists cannot answer: what do you actually say to a "
+             "stranger so that they care. Each "
              "answers as themselves, not as a neutral assistant wearing a name."),
             ("Why a biased advisor is useful",
              "A neutral answer hedges. A character does not: they have a worldview, "
@@ -957,8 +973,8 @@ for heading, tint, blurb, people in CHARACTERS:
 PAGES["characters.html"] = shell(
     "characters.html",
     "Characters — Aura Shakti",
-    f"All {total} voices in Aura Shakti: operators, a mentalist, strategists, three books on strategy, and the poets.",
-    phead("The roster", "Twenty-six voices.",
+    f"All {total} voices in Aura Shakti: operators, a mentalist, strategists, three books on strategy, five advertising men, and the poets.",
+    phead("The roster", "Thirty-one voices.",
           "Every character in the app, and where each one comes from. Pick one in "
           "Mentor and the advice arrives in their register — the vocabulary, the "
           "temperament and the blind spots included.")
