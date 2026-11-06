@@ -51,6 +51,99 @@ const GEMINI_ENDPOINT = (model: string) =>
  */
 const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 
+/**
+ * Everywhere else the same question can be asked.
+ *
+ * All of these speak the one /chat/completions dialect, so they differ only in
+ * a URL, a key and a model name — which is why this is a table and not seven
+ * branches of the same code.
+ *
+ * They are here because one free tier is not a plan. Through 2026 the free
+ * allowances moved in a single direction: Cerebras ended its permanent free
+ * tier in July, Groq dropped the Llama models from the free list in August,
+ * OpenRouter cut its free models from a thousand requests a day to fifty. An
+ * app standing on one fallback is one policy change away from going dark, and
+ * this one went dark often enough that the user noticed before we did.
+ *
+ * Several providers is not seven times the capacity of one. It is seven
+ * separate daily buckets that empty independently, which is a different and
+ * better thing: the day no longer ends when a single counter does.
+ *
+ * A provider with no key is skipped rather than failed — nothing to configure,
+ * nothing to turn on. Add a key to the deployment and that provider joins the
+ * chain on the next request; add none and the app behaves exactly as before.
+ *
+ * The model names below go stale faster than anything else in this file, so
+ * each reads an environment variable first and the error names the variable to
+ * set. That is the lesson of GROQ_MODEL, which spent a year returning 404
+ * behind a message that said only "currently unavailable".
+ */
+interface ProviderSpec {
+  label: string;
+  /** null when the provider needs more configuration than a key. */
+  url: () => string | null;
+  keyEnv: string;
+  modelEnv: string;
+  model: string;
+}
+
+export const PROVIDERS: Record<string, ProviderSpec> = {
+  groq: {
+    label: 'Groq',
+    url: () => 'https://api.groq.com/openai/v1/chat/completions',
+    keyEnv: 'GROQ_API_KEY', modelEnv: 'GROQ_MODEL', model: GROQ_MODEL,
+  },
+  cerebras: {
+    label: 'Cerebras',
+    url: () => 'https://api.cerebras.ai/v1/chat/completions',
+    keyEnv: 'CEREBRAS_API_KEY', modelEnv: 'CEREBRAS_MODEL', model: 'gpt-oss-120b',
+  },
+  openrouter: {
+    label: 'OpenRouter',
+    url: () => 'https://openrouter.ai/api/v1/chat/completions',
+    keyEnv: 'OPENROUTER_API_KEY', modelEnv: 'OPENROUTER_MODEL',
+    model: 'deepseek/deepseek-chat-v3-0324:free',
+  },
+  mistral: {
+    label: 'Mistral',
+    url: () => 'https://api.mistral.ai/v1/chat/completions',
+    keyEnv: 'MISTRAL_API_KEY', modelEnv: 'MISTRAL_MODEL', model: 'mistral-large-latest',
+  },
+  nvidia: {
+    label: 'NVIDIA',
+    url: () => 'https://integrate.api.nvidia.com/v1/chat/completions',
+    keyEnv: 'NVIDIA_API_KEY', modelEnv: 'NVIDIA_MODEL', model: 'meta/llama-3.3-70b-instruct',
+  },
+  together: {
+    label: 'Together',
+    url: () => 'https://api.together.xyz/v1/chat/completions',
+    keyEnv: 'TOGETHER_API_KEY', modelEnv: 'TOGETHER_MODEL',
+    model: 'meta-llama/Llama-3.3-70B-Instruct-Turbo-Free',
+  },
+  cloudflare: {
+    // The only one whose address is not fixed: the account is part of the URL.
+    label: 'Cloudflare Workers AI',
+    url: () => process.env.CLOUDFLARE_ACCOUNT_ID
+      ? `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/ai/v1/chat/completions`
+      : null,
+    keyEnv: 'CLOUDFLARE_API_TOKEN', modelEnv: 'CLOUDFLARE_MODEL',
+    model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+  },
+};
+
+/** Gemini's shape, in the dialect every provider above understands. */
+function asMessages(contents: any[], systemInstruction?: string): any[] {
+  const messages: any[] = [];
+  if (systemInstruction) messages.push({ role: 'system', content: systemInstruction });
+  for (const msg of contents) {
+    messages.push({
+      role: msg.role === 'model' ? 'assistant' : 'user',
+      content: msg.parts?.[0]?.text ?? '',
+    });
+  }
+  return messages;
+}
+
 /* ── who is allowed to spend the quota ──────────────────────────────────── */
 
 /**
@@ -284,39 +377,43 @@ export default async function handler(req: Req, res: Res) {
   }
 
   try {
-    if (provider === 'groq') {
-      const key = process.env.GROQ_API_KEY;
-      if (!key) {
-        res.status(503).json({ error: 'No Groq key configured on the server.' });
+    const spec = PROVIDERS[provider];
+    if (spec) {
+      const key = process.env[spec.keyEnv];
+      const url = spec.url();
+
+      // Not configured is not a failure. The chain simply moves on, and the
+      // client remembers so it does not ask this one again today.
+      if (!key || !url) {
+        res.status(503).json({
+          error: `${spec.label} is not configured on this server (set ${spec.keyEnv}${url ? '' : ' and CLOUDFLARE_ACCOUNT_ID'}).`,
+          unconfigured: true,
+        });
         return;
       }
 
-      const messages: any[] = [];
-      if (systemInstruction) messages.push({ role: 'system', content: systemInstruction });
-      for (const msg of contents) {
-        messages.push({
-          role: msg.role === 'model' ? 'assistant' : 'user',
-          content: msg.parts?.[0]?.text ?? '',
-        });
-      }
-
-      const upstream = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const modelName = process.env[spec.modelEnv] || spec.model;
+      const upstream = await fetch(url, {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: GROQ_MODEL, messages, temperature: temperature ?? 0.7 }),
+        body: JSON.stringify({
+          model: modelName,
+          messages: asMessages(contents, systemInstruction),
+          temperature: temperature ?? 0.7,
+        }),
       });
 
       const data = await upstream.json().catch(() => ({}));
       if (!upstream.ok) {
-        // Say when the model itself is the problem. A decommissioned name
-        // returns 404 or 400 with `model_not_found`, and reporting that as a
-        // plain outage is what kept this broken for a year.
+        // Say when the model name itself is the problem. A decommissioned name
+        // returns 404, or 400 with `model_not_found`, and reporting that as a
+        // plain outage is what kept the Groq fallback broken for a year.
         const code = data?.error?.code || '';
         const gone = upstream.status === 404 || code === 'model_not_found'
           || code === 'model_decommissioned';
         res.status(upstream.status).json({
           error: gone
-            ? `Groq model ${GROQ_MODEL} is not available (${describe(data, upstream.status)}). Set GROQ_MODEL on the deployment to a current one.`
+            ? `${spec.label} model ${modelName} is not available (${describe(data, upstream.status)}). Set ${spec.modelEnv} on the deployment to a current one.`
             : describe(data, upstream.status),
         });
         return;

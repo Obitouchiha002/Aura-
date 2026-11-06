@@ -3,6 +3,7 @@ import { profilePrompt, rosterPrompt } from './characterProfiles';
 import { memoryPrompt, learnFrom } from '../utils/userMemory';
 import { auth } from '../firebase';
 import { cooldownFor } from './cooldown';
+import { GROQ, FALLBACKS } from './providers';
 
 /**
  * Runs one generate call against one model.
@@ -180,14 +181,7 @@ async function generateOnce(
   return withSources(data?.text || "Silence.", grounded === 'cite' ? data?.sources : undefined);
 }
 
-/**
- * Groq's place in the model chain.
- *
- * Not a Gemini model name, so the loop hands it to the Groq path instead. It
- * sits in the list rather than behind a special case, which is the whole point:
- * it is now reached whenever the models before it fail, for any reason.
- */
-const GROQ = 'groq';
+
 
 /**
  * How much conversation Groq is sent.
@@ -197,14 +191,19 @@ const GROQ = 'groq';
  * sixty thousand tokens. One ordinary message would be seven times the entire
  * minute's allowance and simply fail.
  *
- * So the thread is cut to its most recent part before it goes there. Twelve
- * thousand characters is roughly three thousand tokens, which leaves room for
+ * So the thread is cut to its most recent part before it goes there. Eight
+ * thousand characters is roughly two thousand tokens, which leaves room for
  * the instruction and the reply inside the limit. It is less memory than Gemini
  * gets; it is also the difference between a shorter answer and no answer.
+ *
+ * Every provider in FALLBACKS gets the same cut, not only Groq. Most of them
+ * allow more, but the budget is set by the tightest one in the list, and a
+ * thread trimmed the same way everywhere means the answer does not change
+ * character depending on which bucket happened to have room today.
  */
 const GROQ_BUDGET = 8_000;
 
-function trimForGroq(contents: any[]): any[] {
+function trimForFallback(contents: any[]): any[] {
   const out: any[] = [];
   let used = 0;
   for (let i = contents.length - 1; i >= 0; i--) {
@@ -252,15 +251,19 @@ function resetCooldownsIfKeyChanged(customApiKey?: string | null) {
  */
 const deadModels = new Set<string>();
 
-async function generateWithGroqFallback(
+async function generateViaProvider(
+  provider: string,
   contents: any[],
   systemInstruction: string,
   errorPrefix: string,
   customApiKey?: string | null
 ): Promise<string> {
-  // A gsk_ key came from the user's own Settings, so it is used directly.
-  // Otherwise the server's key is used, via the same proxy as Gemini.
-  const ownGroqKey = customApiKey?.trim().startsWith('gsk_') ? customApiKey.trim() : null;
+  // A gsk_ key came from the user's own Settings, so it is used directly, and
+  // only Groq takes one. Everything else goes through the proxy, where the
+  // server holds the key.
+  const ownGroqKey = provider === GROQ && customApiKey?.trim().startsWith('gsk_')
+    ? customApiKey.trim()
+    : null;
 
   try {
     if (ownGroqKey) {
@@ -294,22 +297,27 @@ async function generateWithGroqFallback(
     const res = await fetch(API, {
       method: 'POST',
       headers: await apiHeaders(),
-      body: JSON.stringify({ provider: 'groq', contents, systemInstruction }),
+      body: JSON.stringify({ provider, contents, systemInstruction }),
     });
 
     const data = await res.json().catch(() => ({} as any));
 
-    // 503 from the proxy means no key is configured there — which for the user
-    // is the same situation as the quota being gone everywhere.
+    // 503 means this provider has no key on the server. It used to end the
+    // whole chain with "exhausted across all tiers", which was true when there
+    // was one fallback and is a lie now that there are seven: an unconfigured
+    // provider in position two would have closed the door on five working ones
+    // behind it. It is an ordinary error, the loop moves on, and the loop's own
+    // ending speaks for all of them once they have all actually been tried.
     if (res.status === 503) {
-      throw new Error(`[System Error] ${errorPrefix}'s daily wisdom quota has been completely exhausted across all tiers. Please return tomorrow or add a Custom API Key in Settings.`);
+      throw new Error(data?.error || `${errorPrefix}: not configured`);
     }
     if (!res.ok) throw new Error(data?.error || `${res.status}`);
     return data?.text || "Silence.";
   } catch (error: any) {
     if (error?.message?.startsWith('[System Error]')) throw error;
-    console.error("Groq fallback failed:", error);
-    throw new Error(`[System Error] ${errorPrefix} is currently unavailable. (${error?.message || "Unknown error"})`);
+    // Named, so the loop's warning says which one went and the next is tried.
+    console.warn(`${provider} failed:`, error?.message || error);
+    throw new Error(`${provider}: ${error?.message || 'Unknown error'}`);
   }
 }
 
@@ -345,7 +353,7 @@ async function generateWithFallback(
     "gemini-3-flash-preview",
     "gemini-2.5-flash",
     "gemini-3.1-pro-preview",
-    GROQ,
+    ...FALLBACKS,
   ] : [
     // Pro is the better answer when the quota allows it, but it is also the
     // first to run out, so the flash models sit behind it rather than the
@@ -355,7 +363,7 @@ async function generateWithFallback(
     "gemini-3-flash-preview",
     "gemini-3.1-flash-lite-preview",
     "gemini-2.5-flash",
-    GROQ,
+    ...FALLBACKS,
   ];
 
   for (const modelName of modelsToTry) {
@@ -366,8 +374,8 @@ async function generateWithFallback(
     }
 
     try {
-      const text = modelName === GROQ
-        ? await generateWithGroqFallback(trimForGroq(contents), leanInstruction || systemInstruction, errorPrefix, customApiKey)
+      const text = FALLBACKS.includes(modelName)
+        ? await generateViaProvider(modelName, trimForFallback(contents), leanInstruction || systemInstruction, errorPrefix, customApiKey)
         : await retry(() => generateOnce(modelName, contents, systemInstruction, customApiKey, relaxSafety, grounded));
       return text;
     } catch (error: any) {
@@ -386,6 +394,14 @@ async function generateWithFallback(
         continue;
       }
       
+      if (errorMessage.includes('not configured')) {
+        // No key for it on this deployment. Asking again would only cost
+        // another round trip to our own server, every message, forever.
+        console.warn(`${modelName} has no key here. Dropping it for this session.`);
+        deadModels.add(modelName);
+        continue;
+      }
+
       if (errorMessage.includes('404') || errorMessage.includes('not found')) {
         // Retired, not busy. Asking again later would only cost another round
         // trip, so it is out for the rest of the session.
@@ -402,11 +418,12 @@ async function generateWithFallback(
   console.error("All models failed or fatal error:", lastError);
   const finalErrorMessage = lastError?.message || "";
   
-  // Groq is in the chain above now, so by this point it has been tried too.
-  // It used to be called only when the LAST model happened to fail with a 429 —
-  // so four models exhausting their quota and a fifth answering 503 produced
-  // "overwhelmed across all tiers" while the thousand-a-day fallback sat
-  // untouched. That sentence was true about the tier it never reached.
+  // Every fallback is in the chain above, so by this point all of them have
+  // been tried. The fallback used to be called only when the LAST model
+  // happened to fail with a 429 — so four models exhausting their quota and a
+  // fifth answering 503 produced "overwhelmed across all tiers" while the
+  // untouched fallback sat there. That sentence was true about a tier it never
+  // reached. It is only allowed to be said down here, where it is earned.
   if (finalErrorMessage.includes('503') || finalErrorMessage.includes('high demand') || finalErrorMessage.includes('overloaded')) {
     return `[System Error] ${errorPrefix} is currently overwhelmed with requests across all tiers. Please wait a moment and try again.`;
   }
