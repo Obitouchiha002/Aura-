@@ -306,6 +306,16 @@ body {
   overflow-x: hidden;
 }
 
+/* Held for the one frame a theme change lands in. Several hundred colour
+   transitions firing at once is not a nicer switch, it is a slower one. */
+.theme-switching,
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
+  animation: none !important;
+}
+
 html, body {
   transition: background-color .25s ease, color .25s ease;
   /* The chat is sized to its parent rather than to 100dvh: on Android the

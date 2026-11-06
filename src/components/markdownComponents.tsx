@@ -1,5 +1,6 @@
 import React from 'react';
-import type { Components } from 'react-markdown';
+import ReactMarkdown, { type Components } from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Mermaid } from './Mermaid';
 import { RoomAside } from './RoomAside';
 
@@ -51,3 +52,28 @@ export const markdownComponents: Components = {
     return <code className={className} {...props}>{children}</code>;
   },
 };
+
+/**
+ * A rendered reply that does not re-render.
+ *
+ * Nothing in the chat screen is memoised and the composer's text lives in the
+ * same component as the message list, so every keystroke re-rendered every
+ * message — and the most expensive thing in a message is this: parsing the
+ * whole of its markdown again, for a string that has not changed since it
+ * arrived. In a long conversation that is the difference between typing and
+ * watching yourself type.
+ *
+ * Memoised on the text alone. The renderers above are a module constant and
+ * the plugin list is frozen below, so neither can go stale.
+ */
+const PLUGINS = [remarkGfm];
+
+export const Markdown = React.memo(function Markdown({ text }: { text: string }) {
+  return (
+    <div className="markdown-body">
+      <ReactMarkdown remarkPlugins={PLUGINS} components={markdownComponents}>
+        {text}
+      </ReactMarkdown>
+    </div>
+  );
+});

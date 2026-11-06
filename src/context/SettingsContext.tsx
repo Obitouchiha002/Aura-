@@ -92,8 +92,31 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     globalAudio.setVolume(volume);
     const isLight = theme === 'light';
+
+    /**
+     * Switch the theme without animating the entire page at once.
+     *
+     * Changing the class changes every colour variable, and roughly forty
+     * elements in the chat carry `transition-colors` — multiplied by however
+     * many messages are on screen, each with its own buttons. Flipping the
+     * theme therefore started several hundred simultaneous colour animations,
+     * on top of a full repaint, which is why it crawled.
+     *
+     * So transitions are suppressed for the frame the change lands in. Two
+     * frames later they come back, and the switch is instant rather than a
+     * slow wash — which is also how every app that does this well behaves.
+     */
+    const root = document.documentElement;
+    root.classList.add('theme-switching');
+    // Force the suppression to take effect before the colours move.
+    void root.offsetHeight;
+
     document.body.classList.toggle('light-theme', isLight);
-    document.documentElement.classList.toggle('light-theme', isLight);
+    root.classList.toggle('light-theme', isLight);
+
+    const unfreeze = requestAnimationFrame(() =>
+      requestAnimationFrame(() => root.classList.remove('theme-switching')),
+    );
 
     // Keep the browser/PWA chrome in step with the in-app theme
     const themeMeta = document.querySelector('meta[name="theme-color"]');
@@ -105,6 +128,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } else {
       globalAudio.play(music as any, customMusicUrl);
     }
+
+    return () => cancelAnimationFrame(unfreeze);
   }, [hydrated, language, hapticFeedback, vibration, music, volume, customMusicUrl, userApiKey, theme]);
 
   // Bound here so no caller has to remember which setting gates which pattern.

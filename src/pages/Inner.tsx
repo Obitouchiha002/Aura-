@@ -713,7 +713,7 @@ function CharacterPicker({ mode, lang, options, selected, pinned, onPin, onSelec
 
 import { TypewriterText } from '../components/TypewriterText';
 import ReactMarkdown from 'react-markdown';
-import { markdownComponents } from '../components/markdownComponents';
+import { Markdown } from '../components/markdownComponents';
 import { parseMcq } from '../utils/parseMcq';
 import { CharacterAvatar } from '../components/CharacterAvatar';
 import { SessionSummarySheet } from '../components/SessionSummarySheet';
@@ -1711,9 +1711,13 @@ export default function Inner() {
                   aria-expanded={isMoreOpen}
                   aria-haspopup="menu"
                   aria-label={lang === 'en' ? 'Change room' : 'कक्ष बदलें'}
-                  className="flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 rounded-full bg-surface border border-border text-[13px] font-medium text-text-primary hover:bg-surface-2 hover:border-border-strong transition-colors"
+                  className="flex items-center gap-1 pl-3 pr-1.5 py-1.5 rounded-full bg-surface border border-border text-[13px] font-medium text-text-primary hover:bg-surface-2 hover:border-border-strong transition-colors"
                 >
-                  <span className="w-[6px] h-[6px] rounded-full bg-mode-tint shrink-0" />
+                  {/* No dot here. It carried the room's colour, and the
+                      wordmark's own dot is three centimetres to the left in
+                      the same red — two of them side by side read as a
+                      mistake, not a system. The chip's border and chevron
+                      already say this is something you can press. */}
                   <span className="whitespace-nowrap">{ROOM_LABEL[mode][lang === 'en' ? 0 : 1]}</span>
                   <ChevronDown size={14} className={`shrink-0 text-text-faint transition-transform ${isMoreOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -1748,7 +1752,18 @@ export default function Inner() {
                                 : 'text-text-muted hover:text-text-primary hover:bg-surface-2'
                             }`}
                           >
-                            <span className="flex flex-col min-w-0">
+                            {/* The mark each room already has, at the size a
+                                list wants. Five rows of plain text read as a
+                                settings page; the marks make it a set of
+                                places. */}
+                            <span className={`shrink-0 transition-opacity ${mode === item ? '' : 'opacity-45'}`}>
+                              <EyeMark
+                                pattern={MODE_EYE[item]}
+                                tint={mode === item ? 'var(--color-mode-tint)' : 'var(--text-muted)'}
+                                size={22}
+                              />
+                            </span>
+                            <span className="flex flex-col min-w-0 flex-1">
                               <span className="truncate">{ROOM_LABEL[item][lang === 'en' ? 0 : 1]}</span>
                               <span className="text-[11px] text-text-faint leading-tight mt-0.5 truncate">
                                 {ROOM_WHAT[item][lang === 'en' ? 0 : 1]}
@@ -2198,14 +2213,12 @@ export default function Inner() {
                             onDone={() => setStreamingMsgId(null)}
                           />
                         ) : (
-                          <div className="markdown-body">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                              {(() => {
-                                const body = mcq ? mcq.body : msg.text;
-                                return speakerOf(msg.text, msg.character) ? withoutSpeakerPrefix(body) : body;
-                              })()}
-                            </ReactMarkdown>
-                          </div>
+                          <Markdown
+                            text={(() => {
+                              const body = mcq ? mcq.body : msg.text;
+                              return speakerOf(msg.text, msg.character) ? withoutSpeakerPrefix(body) : body;
+                            })()}
+                          />
                         )
                       ) : (
                         <>
