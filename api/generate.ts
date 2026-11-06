@@ -392,7 +392,7 @@ export default async function handler(req: Req, res: Res) {
   res.setHeader('x-aura-auth', uid ? 'verified' : (authRequiredNow() ? 'refused' : 'anonymous'));
 
   if (!uid && authRequiredNow()) {
-    res.status(401).json({ error: 'Sign in to use this.' });
+    res.status(401).json({ error: 'Sign in to use this.', signedOut: true });
     return;
   }
 
@@ -457,7 +457,10 @@ export default async function handler(req: Req, res: Res) {
 
     const key = process.env.GEMINI_API_KEY;
     if (!key) {
-      res.status(503).json({ error: 'No Gemini key configured on the server.' });
+      res.status(503).json({
+        error: 'Gemini is not configured on this server (set GEMINI_API_KEY).',
+        unconfigured: true,
+      });
       return;
     }
     if (!model) {

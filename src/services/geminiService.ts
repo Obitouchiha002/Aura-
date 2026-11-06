@@ -4,6 +4,7 @@ import { memoryPrompt, learnFrom } from '../utils/userMemory';
 import { auth } from '../firebase';
 import { cooldownFor } from './cooldown';
 import { GROQ, FALLBACKS } from './providers';
+import { refusalOf, refusalFrom, refuse } from './refusal';
 import { threadsPrompt, type PastThread } from './threads';
 import { councilPrompt, scopeToCouncil, type Council } from './councils';
 export type { PastThread } from './threads';
@@ -180,7 +181,11 @@ async function generateOnce(
   });
 
   const data = await res.json().catch(() => ({} as any));
-  if (!res.ok) throw new Error(data?.error || `${res.status}`);
+  if (!res.ok) {
+    const why = refusalOf(res.status, data);
+    const said = data?.error || `${res.status}`;
+    throw why ? refuse(why, said) : new Error(said);
+  }
   return withSources(data?.text || "Silence.", grounded === 'cite' ? data?.sources : undefined);
 }
 
@@ -311,16 +316,22 @@ async function generateViaProvider(
     // provider in position two would have closed the door on five working ones
     // behind it. It is an ordinary error, the loop moves on, and the loop's own
     // ending speaks for all of them once they have all actually been tried.
-    if (res.status === 503) {
-      throw new Error(data?.error || `${errorPrefix}: not configured`);
+    if (!res.ok) {
+      const why = refusalOf(res.status, data);
+      const said = data?.error
+        || (why === 'unconfigured' ? `${errorPrefix}: not configured` : `${res.status}`);
+      throw why ? refuse(why, said) : new Error(said);
     }
-    if (!res.ok) throw new Error(data?.error || `${res.status}`);
     return data?.text || "Silence.";
   } catch (error: any) {
     if (error?.message?.startsWith('[System Error]')) throw error;
     // Named, so the loop's warning says which one went and the next is tried.
     console.warn(`${provider} failed:`, error?.message || error);
-    throw new Error(`${provider}: ${error?.message || 'Unknown error'}`);
+    // The message is rewritten to name the provider, so the reason has to be
+    // carried across deliberately — it cannot be read back out of the text.
+    const why = refusalFrom(error);
+    const named = `${provider}: ${error?.message || 'Unknown error'}`;
+    throw why ? refuse(why, named) : new Error(named);
   }
 }
 
@@ -381,6 +392,7 @@ async function generateWithFallback(
   let sawQuota = false;
   let attempted = 0;
   const unconfigured: string[] = [];
+  const badKeys: string[] = [];
 
   for (const modelName of modelsToTry) {
     if (deadModels.has(modelName)) continue;
@@ -423,11 +435,23 @@ async function generateWithFallback(
        * network fault and attributed to whichever provider happened to be
        * last in the list.
        */
-      if (errorMessage.includes('Sign in to use this') || errorMessage.includes('401')) {
+      const why = refusalFrom(error);
+
+      if (why === 'signedOut') {
         return `[System Error] You are signed out. Sign in again and the room will answer.`;
       }
 
-      if (errorMessage.includes('not configured')) {
+      if (why === 'badKey') {
+        // This one's key has expired or been revoked. That is about this
+        // provider and nothing else, so the chain carries on to the next —
+        // which is the whole point of having a chain.
+        badKeys.push(modelName);
+        console.warn(`${modelName}'s key is being refused. Dropping it for this session.`);
+        deadModels.add(modelName);
+        continue;
+      }
+
+      if (why === 'unconfigured') {
         unconfigured.push(modelName);
         // No key for it on this deployment. Asking again would only cost
         // another round trip to our own server, every message, forever.
@@ -483,8 +507,10 @@ async function generateWithFallback(
 
   // Only when every single thing tried was "no key here". Anything else in
   // the mix means something real failed and that is the news.
-  if (attempted > 0 && unconfigured.length === attempted) {
-    return `[System Error] Nothing on this deployment is configured to answer. Add a provider key.`;
+  if (attempted > 0 && unconfigured.length + badKeys.length === attempted) {
+    return badKeys.length
+      ? `[System Error] Every key this deployment has is being refused — expired or revoked. The keys need replacing; you are signed in fine.`
+      : `[System Error] Nothing on this deployment is configured to answer. Add a provider key.`;
   }
 
   if (finalErrorMessage.includes('503') || finalErrorMessage.includes('high demand') || finalErrorMessage.includes('overloaded')) {
