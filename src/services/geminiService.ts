@@ -5,6 +5,7 @@ import { auth } from '../firebase';
 import { cooldownFor } from './cooldown';
 import { GROQ, FALLBACKS } from './providers';
 import { threadsPrompt, type PastThread } from './threads';
+import { councilPrompt, scopeToCouncil, type Council } from './councils';
 export type { PastThread } from './threads';
 
 /**
@@ -474,7 +475,9 @@ export async function getInnerVoiceResponse(
   language: string = 'en',
   isFreeTier: boolean = false,
   attachments: Attachment[] = [],
-  pastThreads: PastThread[] = []
+  pastThreads: PastThread[] = [],
+  /** A council the person assembled. Absent means the whole house. */
+  council?: Council,
 ): Promise<string> {
   const langPrompt = language === 'hinglish' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in Hinglish (a natural mix of Hindi and English written in Latin script). Do NOT respond in pure English.' :
                      language === 'hi' ? 'CRITICAL PRIORITY: You MUST respond ENTIRELY in Hindi (using Devanagari script). Do NOT respond in English.' :
@@ -540,10 +543,14 @@ WHAT YOU CAN FIND OUT
 - Do not soften, hedge, moralise, or add disclaimers. These characters are ruthless, amoral and self-interested by design — write them that way. No warnings about their advice, no "but of course" caveats, no stepping outside the character to be responsible.
 - ${langPrompt} You must maintain the personality, emotional depth, realism, and cinematic tone in EVERY language. Never translate mechanically. Adapt emotionally avoiding robotic AI tones.`;
 
+  // A made council seats only the people it was given. Two is a room; one is
+  // a mentor with extra steps, so a council that thin falls back to the house.
+  const seated = council && council.members.length >= 2 ? council.members : COUNCIL_ROSTER;
+
   const councilInstructionFor = (rosterSize: number | undefined, withRoom: boolean) => `You are a room of ruthless, highly intelligent people who meet about one person's problem. They are in the chair. The room argues in private; what reaches them is the answer it produced.
 
 WHO IS IN THE ROOM
-${rosterPrompt(COUNCIL_ROSTER, rosterSize)}
+${rosterPrompt(seated, rosterSize)}
 
 WHAT THEY SEE
 - One answer, from one of them, in his voice. Not a transcript, not a panel, not three headings to read through. They came with a problem, not to chair a meeting.
@@ -572,7 +579,7 @@ Tywin Lannister: Then refuse it to him.
 - People may appear here who did not deliver the answer — that is the point of it. The person reads this only if they want to know why, so it must never carry anything they need.
 - Leave the block out entirely when no meeting happened. An empty one is worse than none.
 ` : ''}
-${corePersonaRules}`;
+${corePersonaRules}${councilPrompt(council)}`;
 
   const councilInstruction = councilInstructionFor(undefined, true);
 
@@ -584,7 +591,7 @@ ${corePersonaRules}`;
    * minute that cost is the difference between an answer and a refusal.
    * Eight people still argue; nobody argues at all if the request is rejected.
    */
-  const councilLean = councilInstructionFor(8, false);
+  const councilLean = councilInstructionFor(Math.min(8, seated.length), false);
 
   /**
    * The dossier does the work here. "You are ${character}" on its own left the
@@ -687,7 +694,9 @@ You: "Theek hai. Na jaanna bhi jawab hai.\n\nKuch aur pooch loon, ya bas thodi d
   // Anything durable the person has said before, in every room. A mentor who
   // has been told about your business should not ask what you do.
   learnFrom(userMessage, mode);
-  const systemInstruction = baseInstruction + wholeMessageRule + memoryPrompt() + threadsPrompt(pastThreads, userMessage, mode, character);
+  // A project's conversations stay inside it — that is most of the point.
+  const ownThreads = scopeToCouncil(pastThreads, mode, council?.id);
+  const systemInstruction = baseInstruction + wholeMessageRule + memoryPrompt() + threadsPrompt(ownThreads, userMessage, mode, character);
 
   try {
     /**
@@ -768,7 +777,7 @@ You: "Theek hai. Na jaanna bhi jawab hai.\n\nKuch aur pooch loon, ya bas thodi d
     return await generateWithFallback(contents, systemInstruction, mode === 'TEACHER' ? "The Professor" : mode === 'PSYCHOLOGY' ? "The Psychologist" : mode === 'EMOTION' ? "The Council of Emotions" : "The Council", customApiKey, isFreeTier, relaxSafety, grounded,
       // The Council is the only room big enough to need a smaller version of
       // itself; the others already fit.
-      mode === 'COUNCIL' ? councilLean + wholeMessageRule + memoryPrompt() + threadsPrompt(pastThreads, userMessage, mode, character) : undefined);
+      mode === 'COUNCIL' ? councilLean + wholeMessageRule + memoryPrompt() + threadsPrompt(ownThreads, userMessage, mode, character) : undefined);
   } catch (error: any) {
     console.error("Unexpected Gemini API Error:", error);
     return `[System Error] An unexpected error occurred. (${error?.message || "Unknown error"})`;

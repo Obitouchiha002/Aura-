@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getInnerVoiceResponse, getInnerVoiceImageResponse, type Attachment } from '../services/geminiService';
 import { generateImage } from '../services/nvidiaService';
@@ -8,11 +8,19 @@ import { useAuth } from '../context/AuthContext';
 import { collection, doc, getDoc, getDocs, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Send, Trash2, ChevronDown, History, X, MessageSquare, Plus, Settings as SettingsIcon, RefreshCcw, Download, Users, Sparkles, Target, Gamepad2, Mic, Ghost, Copy, Check, Search, Menu, Eye, Paperclip, Camera, ImagePlus, FileText, FileDown, Printer, ClipboardList, HeartPulse, GraduationCap, Pin } from 'lucide-react';
-import { Settings } from '../components/Settings';
+const Settings = lazy(() => import('../components/Settings').then(m => ({ default: m.Settings })));
 import { saveAsset, getAsset } from '../utils/db';
 import { gistOf } from '../services/threads';
-import Focus from './Focus';
-import Simulator from './Simulator';
+/**
+ * Three screens that are not the chat.
+ *
+ * Focus, the Simulator and Settings are each a separate page of the app, and
+ * none of them is on screen when it opens — yet all three were in the first
+ * download, on a phone, before the first message. They are fetched when
+ * someone goes to them.
+ */
+const Focus = lazy(() => import('./Focus'));
+const Simulator = lazy(() => import('./Simulator'));
 
 const CHARACTERS: Record<'MENTOR' | 'EMOTION', string[]> = {
   MENTOR: [
@@ -712,7 +720,6 @@ function CharacterPicker({ mode, lang, options, selected, pinned, onPin, onSelec
 }
 
 import { TypewriterText } from '../components/TypewriterText';
-import ReactMarkdown from 'react-markdown';
 import { Markdown } from '../components/markdownComponents';
 import { parseMcq } from '../utils/parseMcq';
 import { CharacterAvatar } from '../components/CharacterAvatar';
@@ -720,7 +727,6 @@ import { SessionSummarySheet } from '../components/SessionSummarySheet';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { MoodCheckIn, checkedInToday } from '../components/MoodCheckIn';
 import { downloadMarkdown, printAsPdf } from '../utils/exportChat';
-import remarkGfm from 'remark-gfm';
 import { useMicrophone } from '../hooks/useMicrophone';
 
 export default function Inner() {
@@ -728,9 +734,24 @@ export default function Inner() {
   const { userApiKey, language, haptic } = useSettings();
   const { checkAndIncrementMessageLimit, user } = useAuth();
 
-  const [input, setInput] = useState('');
+  /**
+   * The draft lives in the textarea, not in React.
+   *
+   * It was `useState`, which is the obvious thing and was costing the app its
+   * responsiveness: nothing on this screen is memoised, so every keystroke
+   * re-rendered the whole chat — every message, every motion element, every
+   * button on every message. In a long conversation on a phone that is the
+   * difference between typing and watching yourself type a second later.
+   *
+   * So the DOM node holds the text and `hasText` holds the only thing the rest
+   * of the screen actually needs to know: whether Send is allowed to be
+   * pressed. That flips twice per message instead of once per character.
+   */
+  const [hasText, setHasText] = useState(false);
+  /** Only to tell typing from deleting, for the haptic tick. */
+  const lastLenRef = useRef(0);
   
-  const { isListening, toggleListening } = useMicrophone(language, (text) => setInput(text));
+  const { isListening, toggleListening } = useMicrophone(language, (text) => setDraft(text));
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>('COUNCIL');
@@ -862,12 +883,27 @@ export default function Inner() {
 
   // Grow the composer with its content, and — just as importantly — shrink it
   // back down once the message is sent or a quick action replaces the text.
-  useEffect(() => {
+  // Called directly rather than from an effect on the text, because the text
+  // is no longer state to depend on.
+  const autosize = () => {
     const el = inputRef.current;
     if (!el) return;
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 150)}px`;
-  }, [input]);
+  };
+
+  /** Whatever is in the composer right now. */
+  const draftText = () => inputRef.current?.value ?? '';
+
+  /** Put something in the composer — a retry, a dictation, a quick action. */
+  const setDraft = (text: string) => {
+    const el = inputRef.current;
+    if (el) {
+      el.value = text;
+      autosize();
+    }
+    setHasText(Boolean(text.trim()));
+  };
 
   // Kept as thin aliases so the many existing call sites stay readable.
   const triggerHaptic = () => haptic('select');
@@ -1032,7 +1068,7 @@ export default function Inner() {
   /** Asks the character for a picture, then renders it into the thread. */
   const generateImageReply = async () => {
     if (isTyping || isGeneratingImage) return;
-    const promptText = input.trim();
+    const promptText = draftText().trim();
     if (!promptText) {
       showToast('off', lang === 'en' ? 'Describe the image first' : 'पहले चित्र का वर्णन कीजिए');
       inputRef.current?.focus();
@@ -1051,7 +1087,7 @@ export default function Inner() {
     const userMsgId = Date.now().toString();
     const base = [...messages, { id: userMsgId, text: promptText, isAi: false }];
     setMessages(base);
-    setInput('');
+    setDraft('');
     setIsGeneratingImage(true);
 
     let sessionId = currentSessionId;
@@ -1408,7 +1444,7 @@ export default function Inner() {
    */
   const handleSubmit = async (e?: React.FormEvent, overrideText?: string) => {
     e?.preventDefault();
-    const draft = (overrideText ?? input).trim();
+    const draft = (overrideText ?? draftText()).trim();
     if ((!draft && pending.length === 0) || isTyping) return;
 
     haptic('impact');
@@ -1505,7 +1541,7 @@ export default function Inner() {
 
     const newMessages = [...currentMessages, { id: userMsgId, text: userMessage, isAi: false, attachments: attachmentNames.length ? attachmentNames : undefined, attachmentKeys: attachmentKeys.length ? attachmentKeys : undefined }];
     setMessages(newMessages);
-    setInput('');
+    setDraft('');
     setIsTyping(true);
 
     let sessionId = currentSessionId;
@@ -1583,7 +1619,7 @@ export default function Inner() {
       setMessages(prev => prev.slice(0, -1));
     }
     
-    setInput(lastUserMsg.text);
+    setDraft(lastUserMsg.text);
     // We can't easily call handleSubmit directly because of the event, 
     // but we can trigger the logic.
     // Actually, let's just re-run the logic but skip adding the user message again.
@@ -1640,7 +1676,7 @@ export default function Inner() {
       setMessages([...currentMessages, { id: errorMsgId, text: `[System Error] ${errorMessage}`, isAi: true }]);
     } finally {
       setIsTyping(false);
-      setInput('');
+      setDraft('');
     }
   };
 
@@ -1865,7 +1901,7 @@ export default function Inner() {
             onLogged={(e) => {
               // Hand the mood to the conversation so the reply can start from it.
               const mood = ['', 'rough', 'low', 'flat', 'okay', 'good'][e.level];
-              setInput(lang === 'en'
+              setDraft(lang === 'en'
                 ? `Checking in — I am feeling ${mood} today.${e.note ? ` ${e.note}` : ''}`
                 : `आज मन ${['', 'बहुत भारी', 'उदास', 'ठीक-ठाक', 'अच्छा', 'बहुत अच्छा'][e.level]} है।${e.note ? ` ${e.note}` : ''}`);
             }}
@@ -2078,7 +2114,7 @@ export default function Inner() {
                         type="button"
                         onClick={() => {
                           haptic('select');
-                          setInput(lang === 'en' ? en : hi);
+                          setDraft(lang === 'en' ? en : hi);
                           document.getElementById('chat-input')?.focus();
                         }}
                         className="text-[12.5px] font-medium bg-surface hover:bg-surface-2 hover:border-mode-tint/50 text-text-body px-3.5 py-2 rounded-full border border-border shadow-soft transition-colors"
@@ -2426,7 +2462,7 @@ export default function Inner() {
                 <button
                   onClick={() => {
                     haptic('select');
-                    setInput(lang === 'en'
+                    setDraft(lang === 'en'
                       ? 'Quiz me on what we just covered. Ask 5 multiple-choice questions, one at a time, and wait for my answer before revealing whether I was right.'
                       : 'अभी जो पढ़ा उस पर मुझसे सवाल पूछिए। 5 बहुविकल्पीय सवाल, एक-एक करके — मेरा जवाब आने के बाद ही बताइए सही है या गलत।');
                     inputRef.current?.focus();
@@ -2436,31 +2472,31 @@ export default function Inner() {
                   <GraduationCap size={13} /> {lang === 'en' ? 'Quiz me' : 'सवाल पूछिए'}
                 </button>
                 <button 
-                  onClick={() => { setInput(lang === 'en' ? 'Make detailed notes on this topic' : 'इस विषय पर विस्तृत नोट्स बनाएं'); document.getElementById('chat-input')?.focus(); }}
+                  onClick={() => { setDraft(lang === 'en' ? 'Make detailed notes on this topic' : 'इस विषय पर विस्तृत नोट्स बनाएं'); document.getElementById('chat-input')?.focus(); }}
                   className="text-[12px] font-medium bg-surface hover:bg-surface-2 text-text-body px-3 py-1.5 rounded-full border border-border shrink-0 transition-colors"
                 >
                   📝 {lang === 'en' ? 'Make Notes' : 'नोट्स बनाएं'}
                 </button>
                 <button 
-                  onClick={() => { setInput(lang === 'en' ? 'Analyze this step-by-step' : 'इसको स्टेप-बाय-स्टेप समझाइए'); document.getElementById('chat-input')?.focus(); }}
+                  onClick={() => { setDraft(lang === 'en' ? 'Analyze this step-by-step' : 'इसको स्टेप-बाय-स्टेप समझाइए'); document.getElementById('chat-input')?.focus(); }}
                   className="text-[12px] font-medium bg-surface hover:bg-surface-2 text-text-body px-3 py-1.5 rounded-full border border-border shrink-0 transition-colors"
                 >
                   🔍 {lang === 'en' ? 'Analyze' : 'विश्लेषण करें'}
                 </button>
                   <button 
-                    onClick={() => { setInput(lang === 'en' ? "Explain this in simple language" : "इसे आसान भाषा में समझाइए"); document.getElementById('chat-input')?.focus(); }}
+                    onClick={() => { setDraft(lang === 'en' ? "Explain this in simple language" : "इसे आसान भाषा में समझाइए"); document.getElementById('chat-input')?.focus(); }}
                     className="text-[12px] font-medium bg-surface hover:bg-surface-2 text-text-body px-3 py-1.5 rounded-full border border-border shrink-0 transition-colors"
                   >
                     {lang === 'en' ? 'Simple' : 'आसान भाषा'}
                   </button>
                   <button 
-                    onClick={() => { setInput(lang === 'en' ? "Take me through this step by step" : "इसे स्टेप बाय स्टेप कराइए"); document.getElementById('chat-input')?.focus(); }}
+                    onClick={() => { setDraft(lang === 'en' ? "Take me through this step by step" : "इसे स्टेप बाय स्टेप कराइए"); document.getElementById('chat-input')?.focus(); }}
                     className="text-[12px] font-medium bg-surface hover:bg-surface-2 text-text-body px-3 py-1.5 rounded-full border border-border shrink-0 transition-colors"
                   >
                     {lang === 'en' ? 'Step by step' : 'स्टेप बाय स्टेप'}
                   </button>
                   <button 
-                    onClick={() => { setInput(lang === 'en' ? "I am still not getting it — where does this usually confuse people?" : "अभी भी समझ नहीं आया — लोग यहाँ कहाँ अटकते हैं?"); document.getElementById('chat-input')?.focus(); }}
+                    onClick={() => { setDraft(lang === 'en' ? "I am still not getting it — where does this usually confuse people?" : "अभी भी समझ नहीं आया — लोग यहाँ कहाँ अटकते हैं?"); document.getElementById('chat-input')?.focus(); }}
                     className="text-[12px] font-medium bg-surface hover:bg-surface-2 text-text-body px-3 py-1.5 rounded-full border border-border shrink-0 transition-colors"
                   >
                     {lang === 'en' ? 'Still stuck' : 'अभी भी अटका हूँ'}
@@ -2587,12 +2623,17 @@ export default function Inner() {
           <textarea
             id="chat-input"
             ref={inputRef}
-            value={input}
             onChange={(e) => {
+              const text = e.target.value;
               // A light tick per keystroke, throttled — an unthrottled
               // vibrate() on every key reads as one continuous rattle.
-              if (e.target.value.length > input.length) haptic('tap', 90);
-              setInput(e.target.value);
+              if (text.length > lastLenRef.current) haptic('tap', 90);
+              lastLenRef.current = text.length;
+              autosize();
+              // The only state change typing can cause, and it happens twice
+              // in a message rather than once a character.
+              const now = Boolean(text.trim());
+              setHasText(prev => (prev === now ? prev : now));
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -2626,7 +2667,7 @@ export default function Inner() {
           </button>
           <button
             type="submit"
-            disabled={(!input.trim() && pending.length === 0) || isTyping}
+            disabled={(!hasText && pending.length === 0) || isTyping}
             title={lang === 'en' ? 'Send' : 'भेजें'}
             className="w-10 h-10 mb-0 flex items-center justify-center rounded-xl text-on-accent bg-mode-tint disabled:opacity-100 disabled:bg-surface-2 disabled:text-text-faint transition-all hover:brightness-110 active:scale-95 flex-shrink-0"
           >
@@ -2637,13 +2678,13 @@ export default function Inner() {
       </div>
       </>
       ) : view === 'focus' ? (
-        <Focus />
+        <Suspense fallback={null}><Focus /></Suspense>
       ) : (
-        <Simulator />
+        <Suspense fallback={null}><Simulator /></Suspense>
       )}
 
       {/* Settings Modal */}
-      {isSettingsOpen && <Settings onClose={closeModals} />}
+      {isSettingsOpen && <Suspense fallback={null}><Settings onClose={closeModals} /></Suspense>}
     </div>
   );
 }
